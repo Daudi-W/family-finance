@@ -149,6 +149,8 @@ tr:hover td{background:var(--bg)}
 </head>
 <body>
 
+<div id="appContent" style="display:none">
+
 <div class="hdr">
   <h1>🏠 家庭財務儀表板</h1>
   <div class="hdr-actions">
@@ -290,6 +292,8 @@ tr:hover td{background:var(--bg)}
 
 </div><!-- /wrap -->
 
+</div><!-- /appContent -->
+
 <!-- Edit Modal -->
 <div class="mo" id="editMo">
   <div class="mo-box">
@@ -384,12 +388,10 @@ let trendView = 'cumul'; // 'cumul' | 'asset'
 
 // ─── BOOT ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  renderAssets();
-  renderInvGrid();
-  updateNW();
-
-  // GAS 未設定 → 純本機模式（向下相容）
+  // 內容預設隱藏，通過驗證後才顯示
+  // GAS 未設定 → 純本機模式（向下相容，直接顯示）
   if (!GAS_URL || GAS_URL === 'YOUR_GAS_URL_HERE') {
+    showApp();
     loadFromLocalStorage();
     return;
   }
@@ -399,6 +401,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await loadFromGAS(token);
 });
+
+function showApp() {
+  document.getElementById('appContent').style.display = 'block';
+  renderAssets();
+  renderInvGrid();
+  updateNW();
+}
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 function fmt(n){ return Math.abs(n).toLocaleString('zh-TW',{maximumFractionDigits:0}) }
@@ -1001,7 +1010,7 @@ function applyGASData(data) {
   if (data.accts)    { accts = JSON.parse(data.accts); localStorage.setItem('fa_accts', data.accts); }
   if (data.updatedAt){ updatedAt = data.updatedAt;     localStorage.setItem('fa_updatedAt', data.updatedAt); }
   if (data.snapDate) { localStorage.setItem('fa_snapDate', data.snapDate); }
-  renderAssets(); renderInvGrid(); updateNW();
+  showApp();
   if (allTx.length > 0) {
     autoDate();
     onLoaded();
@@ -1015,6 +1024,7 @@ function loadFromLocalStorage() {
   const savedTf = localStorage.getItem('fa_allTf');
   if (savedTx) { allTx = JSON.parse(savedTx); autoDate(); }
   if (savedTf) { allTf = JSON.parse(savedTf); }
+  showApp();
   if (allTx.length > 0) {
     onLoaded();
     document.getElementById('loadedInfo').textContent =
@@ -1111,7 +1121,7 @@ function hideSyncBanner() {
 }
 </script>
 <!-- Login Overlay -->
-<div id="loginOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);
+<div id="loginOverlay" style="display:none;position:fixed;inset:0;background:#f0f4f8;
      z-index:8000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:20px;padding:36px 32px;width:320px;
               box-shadow:0 12px 40px rgba(0,0,0,.25);text-align:center">
