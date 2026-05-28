@@ -125,6 +125,11 @@ tr:hover td{background:var(--bg)}
 .mo-sec-label{font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px}
 .mo-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
 .mo-row:last-child{border-bottom:none}
+.new-acct-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.new-acct-row:last-child{border-bottom:none}
+.new-acct-name{font-size:.88rem;font-weight:500;flex:1}
+.new-acct-count{font-size:.78rem;color:var(--muted);white-space:nowrap}
+.new-acct-cat{padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:.82rem;background:var(--bg);cursor:pointer}
 .mo-name{font-size:.86rem;font-weight:500}
 .mo-input{padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-size:.86rem;width:130px;text-align:right}
 .mo-footer{margin-top:16px;display:flex;justify-content:flex-end;gap:8px}
@@ -293,6 +298,19 @@ tr:hover td{background:var(--bg)}
 </div><!-- /wrap -->
 
 </div><!-- /appContent -->
+
+<!-- New Accounts Modal -->
+<div class="mo" id="newAcctsMo">
+  <div class="mo-box">
+    <div class="mo-title">🆕 發現新帳戶</div>
+    <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px">CSV 中有以下帳戶尚未在儀表板中，請設定類別（初始餘額由 CSV 自動計算）：</p>
+    <div id="newAcctsContent"></div>
+    <div class="mo-footer">
+      <button class="btn-cancel" onclick="skipNewAccounts()">全部略過</button>
+      <button class="btn-save" onclick="confirmNewAccounts()">確認加入</button>
+    </div>
+  </div>
+</div>
 
 <!-- Edit Modal -->
 <div class="mo" id="editMo">
@@ -500,8 +518,13 @@ function loadFiles(files){
         }
         if(--pending===0){
           document.getElementById('loadedInfo').innerHTML = msgs.join('<br>');
-          onLoaded();
-          syncToGAS();
+          const newAccts = detectNewAccounts();
+          if(newAccts.size > 0){
+            showNewAccountsMo(newAccts, ()=>{ onLoaded(); syncToGAS(); });
+          } else {
+            onLoaded();
+            syncToGAS();
+          }
         }
       }
     });
@@ -970,6 +993,63 @@ function saveBal(){
   closeMo('editMo');
   renderAssets(); renderInvGrid(); updateNW();
   syncToGAS();
+}
+
+// ─── NEW ACCOUNTS ─────────────────────────────────────────────────────────────
+function detectNewAccounts(){
+  const lookup = {};
+  for(const data of Object.values(accts)) data.items.forEach(a=>{ lookup[a.n]=true; });
+  const unknown = new Map();
+  allTx.forEach(t=>{
+    if(t.acct && !lookup[t.acct]){
+      unknown.set(t.acct, (unknown.get(t.acct)||0) + 1);
+    }
+  });
+  allTf.forEach(t=>{
+    [t.from, t.to].forEach(n=>{
+      if(n && !lookup[n]) unknown.set(n, (unknown.get(n)||0) + 1);
+    });
+  });
+  return unknown;
+}
+
+function showNewAccountsMo(unknownMap, callback){
+  const catOpts = Object.entries(accts)
+    .map(([k,d])=>`<option value="${k}">${d.label}</option>`).join('');
+  let html = '';
+  unknownMap.forEach((count, name)=>{
+    html += `<div class="new-acct-row" data-name="${name}">
+      <span class="new-acct-name">${name}</span>
+      <span class="new-acct-count">${count} 筆</span>
+      <select class="new-acct-cat">${catOpts}<option value="__skip__">略過</option></select>
+    </div>`;
+  });
+  document.getElementById('newAcctsContent').innerHTML = html;
+  document.getElementById('newAcctsMo').classList.add('show');
+  window._newAcctsCallback = callback;
+}
+
+function confirmNewAccounts(){
+  document.querySelectorAll('#newAcctsContent .new-acct-row').forEach(row=>{
+    const name = row.dataset.name;
+    const cat  = row.querySelector('select').value;
+    if(cat === '__skip__') return;
+    // 加入帳戶，從全部 CSV 計算初始餘額
+    let b = 0;
+    allTx.forEach(t=>{ if(t.acct===name) b += (t.type==='收'?t.amt:-t.amt); });
+    allTf.forEach(t=>{
+      if(t.from===name) b -= t.fromAmt;
+      if(t.to===name)   b += t.toAmt;
+    });
+    accts[cat].items.push({ n:name, b });
+  });
+  closeMo('newAcctsMo');
+  if(window._newAcctsCallback) window._newAcctsCallback();
+}
+
+function skipNewAccounts(){
+  closeMo('newAcctsMo');
+  if(window._newAcctsCallback) window._newAcctsCallback();
 }
 
 function showUploadModal(){ document.getElementById('uploadMo').classList.add('show') }
