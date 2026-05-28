@@ -498,23 +498,29 @@ function loadFiles(files){
       complete(res){
         const fields = res.meta.fields||[];
         if(fields.includes('收支區分')){
-          allTx = res.data.map(r=>({
+          const newTxRows = res.data.map(r=>({
             date:r['日期'], cat:r['類別'],
             amt:parseFloat(r['金額'])||0,
             type:r['收支區分'], note:r['備註']||'', acct:r['帳戶']||''
           }));
+          const newMonthsTx = new Set(newTxRows.map(r=>r.date?.slice(0,6)).filter(Boolean));
+          allTx = [...allTx.filter(t=>!newMonthsTx.has(t.date?.slice(0,6))), ...newTxRows]
+            .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
           localStorage.setItem('fa_allTx', JSON.stringify(allTx));
-          msgs.push(`✅ 收支：${allTx.length} 筆`);
+          msgs.push(`✅ 收支：共 ${allTx.length} 筆（新增/更新 ${newMonthsTx.size} 個月）`);
           autoDate();
         } else if(fields.includes('從帳戶')){
-          allTf = res.data.map(r=>({
+          const newTfRows = res.data.map(r=>({
             date:r['日期'], from:r['從帳戶'],
             fromAmt:parseFloat(r['轉出金額'])||0,
             to:r['到帳戶'], toAmt:parseFloat(r['轉入金額'])||0,
             note:r['備註']||''
           }));
+          const newMonthsTf = new Set(newTfRows.map(r=>r.date?.slice(0,6)).filter(Boolean));
+          allTf = [...allTf.filter(t=>!newMonthsTf.has(t.date?.slice(0,6))), ...newTfRows]
+            .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
           localStorage.setItem('fa_allTf', JSON.stringify(allTf));
-          msgs.push(`✅ 轉帳：${allTf.length} 筆`);
+          msgs.push(`✅ 轉帳：共 ${allTf.length} 筆（新增/更新 ${newMonthsTf.size} 個月）`);
         }
         if(--pending===0){
           document.getElementById('loadedInfo').innerHTML = msgs.join('<br>');
