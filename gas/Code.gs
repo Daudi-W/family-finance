@@ -2,10 +2,13 @@
 // 家庭財務儀表板 — GAS 後端
 // 架構：密碼 hash 存 Script Properties；Session token 存 sessions sheet；
 //        資料（allTx / allTf / accts / snapDate）存 store sheet（key-value JSON）
+//        超過 CELL_LIMIT 字元的值自動分塊儲存，讀取時透明還原
+//        分塊格式：key__n = 塊數, key__c0, key__c1, ... = 各塊內容
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PROPS = PropertiesService.getScriptProperties();
 const TOKEN_EXPIRY_DAYS = 30;
+const CELL_LIMIT = 45000;  // Sheets 單格上限 50000，保留 5000 緩衝
 
 // ─── ENTRY POINT ──────────────────────────────────────────────────────────────
 function doPost(e) {
@@ -106,26 +109,60 @@ function handleGet() {
   }
 
   const rows = sheet.getDataRange().getValues();
-  const result = {};
+  const raw = {};
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0]) result[rows[i][0]] = rows[i][1];
+    if (rows[i][0]) raw[String(rows[i][0])] = String(rows[i][1]);
   }
+
+  // 找出所有分塊 key（有 __n 結尾的就是塊數記錄）
+  const chunkBases = new Set(
+    Object.keys(raw)
+      .filter(k => k.endsWith('__n'))
+      .map(k => k.slice(0, -3))
+  );
+
+  // 把非塊的 key 直接放入 result
+  const result = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const isChunkMeta  = k.endsWith('__n') && chunkBases.has(k.slice(0, -3));
+    const isChunkPiece = /^(.+)__c\d+$/.test(k) && chunkBases.has(k.replace(/__c\d+$/, ''));
+    if (!isChunkMeta && !isChunkPiece) result[k] = v;
+  }
+
+  // 還原分塊 key
+  for (const base of chunkBases) {
+    const n = parseInt(raw[base + '__n']) || 0;
+    let assembled = '';
+    for (let i = 0; i < n; i++) assembled += (raw[base + '__c' + i] || '');
+    result[base] = assembled;
+  }
+
   return respond({ ok: true, data: result });
 }
 
 function handleSet(key, value) {
   if (!key) return respond({ ok: false, error: 'no key' });
-  const sheet = getOrCreateSheet('store', ['key', 'value', 'updated_at']);
 
-  const data = sheet.getDataRange().getValues();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i + 1, 2).setValue(value);
-      sheet.getRange(i + 1, 3).setValue(new Date().toISOString());
-      return respond({ ok: true });
+  const strVal = String(value == null ? '' : value);
+
+  // 先清掉此 key 舊的分塊（若有）
+  cleanupChunks(key);
+
+  if (strVal.length > CELL_LIMIT) {
+    // 切塊儲存
+    const chunks = [];
+    for (let i = 0; i < strVal.length; i += CELL_LIMIT) {
+      chunks.push(strVal.slice(i, i + CELL_LIMIT));
     }
+    deleteRawKey(key);  // 若之前是直接存的，刪掉主 key
+    setRaw(key + '__n', String(chunks.length));
+    for (let i = 0; i < chunks.length; i++) {
+      setRaw(key + '__c' + i, chunks[i]);
+    }
+  } else {
+    setRaw(key, strVal);
   }
-  sheet.appendRow([key, value, new Date().toISOString()]);
+
   return respond({ ok: true });
 }
 
@@ -137,6 +174,44 @@ function handleSetAll(data) {
     handleSet(key, value);
   }
   return respond({ ok: true });
+}
+
+// ─── STORE HELPERS ────────────────────────────────────────────────────────────
+function setRaw(key, value) {
+  const sheet = getOrCreateSheet('store', ['key', 'value', 'updated_at']);
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === key) {
+      sheet.getRange(i + 1, 2).setValue(value);
+      sheet.getRange(i + 1, 3).setValue(new Date().toISOString());
+      return;
+    }
+  }
+  sheet.appendRow([key, value, new Date().toISOString()]);
+}
+
+function deleteRawKey(key) {
+  const sheet = getSheet('store');
+  if (!sheet || sheet.getLastRow() <= 1) return;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === key) { sheet.deleteRow(i + 1); return; }
+  }
+}
+
+function cleanupChunks(key) {
+  const sheet = getSheet('store');
+  if (!sheet || sheet.getLastRow() <= 1) return;
+  const prefix = key + '__';
+  const data = sheet.getDataRange().getValues();
+  const rowsToDelete = [];
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).startsWith(prefix)) rowsToDelete.push(i + 1);
+  }
+  // 由下往上刪，避免 row index 偏移
+  for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+    sheet.deleteRow(rowsToDelete[i]);
+  }
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
