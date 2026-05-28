@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>家庭財務儀表板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --income:#00b894;--expense:#e17055;--invest:#6c5ce7;
+  --bg:#f0f4f8;--card:#fff;--text:#2d3436;--muted:#636e72;
+  --border:#e2e8f0;--shadow:0 2px 12px rgba(0,0,0,.08);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* HEADER */
+.hdr{background:linear-gradient(135deg,#2d3436,#4a5568);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.hdr h1{font-size:1.25rem;font-weight:700;letter-spacing:-.3px}
+.hdr-actions{display:flex;gap:8px}
+.btn{padding:7px 14px;border-radius:8px;border:none;cursor:pointer;font-size:.82rem;font-weight:500;transition:opacity .2s,transform .2s}
+.btn:hover{opacity:.85;transform:translateY(-1px)}
+.btn-outline{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25)}
+.btn-green{background:var(--income);color:#fff}
+
+/* LAYOUT */
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px}
+
+/* NET WORTH */
+.nw-banner{background:linear-gradient(135deg,#00b894,#00cec9);border-radius:16px;padding:26px;color:#fff;text-align:center;margin-bottom:22px;box-shadow:var(--shadow)}
+.nw-label{font-size:.85rem;opacity:.85;margin-bottom:4px}
+.nw-val{font-size:2.4rem;font-weight:700;letter-spacing:-1px}
+.nw-sub{font-size:.75rem;opacity:.65;margin-top:6px}
+
+/* SECTION */
+.sec{margin-bottom:26px}
+.sec-title{font-size:.95rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+/* ASSET CARDS GRID */
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.ac{background:var(--card);border-radius:14px;padding:16px;box-shadow:var(--shadow);border-left:4px solid #b2bec3}
+.ac.cash{border-color:#fdcb6e}.ac.bank{border-color:#74b9ff}
+.ac.invest{border-color:#a29bfe}.ac.credit{border-color:#ff7675}.ac.lend{border-color:#55efc4}
+.ac-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.ac-cat{font-size:.75rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.ac-total{font-size:1.2rem;font-weight:700}
+.ac-total.neg{color:var(--expense)}
+.ac-list{border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:5px}
+.ai{display:flex;justify-content:space-between;align-items:center}
+.ai-name{font-size:.8rem;color:var(--muted)}
+.ai-sub{font-size:.7rem;color:#b2bec3;margin-left:3px}
+.ai-bal{font-size:.82rem;font-weight:600}
+.ai-bal.neg{color:var(--expense)}
+
+/* UPLOAD ZONE */
+.upload-zone{border:2px dashed var(--border);border-radius:14px;padding:36px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:22px;background:var(--card)}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--income);background:rgba(0,184,148,.03)}
+.upload-icon{font-size:2.2rem;margin-bottom:10px}
+.upload-zone p{color:var(--muted);font-size:.88rem}
+.upload-zone strong{color:var(--text)}
+
+/* MONTH SWITCHER */
+.msw{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:12px;padding:12px 18px;margin-bottom:18px;box-shadow:var(--shadow);flex-wrap:wrap}
+.mnav{width:34px;height:34px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.mnav:hover{border-color:var(--income)}
+.mdisp{font-size:1.05rem;font-weight:700;min-width:110px;text-align:center}
+.vtoggle{display:flex;gap:4px;margin-left:auto}
+.vtbtn{padding:5px 12px;border-radius:7px;border:1px solid var(--border);background:none;cursor:pointer;font-size:.8rem;transition:all .2s}
+.vtbtn.on{background:#2d3436;color:#fff;border-color:#2d3436}
+
+/* METRICS ROW */
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.mc{background:var(--card);border-radius:12px;padding:16px;text-align:center;box-shadow:var(--shadow)}
+.mc-label{font-size:.78rem;color:var(--muted);margin-bottom:4px}
+.mc-val{font-size:1.35rem;font-weight:700}
+.mc-val.income{color:var(--income)}.mc-val.expense{color:var(--expense)}
+.mc-val.pos{color:var(--income)}.mc-val.neg{color:var(--expense)}
+
+/* CHARTS */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.cc{background:var(--card);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+.cc-title{font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:12px}
+.ch-wrap{position:relative}
+
+/* TRANSACTION TABLE */
+.tx-card{background:var(--card);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+.tx-sec-hdr{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;cursor:pointer;user-select:none;transition:background .15s}
+.tx-sec-hdr:hover{background:var(--bg)}
+.tx-sec-hdr.income-hdr{border-left:3px solid var(--income)}
+.tx-sec-hdr.expense-hdr{border-left:3px solid var(--expense)}
+.tx-sec-label{font-weight:700;font-size:.9rem;flex:1}
+.tx-sec-total{font-weight:700;font-size:.92rem}
+.tx-sec-count{font-size:.78rem;color:var(--muted)}
+.tx-sec-arrow{font-size:.75rem;color:var(--muted);transition:transform .2s;margin-left:4px}
+.tx-sec-arrow.closed{transform:rotate(-90deg)}
+.tx-sec-body{overflow:hidden;transition:max-height .3s ease;max-height:4000px}
+.tx-sec-body.collapsed{max-height:0!important}
+.tx-sec-filter{display:flex;gap:8px;padding:8px 14px 2px;flex-wrap:wrap}
+.fsel{padding:5px 10px;border:1px solid var(--border);border-radius:7px;font-size:.8rem;background:var(--bg);cursor:pointer}
+.tx-scroll{overflow-x:auto}
+.tx-divider{border:none;border-top:1px solid var(--border);margin:4px 0}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);color:var(--muted);font-weight:600;white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg)}
+.tag{background:var(--bg);border-radius:4px;padding:1px 7px;font-size:.77rem;color:var(--muted)}
+.td-inc{color:var(--income);font-weight:700}.td-exp{color:var(--expense);font-weight:700}
+.no-data{text-align:center;padding:24px;color:var(--muted);font-size:.85rem}
+
+/* INVEST GRID */
+.inv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:10px;margin-bottom:16px}
+.inv-item{background:var(--card);border-radius:10px;padding:14px;box-shadow:var(--shadow);border-left:3px solid #a29bfe}
+.inv-name{font-size:.78rem;color:var(--muted);margin-bottom:3px}
+.inv-val{font-size:1.05rem;font-weight:700;color:#6c5ce7}
+.inv-note{font-size:.72rem;color:#b2bec3;margin-top:2px}
+.inv-total-row{grid-column:1/-1;text-align:right;font-size:.82rem;color:var(--muted);padding-top:2px}
+
+/* MODAL */
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+.mo.show{display:flex}
+.mo-box{background:#fff;border-radius:16px;padding:24px;max-width:520px;width:92%;max-height:82vh;overflow-y:auto}
+.mo-title{font-size:1.05rem;font-weight:700;margin-bottom:14px}
+.mo-sec-label{font-size:.78rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px}
+.mo-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.mo-row:last-child{border-bottom:none}
+.mo-name{font-size:.86rem;font-weight:500}
+.mo-input{padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-size:.86rem;width:130px;text-align:right}
+.mo-footer{margin-top:16px;display:flex;justify-content:flex-end;gap:8px}
+.btn-save{background:var(--income);color:#fff;padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
+.btn-cancel{background:var(--bg);color:var(--text);padding:9px 18px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
+
+/* LOADED FILES */
+.loaded-info{margin-top:10px;font-size:.8rem;color:var(--muted)}
+
+/* RESPONSIVE */
+@media(max-width:700px){
+  .charts-row{grid-template-columns:1fr}
+  .metrics{grid-template-columns:1fr 1fr 1fr}
+  .nw-val{font-size:1.8rem}
+  .asset-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:480px){
+  .asset-grid{grid-template-columns:1fr}
+  .metrics{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>🏠 家庭財務儀表板</h1>
+  <div class="hdr-actions">
+    <button class="btn btn-outline" onclick="showUploadModal()">📂 載入 CSV</button>
+    <button class="btn btn-outline" onclick="showEditModal()">✏️ 更新餘額</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- Net Worth -->
+  <div class="nw-banner">
+    <div class="nw-label">家庭淨資產</div>
+    <div class="nw-val" id="nwVal">NT$ --</div>
+    <div class="nw-sub" id="nwSub">餘額更新時間：--</div>
+  </div>
+
+  <!-- Asset Snapshot -->
+  <div class="sec">
+    <div class="sec-title">💳 資產快照</div>
+    <div class="asset-grid" id="assetGrid"></div>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="upload-zone" id="uploadZone"
+       onclick="document.getElementById('csvIn').click()"
+       ondragover="event.preventDefault();this.classList.add('dragover')"
+       ondrop="dropFiles(event)">
+    <div class="upload-icon">📊</div>
+    <p><strong>拖入 CSV 或點擊選取</strong></p>
+    <p style="margin-top:6px;font-size:.8rem">支援「收支」與「轉帳」兩個 CSV，可同時選取</p>
+    <input type="file" id="csvIn" accept=".csv" multiple style="display:none" onchange="loadFiles(this.files)">
+  </div>
+
+  <!-- Month Switcher (hidden until data loaded) -->
+  <div class="msw" id="msw" style="display:none">
+    <button class="mnav" onclick="step(-1)">‹</button>
+    <div class="mdisp" id="mdisp">--</div>
+    <button class="mnav" onclick="step(1)">›</button>
+    <div class="vtoggle">
+      <button class="vtbtn on" id="vMonth" onclick="setView('month')">月</button>
+      <button class="vtbtn" id="vYear" onclick="setView('year')">年</button>
+    </div>
+  </div>
+
+  <!-- Income/Expense Analysis (hidden until data loaded) -->
+  <div class="sec" id="txSec" style="display:none">
+    <div class="sec-title" id="txSecTitle">📅 月收支</div>
+
+    <div class="metrics">
+      <div class="mc"><div class="mc-label">收入</div><div class="mc-val income" id="mInc">--</div></div>
+      <div class="mc"><div class="mc-label">支出</div><div class="mc-val expense" id="mExp">--</div></div>
+      <div class="mc"><div class="mc-label">結餘</div><div class="mc-val" id="mSurp">--</div></div>
+    </div>
+
+    <div class="charts-row">
+      <div class="cc">
+        <div class="cc-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>支出類別排行</span>
+          <button id="catToggleBtn" onclick="toggleCatExpand()" style="font-size:.75rem;padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);cursor:pointer;color:var(--muted)">展開全部 ▼</button>
+        </div>
+        <div class="ch-wrap" style="height:260px"><canvas id="pieC"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-title" id="barTitle">每日收支</div>
+        <div class="ch-wrap" style="height:260px"><canvas id="barC"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tx-card">
+      <!-- 收入 section -->
+      <div class="tx-sec-hdr income-hdr" onclick="toggleTxSec('inc')">
+        <span class="tx-sec-label">💚 收入</span>
+        <span class="tx-sec-count" id="incCount"></span>
+        <span class="tx-sec-total" style="color:var(--income)" id="incTotal">--</span>
+        <span class="tx-sec-arrow" id="incArrow">▾</span>
+      </div>
+      <div class="tx-sec-body" id="incBody">
+        <div class="tx-scroll" style="padding:0 4px 8px">
+          <table>
+            <thead><tr><th>日期</th><th>類別</th><th>金額</th><th>備註</th></tr></thead>
+            <tbody id="incTbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <hr class="tx-divider">
+
+      <!-- 支出 section -->
+      <div class="tx-sec-hdr expense-hdr" onclick="toggleTxSec('exp')">
+        <span class="tx-sec-label">🔴 支出</span>
+        <span class="tx-sec-count" id="expCount"></span>
+        <span class="tx-sec-total" style="color:var(--expense)" id="expTotal">--</span>
+        <span class="tx-sec-arrow" id="expArrow">▾</span>
+      </div>
+      <div class="tx-sec-body" id="expBody">
+        <div class="tx-sec-filter">
+          <select class="fsel" id="fCat" onchange="renderTx()">
+            <option value="all">所有類別</option>
+          </select>
+        </div>
+        <div class="tx-scroll" style="padding:0 4px 8px">
+          <table>
+            <thead><tr><th>日期</th><th>類別</th><th>金額</th><th>備註</th></tr></thead>
+            <tbody id="expTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Trend Section (hidden until multi-month data loaded) -->
+  <div class="sec" id="trendSec" style="display:none">
+    <div class="sec-title">📊 資產變化趨勢</div>
+    <div class="cc">
+      <div class="cc-title" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <span id="trendLabel">每月結餘累積</span>
+        <div style="display:flex;gap:4px">
+          <button class="vtbtn on" id="tvCumul" onclick="setTrendView('cumul')">結餘累積</button>
+          <button class="vtbtn" id="tvAsset" onclick="setTrendView('asset')">總資產估算</button>
+        </div>
+      </div>
+      <div class="ch-wrap" style="height:220px"><canvas id="trendC"></canvas></div>
+      <p id="trendNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;display:none">
+        ＊總資產以目前帳戶餘額為基準，往前推算各月估計值。投資市值波動不計入。
+      </p>
+    </div>
+  </div>
+
+  <!-- Investment Section -->
+  <div class="sec">
+    <div class="sec-title">📈 投資理財</div>
+    <div class="inv-grid" id="invGrid"></div>
+    <div class="cc" id="invBarCard" style="display:none">
+      <div class="cc-title">每月定投金額（來自轉帳記錄）</div>
+      <div class="ch-wrap" style="height:200px"><canvas id="invBarC"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- Edit Modal -->
+<div class="mo" id="editMo">
+  <div class="mo-box">
+    <div class="mo-title">✏️ 更新帳戶餘額</div>
+    <div id="editContent"></div>
+    <div class="mo-footer">
+      <button class="btn-cancel" onclick="closeMo('editMo')">取消</button>
+      <button class="btn-save" onclick="saveBal()">儲存更新</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="mo" id="uploadMo">
+  <div class="mo-box">
+    <div class="mo-title">📂 載入記帳 CSV</div>
+    <p style="font-size:.86rem;color:var(--muted);margin-bottom:14px">從「天天記帳」App 匯出後，選取「收支」與「轉帳」兩個 CSV 檔案。</p>
+    <div class="upload-zone" style="margin-bottom:0"
+         onclick="document.getElementById('csvIn2').click()">
+      <div class="upload-icon">📂</div>
+      <p>點擊選取 CSV 檔案</p>
+      <input type="file" id="csvIn2" accept=".csv" multiple style="display:none" onchange="loadFiles(this.files)">
+    </div>
+    <div class="loaded-info" id="loadedInfo"></div>
+    <div class="mo-footer">
+      <button class="btn-cancel" onclick="closeMo('uploadMo')">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── GAS CONFIG ───────────────────────────────────────────────────────────────
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXCYUTvRGs7CORtXeUFSIkLEWo1zRmZeHp43PE7kPH2DTKnmValIHm_q505Xe6zfrF/exec';
+
+// ─── DEFAULT ACCOUNT DATA (from screenshots 2026-04-30) ───────────────────────
+const DEFAULT_ACCTS = {
+  現金:{ cls:'cash', label:'現金', isLiab:false, items:[
+    {n:'沛-現金', b:4166},
+    {n:'思-現金', b:1525},
+  ]},
+  銀行:{ cls:'bank', label:'銀行存款', isLiab:false, items:[
+    {n:'思-中信',     b:118448},
+    {n:'沛-永豐大戶', b:232313},
+    {n:'沛-郵局',     b:52465},
+    {n:'沛-國泰世華', b:12497},
+    {n:'沛-Richart',  b:6228},
+    {n:'沛-上海',     b:1000},
+    {n:'思-Richart',  b:3365},
+    {n:'思-大戶',     b:53486},
+    {n:'思-企銀',     b:191818},
+  ]},
+  投資理財:{ cls:'invest', label:'投資理財', isLiab:false, items:[
+    {n:'沛-永豐美股ETF', b:250969,  note:'ETF'},
+    {n:'沛-0050',        b:335686,  note:'ETF'},
+    {n:'沛-富邦儲蓄險',  b:157176,  note:'儲蓄險'},
+    {n:'沛-richart日幣', b:20155.50,note:'¥102,048'},
+    {n:'沛-永豐日幣',    b:17817.77,note:'¥90,212'},
+    {n:'思-美元',        b:21086.53,note:'US$666'},
+    {n:'思-00878',       b:37286,   note:'ETF'},
+    {n:'思-0056',        b:206894,  note:'ETF'},
+    {n:'思-006208',      b:575887,  note:'ETF'},
+  ]},
+  信用卡:{ cls:'credit', label:'信用卡（負債）', isLiab:true, items:[
+    {n:'沛-大戶卡',      b:-9524},
+    {n:'沛-國泰cube',    b:-3282},
+    {n:'思-富邦5998',    b:-4309},
+    {n:'思-中信卡962',   b:0},
+    {n:'思-黑狗卡004',   b:-1224},
+    {n:'思-大咖2905',    b:-5729},
+  ]},
+  借貸:{ cls:'lend', label:'借貸', isLiab:false, items:[
+    {n:'沛-借出',    b:1098},
+    {n:'思-借還錢',  b:-25},
+  ]},
+};
+
+// Investment account names to track in transfers
+const INV_ACCTS = ['沛-0050','沛-永豐美股ETF','思-00878','思-0056','思-006208'];
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let accts = JSON.parse(localStorage.getItem('fa_accts') || 'null') || deepCopy(DEFAULT_ACCTS);
+let updatedAt = localStorage.getItem('fa_updatedAt') || '未更新';
+
+let allTx = [];      // from 收支 CSV
+let allTf = [];      // from 轉帳 CSV
+let curY = 2026, curM = 4, view = 'month';
+
+let pieInst = null, barInst = null, invBarInst = null, trendInst = null;
+let txSecState = { inc: false, exp: false };
+let catExpanded = false;
+let trendView = 'cumul'; // 'cumul' | 'asset'
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+  renderAssets();
+  renderInvGrid();
+  updateNW();
+
+  // GAS 未設定 → 純本機模式（向下相容）
+  if (!GAS_URL || GAS_URL === 'YOUR_GAS_URL_HERE') {
+    loadFromLocalStorage();
+    return;
+  }
+
+  const token = localStorage.getItem('fa_gasToken');
+  if (!token) { showLogin(); return; }
+
+  await loadFromGAS(token);
+});
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function fmt(n){ return Math.abs(n).toLocaleString('zh-TW',{maximumFractionDigits:0}) }
+function fmtSigned(n){ return (n<0?'-':'') + fmt(n) }
+function deepCopy(o){ return JSON.parse(JSON.stringify(o)) }
+
+// ─── NET WORTH ────────────────────────────────────────────────────────────────
+function calcNW(){
+  let t=0;
+  for(const d of Object.values(accts)) d.items.forEach(a=>t+=a.b);
+  return t;
+}
+function updateNW(){
+  document.getElementById('nwVal').textContent = 'NT$ ' + fmt(calcNW());
+  document.getElementById('nwSub').textContent = '餘額更新時間：' + updatedAt;
+}
+
+// ─── ASSET SNAPSHOT ───────────────────────────────────────────────────────────
+function renderAssets(){
+  const g = document.getElementById('assetGrid');
+  g.innerHTML='';
+  for(const [key,d] of Object.entries(accts)){
+    const total = d.items.reduce((s,a)=>s+a.b,0);
+    const isNeg = total<0;
+    const rows = d.items.map(a=>`
+      <div class="ai">
+        <span class="ai-name">${a.n}${a.note?`<span class="ai-sub">(${a.note})</span>`:''}</span>
+        <span class="ai-bal${a.b<0?' neg':''}">${a.b<0?'-':''}${fmt(a.b)}</span>
+      </div>`).join('');
+    const card = document.createElement('div');
+    card.className=`ac ${d.cls}`;
+    card.innerHTML=`
+      <div class="ac-head">
+        <span class="ac-cat">${d.label}</span>
+        <span class="ac-total${isNeg?' neg':''}">${fmtSigned(total)}</span>
+      </div>
+      <div class="ac-list">${rows}</div>`;
+    g.appendChild(card);
+  }
+}
+
+// ─── INVEST GRID ──────────────────────────────────────────────────────────────
+function renderInvGrid(){
+  const d = accts['投資理財'];
+  if(!d) return;
+  const g = document.getElementById('invGrid');
+  g.innerHTML = d.items.map(a=>`
+    <div class="inv-item">
+      <div class="inv-name">${a.n}</div>
+      <div class="inv-val">NT$ ${fmt(a.b)}</div>
+      ${a.note?`<div class="inv-note">${a.note}</div>`:''}
+    </div>`).join('');
+  const total = d.items.reduce((s,a)=>s+a.b,0);
+  g.insertAdjacentHTML('beforeend',
+    `<div class="inv-total-row">投資總計：NT$ ${fmt(total)}</div>`);
+}
+
+// ─── CSV LOADING ──────────────────────────────────────────────────────────────
+function dropFiles(e){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  loadFiles(e.dataTransfer.files);
+}
+
+function loadFiles(files){
+  let pending = files.length, msgs = [];
+  for(const f of files){
+    Papa.parse(f,{
+      header:true, skipEmptyLines:true,
+      complete(res){
+        const fields = res.meta.fields||[];
+        if(fields.includes('收支區分')){
+          allTx = res.data.map(r=>({
+            date:r['日期'], cat:r['類別'],
+            amt:parseFloat(r['金額'])||0,
+            type:r['收支區分'], note:r['備註']||'', acct:r['帳戶']||''
+          }));
+          localStorage.setItem('fa_allTx', JSON.stringify(allTx));
+          msgs.push(`✅ 收支：${allTx.length} 筆`);
+          autoDate();
+        } else if(fields.includes('從帳戶')){
+          allTf = res.data.map(r=>({
+            date:r['日期'], from:r['從帳戶'],
+            fromAmt:parseFloat(r['轉出金額'])||0,
+            to:r['到帳戶'], toAmt:parseFloat(r['轉入金額'])||0,
+            note:r['備註']||''
+          }));
+          localStorage.setItem('fa_allTf', JSON.stringify(allTf));
+          msgs.push(`✅ 轉帳：${allTf.length} 筆`);
+        }
+        if(--pending===0){
+          document.getElementById('loadedInfo').innerHTML = msgs.join('<br>');
+          onLoaded();
+          syncToGAS();
+        }
+      }
+    });
+  }
+}
+
+function autoDate(){
+  if(!allTx.length) return;
+  const last = allTx.map(t=>t.date).filter(Boolean).sort().pop();
+  if(last && last.length>=6){
+    curY=parseInt(last.slice(0,4));
+    curM=parseInt(last.slice(4,6));
+  }
+}
+
+function onLoaded(){
+  computeAutoBalances();
+  document.getElementById('uploadZone').style.display='none';
+  document.getElementById('msw').style.display='flex';
+  document.getElementById('txSec').style.display='block';
+  refreshDisplay();
+  renderInvBar();
+  renderTrend();
+}
+
+// ─── AUTO BALANCE COMPUTATION ─────────────────────────────────────────────────
+function computeAutoBalances(){
+  const snapDate = localStorage.getItem('fa_snapDate') || '20260430';
+
+  // Only transactions/transfers strictly after the snapshot date
+  const newTx = allTx.filter(t => t.date > snapDate);
+  const newTf = allTf.filter(t => t.date > snapDate);
+  if(newTx.length === 0 && newTf.length === 0) return;
+
+  // Build name→item lookup (all accounts, including investment)
+  const lookup = {};
+  for(const data of Object.values(accts)){
+    data.items.forEach(a => { lookup[a.n] = a; });
+  }
+
+  // Apply income/expense transactions
+  newTx.forEach(t => {
+    if(lookup[t.acct]) lookup[t.acct].b += (t.type === '收' ? t.amt : -t.amt);
+  });
+
+  // Apply transfers
+  newTf.forEach(t => {
+    if(lookup[t.from]) lookup[t.from].b -= t.fromAmt;
+    if(lookup[t.to])   lookup[t.to].b   += t.toAmt;
+  });
+
+  // Advance snapshot date to latest transaction date in loaded data
+  const allDates = [...allTx, ...allTf].map(t => t.date).filter(Boolean).sort();
+  const latestDate = allDates[allDates.length - 1];
+  if(latestDate && latestDate > snapDate){
+    localStorage.setItem('fa_snapDate', latestDate);
+  }
+
+  // Persist updated balances
+  localStorage.setItem('fa_accts', JSON.stringify(accts));
+  renderAssets();
+  renderInvGrid();
+  updateNW();
+
+  // Show how many accounts were touched
+  const touched = new Set([
+    ...newTx.map(t => t.acct),
+    ...newTf.flatMap(t => [t.from, t.to])
+  ].filter(n => lookup[n]));
+  if(touched.size > 0){
+    showToast(`已自動更新 ${touched.size} 個帳戶餘額（截至 ${latestDate.slice(0,4)}/${latestDate.slice(4,6)}/${latestDate.slice(6,8)}）`);
+  }
+}
+
+function showToast(msg){
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2d3436;color:#fff;padding:10px 20px;border-radius:10px;font-size:.85rem;z-index:999;box-shadow:0 4px 16px rgba(0,0,0,.2)';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function step(d){
+  if(view==='month'){
+    curM+=d;
+    if(curM>12){curM=1;curY++}
+    if(curM<1){curM=12;curY--}
+  } else { curY+=d }
+  refreshDisplay();
+}
+
+function setView(v){
+  view=v;
+  document.getElementById('vMonth').classList.toggle('on',v==='month');
+  document.getElementById('vYear').classList.toggle('on',v==='year');
+  refreshDisplay();
+}
+
+function refreshDisplay(){
+  const lbl = view==='month'?`${curY}年${curM}月`:`${curY}年`;
+  document.getElementById('mdisp').textContent = lbl;
+  document.getElementById('txSecTitle').textContent = `📅 ${lbl} 收支`;
+  document.getElementById('barTitle').textContent = view==='month'?'近6個月收支比較':'各月收支比較';
+  renderAnalysis();
+}
+
+function getTx(){
+  return allTx.filter(t=>{
+    if(!t.date||t.date.length<6) return false;
+    const y=parseInt(t.date.slice(0,4)), m=parseInt(t.date.slice(4,6));
+    return view==='month'? y===curY&&m===curM : y===curY;
+  });
+}
+
+// ─── ANALYSIS ────────────────────────────────────────────────────────────────
+function renderAnalysis(){
+  const txs = getTx();
+  const inc = txs.filter(t=>t.type==='收').reduce((s,t)=>s+t.amt,0);
+  const exp = txs.filter(t=>t.type==='支').reduce((s,t)=>s+t.amt,0);
+  const surp = inc-exp;
+
+  document.getElementById('mInc').textContent = `NT$ ${fmt(inc)}`;
+  document.getElementById('mExp').textContent = `NT$ ${fmt(exp)}`;
+  const el = document.getElementById('mSurp');
+  el.textContent = `NT$ ${fmtSigned(surp)}`;
+  el.className = `mc-val ${surp>=0?'pos':'neg'}`;
+
+  renderPie(txs);
+  renderBar();
+  populateCatFilter(txs);
+  renderTx();
+}
+
+// EXPENSE CATEGORY BAR
+const CAT_COLORS=['#e17055','#fdcb6e','#6c5ce7','#00b894','#74b9ff','#fd79a8','#a29bfe','#55efc4','#fab1a0','#81ecec','#636e72'];
+function toggleCatExpand(){
+  catExpanded = !catExpanded;
+  document.getElementById('catToggleBtn').textContent = catExpanded ? '收合 ▲' : '展開全部 ▼';
+  renderPie(getTx());
+}
+
+function renderPie(txs){
+  const byCat={};
+  txs.filter(t=>t.type==='支').forEach(t=>{ byCat[t.cat]=(byCat[t.cat]||0)+t.amt });
+  const allEntries=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+
+  let entries;
+  if(!catExpanded && allEntries.length > 8){
+    const top = allEntries.slice(0,7);
+    const otherSum = allEntries.slice(7).reduce((s,e)=>s+e[1],0);
+    const otherLabels = allEntries.slice(7).map(e=>e[0]).join('、');
+    entries = [...top, [`其他（${allEntries.length-7}項）`, otherSum, otherLabels]];
+  } else {
+    entries = allEntries;
+  }
+
+  const labels=entries.map(e=>e[0]), vals=entries.map(e=>e[1]);
+  const total=vals.reduce((a,b)=>a+b,0);
+
+  // Dynamic height: 28px per category, min 180px
+  const h = Math.max(180, labels.length * 28 + 40);
+  document.getElementById('pieC').parentElement.style.height = h + 'px';
+
+  if(pieInst) pieInst.destroy();
+  pieInst = new Chart(document.getElementById('pieC').getContext('2d'),{
+    type:'bar',
+    data:{ labels, datasets:[{
+      data:vals,
+      backgroundColor:CAT_COLORS.slice(0,labels.length),
+      borderRadius:4, borderSkipped:false
+    }]},
+    options:{
+      indexAxis:'y',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:c=>{
+          const pct = total?((c.raw/total)*100).toFixed(1):0;
+          const sub = entries[c.dataIndex][2];
+          return sub
+            ? [` NT$${fmt(c.raw)}（${pct}%）`, ` 包含：${sub}`]
+            : ` NT$${fmt(c.raw)}（${pct}%）`;
+        }}}
+      },
+      scales:{
+        x:{ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}, grid:{color:'rgba(0,0,0,.05)'}},
+        y:{ticks:{font:{size:11}}}
+      }
+    }
+  });
+}
+
+// MONTHLY COMPARISON BAR
+function renderBar(){
+  if(barInst) barInst.destroy();
+  const ctx = document.getElementById('barC').getContext('2d');
+
+  let months, labels;
+
+  if(view==='month'){
+    // Show current month + 5 previous months (up to 6 months context)
+    months = [];
+    let y=curY, m=curM;
+    for(let i=0;i<6;i++){
+      months.unshift(`${y}${String(m).padStart(2,'0')}`);
+      m--; if(m<1){m=12;y--;}
+    }
+    labels = months.map(mo=>`${mo.slice(4,6)}月`);
+    // Highlight current month label
+    labels[labels.length-1] = `▶ ${labels[labels.length-1]}`;
+  } else {
+    // Year view: all 12 months
+    months = Array.from({length:12},(_,i)=>`${curY}${String(i+1).padStart(2,'0')}`);
+    labels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  }
+
+  // Always read from allTx so month view can show past months too
+  const incByM={}, expByM={};
+  allTx.forEach(t=>{
+    const mo=t.date.slice(0,6);
+    if(months.includes(mo)){
+      if(t.type==='收') incByM[mo]=(incByM[mo]||0)+t.amt;
+      else expByM[mo]=(expByM[mo]||0)+t.amt;
+    }
+  });
+
+  const incData = months.map(mo=>incByM[mo]||0);
+  const expData = months.map(mo=>expByM[mo]||0);
+  const netData = months.map(mo=>(incByM[mo]||0)-(expByM[mo]||0));
+
+  barInst = new Chart(ctx,{
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'收入', data:incData, backgroundColor:'rgba(0,184,148,.7)', borderRadius:4},
+      {label:'支出', data:expData, backgroundColor:'rgba(225,112,85,.7)', borderRadius:4},
+      {label:'結餘', data:netData,
+        backgroundColor:netData.map(v=>v>=0?'rgba(108,92,231,.55)':'rgba(253,121,168,.55)'),
+        borderRadius:4},
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:11}}}},
+      scales:{
+        x:{ticks:{font:{size:10}}},
+        y:{ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}}
+      }
+    }
+  });
+}
+
+// TX LIST
+function populateCatFilter(txs){
+  const sel=document.getElementById('fCat'), cur=sel.value;
+  const cats=[...new Set(txs.filter(t=>t.type==='支').map(t=>t.cat))].sort();
+  sel.innerHTML='<option value="all">所有類別</option>'+cats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+}
+
+function makeTxRows(txs, isInc){
+  if(!txs.length) return `<tr><td colspan="4" class="no-data">沒有記錄</td></tr>`;
+  return txs.map(t=>{
+    const dt=`${t.date.slice(4,6)}/${t.date.slice(6,8)}`;
+    return `<tr>
+      <td style="white-space:nowrap;color:var(--muted)">${dt}</td>
+      <td><span class="tag">${t.cat}</span></td>
+      <td class="${isInc?'td-inc':'td-exp'}">${isInc?'+':'-'}${fmt(t.amt)}</td>
+      <td style="color:var(--muted);font-size:.8rem">${t.note}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderTx(){
+  const txs=getTx().sort((a,b)=>b.date.localeCompare(a.date));
+  const incTxs=txs.filter(t=>t.type==='收');
+  const cf=document.getElementById('fCat').value;
+  let expTxs=txs.filter(t=>t.type==='支');
+  if(cf!=='all') expTxs=expTxs.filter(t=>t.cat===cf);
+
+  const incTotal=incTxs.reduce((s,t)=>s+t.amt,0);
+  const expTotal=expTxs.reduce((s,t)=>s+t.amt,0);
+
+  document.getElementById('incTotal').textContent=`NT$ ${fmt(incTotal)}`;
+  document.getElementById('expTotal').textContent=`NT$ ${fmt(expTotal)}`;
+  document.getElementById('incCount').textContent=`${incTxs.length} 筆`;
+  document.getElementById('expCount').textContent=`${expTxs.length} 筆`;
+  document.getElementById('incTbody').innerHTML=makeTxRows(incTxs,true);
+  document.getElementById('expTbody').innerHTML=makeTxRows(expTxs,false);
+  setSectionHeight('inc');
+  setSectionHeight('exp');
+}
+
+function toggleTxSec(sec){
+  txSecState[sec]=!txSecState[sec];
+  document.getElementById(sec+'Body').classList.toggle('collapsed',!txSecState[sec]);
+  document.getElementById(sec+'Arrow').classList.toggle('closed',!txSecState[sec]);
+}
+
+function setSectionHeight(sec){
+  // just ensure class matches state (no scrollHeight needed with CSS max-height approach)
+  document.getElementById(sec+'Body').classList.toggle('collapsed',!txSecState[sec]);
+  document.getElementById(sec+'Arrow').classList.toggle('closed',!txSecState[sec]);
+}
+
+// ─── ASSET TREND ─────────────────────────────────────────────────────────────
+function setTrendView(v){
+  trendView = v;
+  document.getElementById('tvCumul').classList.toggle('on', v==='cumul');
+  document.getElementById('tvAsset').classList.toggle('on', v==='asset');
+  document.getElementById('trendNote').style.display = v==='asset' ? 'block' : 'none';
+  document.getElementById('trendLabel').textContent = v==='cumul' ? '每月結餘累積' : '總資產估算';
+  renderTrend();
+}
+
+function renderTrend(){
+  const months=[...new Set(allTx.map(t=>t.date.slice(0,6)))].sort();
+  if(months.length<2){ document.getElementById('trendSec').style.display='none'; return; }
+  document.getElementById('trendSec').style.display='block';
+
+  const incByM={}, expByM={};
+  allTx.forEach(t=>{
+    const m=t.date.slice(0,6);
+    if(t.type==='收') incByM[m]=(incByM[m]||0)+t.amt;
+    else expByM[m]=(expByM[m]||0)+t.amt;
+  });
+  const labels=months.map(m=>`${m.slice(0,4)}/${m.slice(4,6)}`);
+
+  if(trendInst) trendInst.destroy();
+
+  if(trendView==='cumul'){
+    const netData=months.map(m=>(incByM[m]||0)-(expByM[m]||0));
+    let cum=0;
+    const cumulData=months.map(m=>{ cum+=(incByM[m]||0)-(expByM[m]||0); return cum; });
+    trendInst=new Chart(document.getElementById('trendC').getContext('2d'),{
+      data:{ labels, datasets:[
+        {type:'bar', label:'當月結餘', data:netData,
+          backgroundColor:netData.map(v=>v>=0?'rgba(0,184,148,.55)':'rgba(225,112,85,.55)'),
+          borderRadius:4, yAxisID:'y'},
+        {type:'line', label:'累積結餘', data:cumulData,
+          borderColor:'#6c5ce7', backgroundColor:'rgba(108,92,231,.08)',
+          borderWidth:2, pointRadius:3, fill:true, tension:.3, yAxisID:'y2'}
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'top',labels:{font:{size:11}}}},
+        scales:{
+          y:{position:'left', ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}, grid:{color:'rgba(0,0,0,.05)'}},
+          y2:{position:'right', ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}, grid:{display:false}}
+        }
+      }
+    });
+
+  } else {
+    // Total asset reconstruction — anchor on current NW, work outward
+    const currentNW = calcNW();
+    const snapYM = (localStorage.getItem('fa_snapDate')||'20260430').slice(0,6);
+    let anchorIdx = months.indexOf(snapYM);
+    if(anchorIdx===-1) anchorIdx = months.length-1; // fallback: latest month
+
+    const assets = new Array(months.length);
+    assets[anchorIdx] = currentNW;
+    // Forward
+    for(let i=anchorIdx+1; i<months.length; i++){
+      assets[i] = assets[i-1] + (incByM[months[i]]||0) - (expByM[months[i]]||0);
+    }
+    // Backward
+    for(let i=anchorIdx-1; i>=0; i--){
+      assets[i] = assets[i+1] - (incByM[months[i+1]]||0) + (expByM[months[i+1]]||0);
+    }
+
+    const fmtAxis = v => {
+      const abs=Math.abs(v);
+      return abs>=10000 ? Math.round(v/10000)+'萬' : Math.round(v/1000)+'k';
+    };
+
+    trendInst=new Chart(document.getElementById('trendC').getContext('2d'),{
+      type:'line',
+      data:{ labels, datasets:[{
+        label:'總資產估算',
+        data:assets,
+        borderColor:'#00b894',
+        backgroundColor:'rgba(0,184,148,.08)',
+        borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#00b894',
+        fill:true, tension:.3
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:c=>' NT$ '+fmt(c.raw)}}
+        },
+        scales:{
+          y:{ticks:{callback:fmtAxis}, grid:{color:'rgba(0,0,0,.05)'}}
+        }
+      }
+    });
+  }
+}
+
+// ─── INVEST CONTRIBUTION BAR ───────────────────────────────────────────────────
+function renderInvBar(){
+  const hits = allTf.filter(t=>INV_ACCTS.includes(t.to));
+  if(!hits.length) return;
+  document.getElementById('invBarCard').style.display='block';
+
+  const byMon={};
+  hits.forEach(t=>{
+    const ym=t.date.slice(0,6);
+    if(!byMon[ym]) byMon[ym]={};
+    byMon[ym][t.to]=(byMon[ym][t.to]||0)+t.toAmt;
+  });
+  const months=Object.keys(byMon).sort();
+  const names=[...new Set(hits.map(t=>t.to))];
+  const ICLRS=['#6c5ce7','#a29bfe','#00b894','#00cec9','#74b9ff'];
+
+  if(invBarInst) invBarInst.destroy();
+  invBarInst = new Chart(document.getElementById('invBarC').getContext('2d'),{
+    type:'bar',
+    data:{
+      labels:months.map(m=>`${m.slice(0,4)}/${m.slice(4,6)}`),
+      datasets:names.map((n,i)=>({
+        label:n, borderRadius:3,
+        backgroundColor:ICLRS[i%ICLRS.length]+'cc',
+        data:months.map(m=>(byMon[m]&&byMon[m][n])||0)
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:11}}}},
+      scales:{
+        x:{stacked:true},
+        y:{stacked:true, ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}}
+      }
+    }
+  });
+}
+
+// ─── EDIT MODAL ───────────────────────────────────────────────────────────────
+function showEditModal(){
+  let html='';
+  for(const [key,d] of Object.entries(accts)){
+    html+=`<div class="mo-sec-label">${d.label}</div>`;
+    d.items.forEach(a=>{
+      html+=`<div class="mo-row">
+        <span class="mo-name">${a.n}</span>
+        <input class="mo-input" type="number" data-key="${key}" data-n="${a.n}" value="${a.b}">
+      </div>`;
+    });
+  }
+  document.getElementById('editContent').innerHTML=html;
+  document.getElementById('editMo').classList.add('show');
+}
+
+function saveBal(){
+  document.querySelectorAll('#editContent .mo-input').forEach(inp=>{
+    const key=inp.dataset.key, n=inp.dataset.n, val=parseFloat(inp.value)||0;
+    const item = accts[key].items.find(a=>a.n===n);
+    if(item) item.b=val;
+  });
+  updatedAt=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
+  localStorage.setItem('fa_accts',JSON.stringify(accts));
+  localStorage.setItem('fa_updatedAt',updatedAt);
+  // Advance snapshot date so next CSV import won't re-apply already-reflected transactions
+  const allDates=[...allTx,...allTf].map(t=>t.date).filter(Boolean).sort();
+  const snap = allDates[allDates.length-1] || new Date().toISOString().slice(0,10).replace(/-/g,'');
+  localStorage.setItem('fa_snapDate', snap);
+  closeMo('editMo');
+  renderAssets(); renderInvGrid(); updateNW();
+  syncToGAS();
+}
+
+function showUploadModal(){ document.getElementById('uploadMo').classList.add('show') }
+function closeMo(id){ document.getElementById(id).classList.remove('show') }
+
+document.querySelectorAll('.mo').forEach(m=>{
+  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('show') });
+});
+
+// ─── GAS HELPERS ──────────────────────────────────────────────────────────────
+async function gasCall(payload) {
+  const resp = await fetch(GAS_URL, { method:'POST', body: JSON.stringify(payload) });
+  return resp.json();
+}
+
+async function loadFromGAS(token) {
+  showSyncBanner('正在同步資料...');
+  try {
+    const resp = await gasCall({ action:'get', token });
+    hideSyncBanner();
+    if (!resp.ok) {
+      // token 失效 → 重新登入
+      localStorage.removeItem('fa_gasToken');
+      showLogin();
+      return;
+    }
+    applyGASData(resp.data);
+  } catch(err) {
+    hideSyncBanner();
+    showToast('⚠️ 無法連線，顯示本機快取');
+    loadFromLocalStorage();
+  }
+}
+
+function applyGASData(data) {
+  if (data.allTx)    { allTx = JSON.parse(data.allTx); localStorage.setItem('fa_allTx', data.allTx); }
+  if (data.allTf)    { allTf = JSON.parse(data.allTf); localStorage.setItem('fa_allTf', data.allTf); }
+  if (data.accts)    { accts = JSON.parse(data.accts); localStorage.setItem('fa_accts', data.accts); }
+  if (data.updatedAt){ updatedAt = data.updatedAt;     localStorage.setItem('fa_updatedAt', data.updatedAt); }
+  if (data.snapDate) { localStorage.setItem('fa_snapDate', data.snapDate); }
+  renderAssets(); renderInvGrid(); updateNW();
+  if (allTx.length > 0) {
+    autoDate();
+    onLoaded();
+    document.getElementById('loadedInfo').textContent =
+      `已從雲端載入：收支 ${allTx.length} 筆、轉帳 ${allTf.length} 筆`;
+  }
+}
+
+function loadFromLocalStorage() {
+  const savedTx = localStorage.getItem('fa_allTx');
+  const savedTf = localStorage.getItem('fa_allTf');
+  if (savedTx) { allTx = JSON.parse(savedTx); autoDate(); }
+  if (savedTf) { allTf = JSON.parse(savedTf); }
+  if (allTx.length > 0) {
+    onLoaded();
+    document.getElementById('loadedInfo').textContent =
+      `本機快取：收支 ${allTx.length} 筆、轉帳 ${allTf.length} 筆`;
+  }
+}
+
+async function syncToGAS() {
+  const token = localStorage.getItem('fa_gasToken');
+  if (!token || !GAS_URL || GAS_URL === 'YOUR_GAS_URL_HERE') return;
+  showSyncBanner('同步中...');
+  try {
+    const resp = await gasCall({
+      action: 'setAll', token,
+      data: {
+        allTx:     JSON.stringify(allTx),
+        allTf:     JSON.stringify(allTf),
+        accts:     JSON.stringify(accts),
+        updatedAt: updatedAt,
+        snapDate:  localStorage.getItem('fa_snapDate') || ''
+      }
+    });
+    hideSyncBanner();
+    if (resp.ok) showToast('☁️ 已同步至雲端');
+    else showToast('⚠️ 同步失敗：' + resp.error);
+  } catch(err) {
+    hideSyncBanner();
+    showToast('⚠️ 同步失敗，資料已存在本機');
+  }
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('loginPw').focus(), 100);
+}
+function hideLogin() {
+  document.getElementById('loginOverlay').style.display = 'none';
+}
+
+async function doLogin() {
+  const pw  = document.getElementById('loginPw').value.trim();
+  const msg = document.getElementById('loginMsg');
+  if (!pw) return;
+
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  msg.style.color = '#636e72';
+  msg.textContent = '登入中...';
+
+  try {
+    const resp = await gasCall({ action:'login', password: pw });
+    if (resp.ok) {
+      localStorage.setItem('fa_gasToken', resp.token);
+      hideLogin();
+      if (resp.firstTime) showToast('✅ 密碼已設定！首次使用請告知家人相同密碼。');
+      await loadFromGAS(resp.token);
+    } else {
+      msg.style.color = '#e17055';
+      msg.textContent = '密碼錯誤，請再試一次';
+      btn.disabled = false;
+    }
+  } catch(err) {
+    msg.style.color = '#e17055';
+    msg.textContent = '無法連線到伺服器';
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' &&
+      document.getElementById('loginOverlay').style.display === 'flex') {
+    doLogin();
+  }
+});
+
+// ─── SYNC BANNER ──────────────────────────────────────────────────────────────
+function showSyncBanner(msg) {
+  let b = document.getElementById('syncBanner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'syncBanner';
+    b.style.cssText =
+      'position:fixed;top:0;left:0;right:0;background:#6c5ce7;color:#fff;' +
+      'text-align:center;padding:6px;font-size:.82rem;z-index:9000';
+    document.body.appendChild(b);
+  }
+  b.textContent = msg;
+  b.style.display = 'block';
+}
+function hideSyncBanner() {
+  const b = document.getElementById('syncBanner');
+  if (b) b.style.display = 'none';
+}
+</script>
+<!-- Login Overlay -->
+<div id="loginOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);
+     z-index:8000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:20px;padding:36px 32px;width:320px;
+              box-shadow:0 12px 40px rgba(0,0,0,.25);text-align:center">
+    <div style="font-size:2rem;margin-bottom:8px">🏠</div>
+    <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:4px">家庭財務儀表板</h2>
+    <p style="font-size:.82rem;color:#636e72;margin-bottom:20px">請輸入密碼繼續</p>
+    <input id="loginPw" type="password" placeholder="密碼"
+      style="width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:10px;
+             font-size:1rem;outline:none;margin-bottom:12px;box-sizing:border-box">
+    <button id="loginBtn" onclick="doLogin()"
+      style="width:100%;padding:11px;background:linear-gradient(135deg,#00b894,#00cec9);
+             color:#fff;border:none;border-radius:10px;font-size:1rem;font-weight:600;
+             cursor:pointer">登入</button>
+    <div id="loginMsg" style="margin-top:10px;font-size:.83rem;min-height:18px"></div>
+  </div>
+</div>
+</body>
+</html>
