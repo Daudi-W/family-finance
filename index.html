@@ -160,7 +160,7 @@ tr:hover td{background:var(--bg)}
   <h1>🏠 家庭財務儀表板</h1>
   <div class="hdr-actions">
     <button class="btn btn-outline" onclick="showUploadModal()">📂 載入 CSV</button>
-    <button class="btn btn-outline" onclick="showEditModal()">✏️ 更新餘額</button>
+    <button class="btn btn-green" onclick="showReconModal()">⚖️ 對帳</button>
   </div>
 </div>
 
@@ -280,7 +280,7 @@ tr:hover td{background:var(--bg)}
       </div>
       <div class="ch-wrap" style="height:220px"><canvas id="trendC"></canvas></div>
       <p id="trendNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;display:none">
-        ＊總資產以目前帳戶餘額為基準，往前推算各月估計值。投資市值波動不計入。
+        ＊綠線為以目前餘額推算的各月估計值（不含投資市值波動）；橘色菱形點為每次「對帳」時的實際淨資產。
       </p>
     </div>
   </div>
@@ -312,14 +312,21 @@ tr:hover td{background:var(--bg)}
   </div>
 </div>
 
-<!-- Edit Modal -->
+<!-- Reconcile Modal -->
 <div class="mo" id="editMo">
   <div class="mo-box">
-    <div class="mo-title">✏️ 更新帳戶餘額</div>
+    <div class="mo-title">⚖️ 對帳：更新實際餘額</div>
+    <p style="font-size:.83rem;color:var(--muted);margin-bottom:10px">
+      打開銀行 App，把各帳戶的<strong>實際餘額</strong>填入（沒變的不用動）。
+      投資帳戶的差額自動記為「市值變動」，其他帳戶記為「調整」，完成後以此為新基準。</p>
+    <div class="mo-row" style="border-bottom:2px solid var(--border)">
+      <span class="mo-name">餘額截至日<span style="font-size:.72rem;color:var(--muted)">（當日記帳交易已包含在餘額內）</span></span>
+      <input class="mo-input" type="date" id="reconDate" style="width:150px;text-align:left">
+    </div>
     <div id="editContent"></div>
     <div class="mo-footer">
       <button class="btn-cancel" onclick="closeMo('editMo')">取消</button>
-      <button class="btn-save" onclick="saveBal()">儲存更新</button>
+      <button class="btn-save" onclick="saveRecon()">完成對帳</button>
     </div>
   </div>
 </div>
@@ -346,54 +353,27 @@ tr:hover td{background:var(--bg)}
 // ─── GAS CONFIG ───────────────────────────────────────────────────────────────
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXCYUTvRGs7CORtXeUFSIkLEWo1zRmZeHp43PE7kPH2DTKnmValIHm_q505Xe6zfrF/exec';
 
-// ─── DEFAULT ACCOUNT DATA (from screenshots 2026-04-30) ───────────────────────
+// ─── DEFAULT ACCOUNT SKELETON ─────────────────────────────────────────────────
+// 只留類別骨架，不含任何真實帳戶與金額（個資不進公開 repo）。
+// 實際帳戶資料存在 GAS/Sheets，登入後載入；新帳戶由 CSV 匯入時自動偵測加入。
 const DEFAULT_ACCTS = {
-  現金:{ cls:'cash', label:'現金', isLiab:false, items:[
-    {n:'沛-現金', b:4166},
-    {n:'思-現金', b:1525},
-  ]},
-  銀行:{ cls:'bank', label:'銀行存款', isLiab:false, items:[
-    {n:'思-中信',     b:118448},
-    {n:'沛-永豐大戶', b:232313},
-    {n:'沛-郵局',     b:52465},
-    {n:'沛-國泰世華', b:12497},
-    {n:'沛-Richart',  b:6228},
-    {n:'沛-上海',     b:1000},
-    {n:'思-Richart',  b:3365},
-    {n:'思-大戶',     b:53486},
-    {n:'思-企銀',     b:191818},
-  ]},
-  投資理財:{ cls:'invest', label:'投資理財', isLiab:false, items:[
-    {n:'沛-永豐美股ETF', b:250969,  note:'ETF'},
-    {n:'沛-0050',        b:335686,  note:'ETF'},
-    {n:'沛-富邦儲蓄險',  b:157176,  note:'儲蓄險'},
-    {n:'沛-richart日幣', b:20155.50,note:'¥102,048'},
-    {n:'沛-永豐日幣',    b:17817.77,note:'¥90,212'},
-    {n:'思-美元',        b:21086.53,note:'US$666'},
-    {n:'思-00878',       b:37286,   note:'ETF'},
-    {n:'思-0056',        b:206894,  note:'ETF'},
-    {n:'思-006208',      b:575887,  note:'ETF'},
-  ]},
-  信用卡:{ cls:'credit', label:'信用卡（負債）', isLiab:true, items:[
-    {n:'沛-大戶卡',      b:-9524},
-    {n:'沛-國泰cube',    b:-3282},
-    {n:'思-富邦5998',    b:-4309},
-    {n:'思-中信卡962',   b:0},
-    {n:'思-黑狗卡004',   b:-1224},
-    {n:'思-大咖2905',    b:-5729},
-  ]},
-  借貸:{ cls:'lend', label:'借貸', isLiab:false, items:[
-    {n:'沛-借出',    b:1098},
-    {n:'思-借還錢',  b:-25},
-  ]},
+  現金:    { cls:'cash',   label:'現金',           isLiab:false, items:[] },
+  銀行:    { cls:'bank',   label:'銀行存款',       isLiab:false, items:[] },
+  投資理財:{ cls:'invest', label:'投資理財',       isLiab:false, items:[] },
+  信用卡:  { cls:'credit', label:'信用卡（負債）', isLiab:true,  items:[] },
+  借貸:    { cls:'lend',   label:'借貸',           isLiab:false, items:[] },
 };
 
-// Investment account names to track in transfers
-const INV_ACCTS = ['沛-0050','沛-永豐美股ETF','思-00878','思-0056','思-006208'];
+// 投資帳戶名單改為動態取自「投資理財」類別（不再寫死）
+function invAcctNames(){
+  const d = accts['投資理財'];
+  return d ? d.items.map(a=>a.n) : [];
+}
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let accts = JSON.parse(localStorage.getItem('fa_accts') || 'null') || deepCopy(DEFAULT_ACCTS);
 let updatedAt = localStorage.getItem('fa_updatedAt') || '未更新';
+let snapHist = JSON.parse(localStorage.getItem('fa_snapHist') || '[]'); // 對帳快照歷史
 
 let allTx = [];      // from 收支 CSV
 let allTf = [];      // from 轉帳 CSV
@@ -905,21 +885,36 @@ function renderTrend(){
       return abs>=10000 ? Math.round(v/10000)+'萬' : Math.round(v/1000)+'k';
     };
 
+    // 對帳快照的實際淨資產（每月取最後一次對帳）
+    const snapPts = months.map(m=>{
+      const hit = snapHist.filter(s=>s.date.slice(0,6)===m).pop();
+      return hit ? hit.nw : null;
+    });
+    const hasSnap = snapPts.some(v=>v!=null);
+
+    const datasets=[{
+      label:'總資產估算',
+      data:assets,
+      borderColor:'#00b894',
+      backgroundColor:'rgba(0,184,148,.08)',
+      borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#00b894',
+      fill:true, tension:.3
+    }];
+    if(hasSnap) datasets.push({
+      label:'對帳實際值',
+      data:snapPts,
+      borderColor:'#e17055', backgroundColor:'#e17055',
+      pointRadius:5, pointStyle:'rectRot', showLine:false
+    });
+
     trendInst=new Chart(document.getElementById('trendC').getContext('2d'),{
       type:'line',
-      data:{ labels, datasets:[{
-        label:'總資產估算',
-        data:assets,
-        borderColor:'#00b894',
-        backgroundColor:'rgba(0,184,148,.08)',
-        borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#00b894',
-        fill:true, tension:.3
-      }]},
+      data:{ labels, datasets },
       options:{
         responsive:true, maintainAspectRatio:false,
         plugins:{
-          legend:{display:false},
-          tooltip:{callbacks:{label:c=>' NT$ '+fmt(c.raw)}}
+          legend:{display:hasSnap, position:'top', labels:{font:{size:11}}},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}：NT$ ${fmtSigned(c.raw)}`}}
         },
         scales:{
           y:{ticks:{callback:fmtAxis}, grid:{color:'rgba(0,0,0,.05)'}}
@@ -931,7 +926,8 @@ function renderTrend(){
 
 // ─── INVEST CONTRIBUTION BAR ───────────────────────────────────────────────────
 function renderInvBar(){
-  const hits = allTf.filter(t=>INV_ACCTS.includes(t.to));
+  const invNames = invAcctNames();
+  const hits = allTf.filter(t=>invNames.includes(t.to));
   if(!hits.length) return;
   document.getElementById('invBarCard').style.display='block';
 
@@ -967,15 +963,22 @@ function renderInvBar(){
   });
 }
 
-// ─── EDIT MODAL ───────────────────────────────────────────────────────────────
-function showEditModal(){
+// ─── RECONCILE MODAL ─────────────────────────────────────────────────────────
+function showReconModal(){
+  // 用本地時區組日期，避免 toISOString() 的 UTC 在台灣早上差一天
+  const now = new Date();
+  document.getElementById('reconDate').value =
+    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   let html='';
   for(const [key,d] of Object.entries(accts)){
     html+=`<div class="mo-sec-label">${d.label}</div>`;
     d.items.forEach(a=>{
       html+=`<div class="mo-row">
-        <span class="mo-name">${a.n}</span>
-        <input class="mo-input" type="number" data-key="${key}" data-n="${a.n}" value="${a.b}">
+        <span class="mo-name">${a.n}<br><span style="font-size:.72rem;color:var(--muted)">推算 ${fmtSigned(a.b)}</span></span>
+        <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <input class="mo-input" type="number" step="any" data-key="${key}" data-n="${a.n}" data-orig="${a.b}" value="${a.b}" oninput="updateReconDiff(this)">
+          <span class="recon-diff" style="font-size:.72rem;color:var(--muted)">差額 0</span>
+        </span>
       </div>`;
     });
   }
@@ -983,21 +986,55 @@ function showEditModal(){
   document.getElementById('editMo').classList.add('show');
 }
 
-function saveBal(){
-  document.querySelectorAll('#editContent .mo-input').forEach(inp=>{
+function updateReconDiff(inp){
+  const diff = (parseFloat(inp.value)||0) - parseFloat(inp.dataset.orig);
+  const el = inp.parentElement.querySelector('.recon-diff');
+  el.textContent = diff ? `差額 ${diff>0?'+':''}${fmtSigned(Math.round(diff*100)/100)}` : '差額 0';
+  el.style.color = diff===0 ? 'var(--muted)' : (diff>0 ? 'var(--income)' : 'var(--expense)');
+}
+
+function saveRecon(){
+  const dateStr = document.getElementById('reconDate').value;
+  if(!dateStr){ showToast('請先選擇餘額截至日'); return; }
+  const snap = dateStr.replace(/-/g,'');
+
+  const adjustments = [];
+  document.querySelectorAll('#editContent .mo-input[data-n]').forEach(inp=>{
     const key=inp.dataset.key, n=inp.dataset.n, val=parseFloat(inp.value)||0;
     const item = accts[key].items.find(a=>a.n===n);
-    if(item) item.b=val;
+    if(!item) return;
+    const diff = val - item.b;
+    if(diff !== 0){
+      adjustments.push({ n, cat:key, diff, kind: key==='投資理財' ? '市值變動' : '調整' });
+    }
+    item.b = val;
   });
-  updatedAt=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
+
+  updatedAt = new Date(dateStr).toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
+
+  // 快照留存：同一天重複對帳以最後一次為準
+  const balances={};
+  for(const d of Object.values(accts)) d.items.forEach(a=>{ balances[a.n]=a.b; });
+  snapHist = snapHist.filter(s=>s.date!==snap);
+  snapHist.push({ date:snap, nw:calcNW(), balances, adjustments });
+  snapHist.sort((a,b)=>a.date.localeCompare(b.date));
+
   localStorage.setItem('fa_accts',JSON.stringify(accts));
   localStorage.setItem('fa_updatedAt',updatedAt);
-  // Advance snapshot date so next CSV import won't re-apply already-reflected transactions
-  const allDates=[...allTx,...allTf].map(t=>t.date).filter(Boolean).sort();
-  const snap = allDates[allDates.length-1] || new Date().toISOString().slice(0,10).replace(/-/g,'');
+  // 基準日＝實際餘額的截至日（而非最後一筆交易日），
+  // 之後匯入 CSV 只會套用此日期之後的交易，避免重複計算
   localStorage.setItem('fa_snapDate', snap);
+  localStorage.setItem('fa_snapHist', JSON.stringify(snapHist));
+
   closeMo('editMo');
   renderAssets(); renderInvGrid(); updateNW();
+  renderTrend();
+
+  const mv    = adjustments.filter(a=>a.kind==='市值變動').reduce((s,a)=>s+a.diff,0);
+  const other = adjustments.filter(a=>a.kind==='調整').reduce((s,a)=>s+a.diff,0);
+  showToast(adjustments.length
+    ? `⚖️ 對帳完成：${adjustments.length} 個帳戶更新（市值變動 ${mv>=0?'+':''}${fmtSigned(mv)}／其他調整 ${other>=0?'+':''}${fmtSigned(other)}）`
+    : '⚖️ 對帳完成：所有帳戶與推算一致');
   syncToGAS();
 }
 
@@ -1096,6 +1133,7 @@ function applyGASData(data) {
   if (data.accts)    { accts = JSON.parse(data.accts); localStorage.setItem('fa_accts', data.accts); }
   if (data.updatedAt){ updatedAt = data.updatedAt;     localStorage.setItem('fa_updatedAt', data.updatedAt); }
   if (data.snapDate) { localStorage.setItem('fa_snapDate', data.snapDate); }
+  if (data.snapHist) { snapHist = JSON.parse(data.snapHist); localStorage.setItem('fa_snapHist', data.snapHist); }
   showApp();
   if (allTx.length > 0) {
     autoDate();
@@ -1130,7 +1168,8 @@ async function syncToGAS() {
         allTf:     JSON.stringify(allTf),
         accts:     JSON.stringify(accts),
         updatedAt: updatedAt,
-        snapDate:  localStorage.getItem('fa_snapDate') || ''
+        snapDate:  localStorage.getItem('fa_snapDate') || '',
+        snapHist:  JSON.stringify(snapHist)
       }
     });
     hideSyncBanner();
