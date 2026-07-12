@@ -182,12 +182,16 @@ function setRaw(key, value) {
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]) === key) {
-      sheet.getRange(i + 1, 2).setValue(value);
+      // 先設純文字格式再寫值，避免 Sheets 把 "2026/07/12" 之類自動轉成日期
+      sheet.getRange(i + 1, 2).setNumberFormat('@').setValue(value);
       sheet.getRange(i + 1, 3).setValue(new Date().toISOString());
       return;
     }
   }
-  sheet.appendRow([key, value, new Date().toISOString()]);
+  const row = sheet.getLastRow() + 1;
+  sheet.getRange(row, 1).setValue(key);
+  sheet.getRange(row, 2).setNumberFormat('@').setValue(value);
+  sheet.getRange(row, 3).setValue(new Date().toISOString());
 }
 
 function deleteRawKey(key) {

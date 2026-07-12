@@ -375,6 +375,7 @@ function invAcctNames(){
 let accts = JSON.parse(localStorage.getItem('fa_accts') || 'null') || deepCopy(DEFAULT_ACCTS);
 let updatedAt = localStorage.getItem('fa_updatedAt') || '未更新';
 let snapHist = JSON.parse(localStorage.getItem('fa_snapHist') || '[]'); // 對帳快照歷史
+let ignoredAccts = JSON.parse(localStorage.getItem('fa_ignored') || '[]'); // 永久忽略的帳戶（如已停用）
 
 let allTx = [];      // from 收支 CSV
 let allTf = [];      // from 轉帳 CSV
@@ -412,6 +413,13 @@ function showApp() {
 function fmt(n){ return Math.abs(n).toLocaleString('zh-TW',{maximumFractionDigits:0}) }
 function fmtSigned(n){ return (n<0?'-':'') + fmt(n) }
 function deepCopy(o){ return JSON.parse(JSON.stringify(o)) }
+// 更新時間一律顯示 YYYY/MM/DD（雲端可能存成被 Sheets 轉過的長日期字串）
+function fmtDateShort(raw){
+  if(!raw) return '未更新';
+  const d = new Date(raw);
+  if(!isNaN(d)) return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+  return String(raw);
+}
 
 // ─── NET WORTH ────────────────────────────────────────────────────────────────
 function calcNW(){
@@ -421,7 +429,7 @@ function calcNW(){
 }
 function updateNW(){
   document.getElementById('nwVal').textContent = 'NT$ ' + fmt(calcNW());
-  document.getElementById('nwSub').textContent = '餘額更新時間：' + updatedAt;
+  document.getElementById('nwSub').textContent = '餘額更新時間：' + fmtDateShort(updatedAt);
 }
 
 // ─── ASSET SNAPSHOT ───────────────────────────────────────────────────────────
@@ -1042,6 +1050,7 @@ function saveRecon(){
 function detectNewAccounts(){
   const lookup = {};
   for(const data of Object.values(accts)) data.items.forEach(a=>{ lookup[a.n]=true; });
+  ignoredAccts.forEach(n=>{ lookup[n]=true; }); // 永久忽略的不再提示
   const unknown = new Map();
   allTx.forEach(t=>{
     if(t.acct && !lookup[t.acct]){
@@ -1064,7 +1073,7 @@ function showNewAccountsMo(unknownMap, callback){
     html += `<div class="new-acct-row" data-name="${name}">
       <span class="new-acct-name">${name}</span>
       <span class="new-acct-count">${count} 筆</span>
-      <select class="new-acct-cat">${catOpts}<option value="__skip__">略過</option></select>
+      <select class="new-acct-cat">${catOpts}<option value="__skip__">略過這次</option><option value="__ignore__">永久忽略（停用帳戶）</option></select>
     </div>`;
   });
   document.getElementById('newAcctsContent').innerHTML = html;
@@ -1073,10 +1082,16 @@ function showNewAccountsMo(unknownMap, callback){
 }
 
 function confirmNewAccounts(){
+  let ignoredNew = 0;
   document.querySelectorAll('#newAcctsContent .new-acct-row').forEach(row=>{
     const name = row.dataset.name;
     const cat  = row.querySelector('select').value;
     if(cat === '__skip__') return;
+    if(cat === '__ignore__'){
+      if(!ignoredAccts.includes(name)) ignoredAccts.push(name);
+      ignoredNew++;
+      return;
+    }
     // 加入帳戶，從全部 CSV 計算初始餘額
     let b = 0;
     allTx.forEach(t=>{ if(t.acct===name) b += (t.type==='收'?t.amt:-t.amt); });
@@ -1086,6 +1101,10 @@ function confirmNewAccounts(){
     });
     accts[cat].items.push({ n:name, b });
   });
+  if(ignoredNew > 0){
+    localStorage.setItem('fa_ignored', JSON.stringify(ignoredAccts));
+    showToast(`已永久忽略 ${ignoredNew} 個帳戶，之後匯入不再提示`);
+  }
   closeMo('newAcctsMo');
   if(window._newAcctsCallback) window._newAcctsCallback();
 }
@@ -1134,6 +1153,7 @@ function applyGASData(data) {
   if (data.updatedAt){ updatedAt = data.updatedAt;     localStorage.setItem('fa_updatedAt', data.updatedAt); }
   if (data.snapDate) { localStorage.setItem('fa_snapDate', data.snapDate); }
   if (data.snapHist) { snapHist = JSON.parse(data.snapHist); localStorage.setItem('fa_snapHist', data.snapHist); }
+  if (data.ignored)  { ignoredAccts = JSON.parse(data.ignored); localStorage.setItem('fa_ignored', data.ignored); }
   showApp();
   if (allTx.length > 0) {
     autoDate();
@@ -1169,7 +1189,8 @@ async function syncToGAS() {
         accts:     JSON.stringify(accts),
         updatedAt: updatedAt,
         snapDate:  localStorage.getItem('fa_snapDate') || '',
-        snapHist:  JSON.stringify(snapHist)
+        snapHist:  JSON.stringify(snapHist),
+        ignored:   JSON.stringify(ignoredAccts)
       }
     });
     hideSyncBanner();
