@@ -280,7 +280,7 @@ tr:hover td{background:var(--bg)}
       </div>
       <div class="ch-wrap" style="height:220px"><canvas id="trendC"></canvas></div>
       <p id="trendNote" style="font-size:.75rem;color:var(--muted);margin-top:8px;display:none">
-        ＊綠線為以目前餘額推算的各月估計值（不含投資市值波動）；橘色菱形點為每次「對帳」時的實際淨資產。
+        ＊綠線為以目前餘額推算的各月估計值（投資以累計投入金額計，非市值）；橘色菱形點為每次「對帳」後的淨資產。
       </p>
     </div>
   </div>
@@ -318,7 +318,8 @@ tr:hover td{background:var(--bg)}
     <div class="mo-title">⚖️ 對帳：更新實際餘額</div>
     <p style="font-size:.83rem;color:var(--muted);margin-bottom:10px">
       打開銀行 App，把各帳戶的<strong>實際餘額</strong>填入（沒變的不用動）。
-      投資帳戶的差額自動記為「市值變動」，其他帳戶記為「調整」，完成後以此為新基準。</p>
+      投資帳戶記的是<strong>累計投入金額</strong>（不是市值），照推算值即可，有差額通常代表漏記轉帳。
+      完成後以此為新基準，差額會記成「調整」留存。</p>
     <div class="mo-row" style="border-bottom:2px solid var(--border)">
       <span class="mo-name">餘額截至日<span style="font-size:.72rem;color:var(--muted)">（當日記帳交易已包含在餘額內）</span></span>
       <input class="mo-input" type="date" id="reconDate" style="width:150px;text-align:left">
@@ -971,7 +972,7 @@ function showReconModal(){
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   let html='';
   for(const [key,d] of Object.entries(accts)){
-    html+=`<div class="mo-sec-label">${d.label}</div>`;
+    html+=`<div class="mo-sec-label">${d.label}${key==='投資理財'?'（累計投入金額，照推算即可）':''}</div>`;
     d.items.forEach(a=>{
       html+=`<div class="mo-row">
         <span class="mo-name">${a.n}<br><span style="font-size:.72rem;color:var(--muted)">推算 ${fmtSigned(a.b)}</span></span>
@@ -1005,7 +1006,7 @@ function saveRecon(){
     if(!item) return;
     const diff = val - item.b;
     if(diff !== 0){
-      adjustments.push({ n, cat:key, diff, kind: key==='投資理財' ? '市值變動' : '調整' });
+      adjustments.push({ n, cat:key, diff, kind:'調整' });
     }
     item.b = val;
   });
@@ -1030,10 +1031,9 @@ function saveRecon(){
   renderAssets(); renderInvGrid(); updateNW();
   renderTrend();
 
-  const mv    = adjustments.filter(a=>a.kind==='市值變動').reduce((s,a)=>s+a.diff,0);
-  const other = adjustments.filter(a=>a.kind==='調整').reduce((s,a)=>s+a.diff,0);
+  const total = adjustments.reduce((s,a)=>s+a.diff,0);
   showToast(adjustments.length
-    ? `⚖️ 對帳完成：${adjustments.length} 個帳戶更新（市值變動 ${mv>=0?'+':''}${fmtSigned(mv)}／其他調整 ${other>=0?'+':''}${fmtSigned(other)}）`
+    ? `⚖️ 對帳完成：${adjustments.length} 個帳戶更新（合計調整 ${total>=0?'+':''}${fmtSigned(total)}）`
     : '⚖️ 對帳完成：所有帳戶與推算一致');
   syncToGAS();
 }
