@@ -132,6 +132,9 @@ tr:hover td{background:var(--bg)}
 .new-acct-cat{padding:5px 8px;border:1px solid var(--border);border-radius:7px;font-size:.82rem;background:var(--bg);cursor:pointer}
 .mo-name{font-size:.86rem;font-weight:500}
 .mo-input{padding:5px 9px;border:1px solid var(--border);border-radius:6px;font-size:.86rem;width:130px;text-align:right}
+.acct-toggle{font-size:.7rem;padding:2px 8px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);cursor:pointer;margin-left:6px;vertical-align:1px}
+.acct-toggle:hover{border-color:var(--expense);color:var(--expense)}
+.acct-toggle.enable:hover{border-color:var(--income);color:var(--income)}
 .mo-footer{margin-top:16px;display:flex;justify-content:flex-end;gap:8px}
 .btn-save{background:var(--income);color:#fff;padding:9px 18px;border:none;border-radius:8px;cursor:pointer;font-weight:600}
 .btn-cancel{background:var(--bg);color:var(--text);padding:9px 18px;border:1px solid var(--border);border-radius:8px;cursor:pointer}
@@ -319,7 +322,8 @@ tr:hover td{background:var(--bg)}
     <p style="font-size:.83rem;color:var(--muted);margin-bottom:10px">
       打開銀行 App，把各帳戶的<strong>實際餘額</strong>填入（沒變的不用動）。
       投資帳戶記的是<strong>累計投入金額</strong>（不是市值），照推算值即可，有差額通常代表漏記轉帳。
-      完成後以此為新基準，差額會記成「調整」留存。</p>
+      完成後以此為新基準，差額會記成「調整」留存。
+      不用的帳戶可按「停用」移到最下方（不列入資產），之後隨時可再啟用。</p>
     <div class="mo-row" style="border-bottom:2px solid var(--border)">
       <span class="mo-name">餘額截至日<span style="font-size:.72rem;color:var(--muted)">（當日記帳交易已包含在餘額內）</span></span>
       <input class="mo-input" type="date" id="reconDate" style="width:150px;text-align:left">
@@ -375,7 +379,10 @@ function invAcctNames(){
 let accts = JSON.parse(localStorage.getItem('fa_accts') || 'null') || deepCopy(DEFAULT_ACCTS);
 let updatedAt = localStorage.getItem('fa_updatedAt') || '未更新';
 let snapHist = JSON.parse(localStorage.getItem('fa_snapHist') || '[]'); // 對帳快照歷史
-let ignoredAccts = JSON.parse(localStorage.getItem('fa_ignored') || '[]'); // 永久忽略的帳戶（如已停用）
+// 停用帳戶清單：{n:名稱, cat:原類別(可能為 null), b:停用時餘額}
+// 相容舊格式（純字串陣列）→ 轉成物件
+let ignoredAccts = (JSON.parse(localStorage.getItem('fa_ignored') || '[]'))
+  .map(x => typeof x === 'string' ? { n: x, cat: null, b: 0 } : x);
 
 let allTx = [];      // from 收支 CSV
 let allTf = [];      // from 轉帳 CSV
@@ -978,12 +985,18 @@ function showReconModal(){
   const now = new Date();
   document.getElementById('reconDate').value =
     `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  renderReconContent();
+  document.getElementById('editMo').classList.add('show');
+}
+
+function renderReconContent(preserveVals){
   let html='';
   for(const [key,d] of Object.entries(accts)){
     html+=`<div class="mo-sec-label">${d.label}${key==='投資理財'?'（累計投入金額，照推算即可）':''}</div>`;
     d.items.forEach(a=>{
-      html+=`<div class="mo-row">
-        <span class="mo-name">${a.n}<br><span style="font-size:.72rem;color:var(--muted)">推算 ${fmtSigned(a.b)}</span></span>
+      html+=`<div class="mo-row" data-n="${a.n}" data-key="${key}">
+        <span class="mo-name">${a.n}<button class="acct-toggle" onclick="disableAcct(this)">停用</button><br>
+          <span style="font-size:.72rem;color:var(--muted)">推算 ${fmtSigned(a.b)}</span></span>
         <span style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
           <input class="mo-input" type="number" step="any" data-key="${key}" data-n="${a.n}" data-orig="${a.b}" value="${a.b}" oninput="updateReconDiff(this)">
           <span class="recon-diff" style="font-size:.72rem;color:var(--muted)">差額 0</span>
@@ -991,8 +1004,90 @@ function showReconModal(){
       </div>`;
     });
   }
+  // 停用帳戶區（不列入資產，可重新啟用）
+  if(ignoredAccts.length){
+    const catOpts = Object.entries(accts)
+      .map(([k,d])=>`<option value="${k}">${d.label}</option>`).join('');
+    html+=`<div class="mo-sec-label">🚫 停用帳戶（不列入資產）</div>`;
+    ignoredAccts.forEach(d=>{
+      html+=`<div class="mo-row" data-n="${d.n}">
+        <span class="mo-name" style="color:var(--muted)">${d.n}${d.cat&&accts[d.cat]?`<span style="font-size:.72rem">（原屬 ${accts[d.cat].label}）</span>`:''}</span>
+        ${d.cat&&accts[d.cat]
+          ? `<button class="acct-toggle enable" onclick="enableAcct(this)">啟用</button>`
+          : `<select class="new-acct-cat" onchange="enableAcctTo(this)"><option value="">啟用至…</option>${catOpts}</select>`}
+      </div>`;
+    });
+  }
   document.getElementById('editContent').innerHTML=html;
-  document.getElementById('editMo').classList.add('show');
+  // 停用/啟用後重繪時，還原使用者已輸入的數字
+  if(preserveVals){
+    document.querySelectorAll('#editContent .mo-input[data-n]').forEach(inp=>{
+      if(preserveVals[inp.dataset.n]!==undefined && preserveVals[inp.dataset.n]!==inp.value){
+        inp.value = preserveVals[inp.dataset.n];
+        updateReconDiff(inp);
+      }
+    });
+  }
+}
+
+function reconInputValues(){
+  const m={};
+  document.querySelectorAll('#editContent .mo-input[data-n]').forEach(i=>{ m[i.dataset.n]=i.value; });
+  return m;
+}
+
+function persistAcctLists(){
+  localStorage.setItem('fa_accts', JSON.stringify(accts));
+  localStorage.setItem('fa_ignored', JSON.stringify(ignoredAccts));
+  renderAssets(); renderInvGrid(); updateNW();
+  syncToGAS();
+}
+
+function disableAcct(btn){
+  const row = btn.closest('.mo-row');
+  const key = row.dataset.key, name = row.dataset.n;
+  const items = accts[key].items;
+  const idx = items.findIndex(a=>a.n===name);
+  if(idx===-1) return;
+  const item = items.splice(idx,1)[0];
+  ignoredAccts.push({ n:item.n, cat:key, b:item.b });
+  const vals = reconInputValues();
+  persistAcctLists();
+  renderReconContent(vals);
+  showToast(`已停用「${name}」，餘額 ${fmtSigned(item.b)} 不再列入資產`);
+}
+
+function enableAcct(btn){
+  const name = btn.closest('.mo-row').dataset.n;
+  const idx = ignoredAccts.findIndex(d=>d.n===name);
+  if(idx===-1) return;
+  const d = ignoredAccts.splice(idx,1)[0];
+  accts[d.cat].items.push({ n:d.n, b:d.b||0 });
+  const vals = reconInputValues();
+  persistAcctLists();
+  renderReconContent(vals);
+  showToast(`已啟用「${name}」（餘額 ${fmtSigned(d.b||0)}），請順手核對實際餘額`);
+}
+
+function enableAcctTo(sel){
+  const cat = sel.value;
+  if(!cat) return;
+  const name = sel.closest('.mo-row').dataset.n;
+  const idx = ignoredAccts.findIndex(d=>d.n===name);
+  if(idx===-1) return;
+  ignoredAccts.splice(idx,1);
+  // 從全部 CSV 記錄推算初始餘額（與新帳戶加入邏輯一致）
+  let b = 0;
+  allTx.forEach(t=>{ if(t.acct===name) b += (t.type==='收'?t.amt:-t.amt); });
+  allTf.forEach(t=>{
+    if(t.from===name) b -= t.fromAmt;
+    if(t.to===name)   b += t.toAmt;
+  });
+  accts[cat].items.push({ n:name, b });
+  const vals = reconInputValues();
+  persistAcctLists();
+  renderReconContent(vals);
+  showToast(`已啟用「${name}」至${accts[cat].label}（依記錄推算餘額 ${fmtSigned(b)}），請順手核對`);
 }
 
 function updateReconDiff(inp){
@@ -1050,7 +1145,7 @@ function saveRecon(){
 function detectNewAccounts(){
   const lookup = {};
   for(const data of Object.values(accts)) data.items.forEach(a=>{ lookup[a.n]=true; });
-  ignoredAccts.forEach(n=>{ lookup[n]=true; }); // 永久忽略的不再提示
+  ignoredAccts.forEach(d=>{ lookup[d.n]=true; }); // 停用中的不再提示
   const unknown = new Map();
   allTx.forEach(t=>{
     if(t.acct && !lookup[t.acct]){
@@ -1073,7 +1168,7 @@ function showNewAccountsMo(unknownMap, callback){
     html += `<div class="new-acct-row" data-name="${name}">
       <span class="new-acct-name">${name}</span>
       <span class="new-acct-count">${count} 筆</span>
-      <select class="new-acct-cat">${catOpts}<option value="__skip__">略過這次</option><option value="__ignore__">永久忽略（停用帳戶）</option></select>
+      <select class="new-acct-cat">${catOpts}<option value="__skip__">略過這次</option><option value="__ignore__">停用（之後可在「對帳」裡啟用）</option></select>
     </div>`;
   });
   document.getElementById('newAcctsContent').innerHTML = html;
@@ -1088,7 +1183,7 @@ function confirmNewAccounts(){
     const cat  = row.querySelector('select').value;
     if(cat === '__skip__') return;
     if(cat === '__ignore__'){
-      if(!ignoredAccts.includes(name)) ignoredAccts.push(name);
+      if(!ignoredAccts.some(d=>d.n===name)) ignoredAccts.push({ n:name, cat:null, b:0 });
       ignoredNew++;
       return;
     }
@@ -1153,7 +1248,11 @@ function applyGASData(data) {
   if (data.updatedAt){ updatedAt = data.updatedAt;     localStorage.setItem('fa_updatedAt', data.updatedAt); }
   if (data.snapDate) { localStorage.setItem('fa_snapDate', data.snapDate); }
   if (data.snapHist) { snapHist = JSON.parse(data.snapHist); localStorage.setItem('fa_snapHist', data.snapHist); }
-  if (data.ignored)  { ignoredAccts = JSON.parse(data.ignored); localStorage.setItem('fa_ignored', data.ignored); }
+  if (data.ignored)  {
+    ignoredAccts = JSON.parse(data.ignored)
+      .map(x => typeof x === 'string' ? { n: x, cat: null, b: 0 } : x);
+    localStorage.setItem('fa_ignored', JSON.stringify(ignoredAccts));
+  }
   showApp();
   if (allTx.length > 0) {
     autoDate();
