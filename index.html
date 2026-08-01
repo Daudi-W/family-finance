@@ -1325,11 +1325,12 @@ async function doLogin() {
     if (resp.ok) {
       localStorage.setItem('fa_gasToken', resp.token);
       hideLogin();
-      if (resp.firstTime) showToast('✅ 密碼已設定！首次使用請告知家人相同密碼。');
       await loadFromGAS(resp.token);
     } else {
       msg.style.color = '#e17055';
-      msg.textContent = '密碼錯誤，請再試一次';
+      msg.textContent = resp.error === 'auth_not_configured'
+        ? '登入設定異常，請聯絡管理者'
+        : '密碼錯誤，請再試一次';
       btn.disabled = false;
     }
   } catch(err) {
