@@ -36,6 +36,7 @@ const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const googleProvider = new GoogleAuthProvider()
+export const householdId = import.meta.env.VITE_FIREBASE_HOUSEHOLD_ID || 'family-home'
 
 if (usesFirebaseEmulators) {
   connectAuthEmulator(auth, 'http://127.0.0.1:9099', {

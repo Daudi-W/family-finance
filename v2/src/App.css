@@ -92,6 +92,12 @@ button {
   opacity: 0.65;
 }
 
+.secondary-login-button {
+  color: var(--primary-dark);
+  border: 1px solid var(--primary);
+  background: var(--surface);
+}
+
 .login-error {
   color: var(--expense);
   font-size: 14px;
