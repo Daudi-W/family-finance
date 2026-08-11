@@ -1,0 +1,45 @@
+import { initializeApp } from 'firebase/app'
+import {
+  connectAuthEmulator,
+  getAuth,
+  GoogleAuthProvider,
+} from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
+
+const cloudConfigIsComplete = Boolean(
+  import.meta.env.VITE_FIREBASE_API_KEY &&
+    import.meta.env.VITE_FIREBASE_AUTH_DOMAIN &&
+    import.meta.env.VITE_FIREBASE_PROJECT_ID &&
+    import.meta.env.VITE_FIREBASE_APP_ID,
+)
+
+export const usesFirebaseEmulators =
+  import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' ||
+  !cloudConfigIsComplete
+
+const firebaseConfig = cloudConfigIsComplete
+  ? {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    }
+  : {
+      apiKey: 'demo-api-key',
+      authDomain: 'demo-family-finance-v2.firebaseapp.com',
+      projectId: 'demo-family-finance-v2',
+      appId: '1:123456789:web:family-finance-v2',
+    }
+
+const app = initializeApp(firebaseConfig)
+
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+export const googleProvider = new GoogleAuthProvider()
+
+if (usesFirebaseEmulators) {
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', {
+    disableWarnings: true,
+  })
+  connectFirestoreEmulator(db, '127.0.0.1', 8080)
+}
