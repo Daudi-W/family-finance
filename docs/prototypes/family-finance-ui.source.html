@@ -1,0 +1,1661 @@
+<div id="family-ledger-preview-v2">
+  <style>
+    #family-ledger-preview-v2 {
+      color-scheme: light dark;
+      --family-green: light-dark(#0f6e56, #63d6ae);
+      --family-green-deep: light-dark(#074c3c, #dff8ef);
+      --family-green-soft: light-dark(#e1f5ee, #173c32);
+      --family-green-mid: light-dark(#8bd6bc, #315f52);
+      --family-canvas: light-dark(#f4f6f8, #101916);
+      --family-surface: light-dark(#ffffff, #17231f);
+      --family-sunken: light-dark(#eef2f5, #22302c);
+      --family-border: light-dark(#e0e6eb, #31403b);
+      --family-border-strong: light-dark(#c5cfd8, #53635e);
+      --family-text: light-dark(#1f2d3d, #eff8f5);
+      --family-body: light-dark(#3d4d5e, #cad8d3);
+      --family-muted: light-dark(#6d7c8c, #aab9b4);
+      --family-danger: light-dark(#bc3d32, #ff958c);
+      --family-danger-soft: light-dark(#fdecea, #43211e);
+      --family-orange: light-dark(#b96a16, #ffc178);
+      --family-orange-soft: light-dark(#fff1df, #3c2b17);
+      --family-purple: light-dark(#7656a6, #c7aff5);
+      --family-purple-soft: light-dark(#f2ecfb, #2c233a);
+      --family-blue: light-dark(#3e6f9d, #9ccaf3);
+      --family-blue-soft: light-dark(#eaf3fb, #1e3141);
+      --family-scrim: light-dark(rgba(31,45,61,.48), rgba(0,0,0,.68));
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      color: var(--family-text);
+      font-family: system-ui, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+    #family-ledger-preview-v2 * { box-sizing: border-box; }
+    #family-ledger-preview-v2 button,
+    #family-ledger-preview-v2 input,
+    #family-ledger-preview-v2 select,
+    #family-ledger-preview-v2 textarea { font: inherit; }
+    #family-ledger-preview-v2 button { cursor: pointer; }
+    #family-ledger-preview-v2 .fl-preview-switch { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }
+    #family-ledger-preview-v2 .fl-preview-switch button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--family-border-strong); border-radius: 12px; background: var(--family-surface); color: var(--family-muted); font-size: 15px; font-weight: 400; }
+    #family-ledger-preview-v2 .fl-preview-switch button[aria-pressed="true"] { border-color: var(--family-green-mid); background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-device { position: relative; width: calc(100% - 12px); max-width: 390px; min-width: 0; margin: 0 auto; overflow: hidden; border: 1px solid var(--family-border-strong); border-radius: 16px; background: var(--family-canvas); box-shadow: 0 2px 8px rgba(31,45,61,.06); }
+    #family-ledger-preview-v2 .fl-device.is-desktop { max-width: 720px; display: grid; grid-template-columns: 164px minmax(0, 1fr); }
+    #family-ledger-preview-v2 .fl-sidebar { display: none; padding: 22px 12px; border-right: 1px solid var(--family-border); background: var(--family-surface); }
+    #family-ledger-preview-v2 .is-desktop .fl-sidebar { display: flex; flex-direction: column; gap: 6px; }
+    #family-ledger-preview-v2 .fl-brand { padding: 0 10px 16px; color: var(--family-green-deep); font-size: 16px; line-height: 1.5; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-sidebar button { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 9px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--family-muted); font-size: 15px; line-height: 1.6; text-align: left; }
+    #family-ledger-preview-v2 .fl-sidebar button.is-active { background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-sidebar svg,
+    #family-ledger-preview-v2 .fl-bottom svg,
+    #family-ledger-preview-v2 .fl-icon-button svg { width: 18px; height: 18px; }
+    #family-ledger-preview-v2 .fl-main { min-width: 0; background: var(--family-canvas); }
+    #family-ledger-preview-v2 .fl-topbar { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 8px; min-height: 54px; padding: 5px 12px; border-bottom: 1px solid var(--family-border); background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-topbar h1 { justify-self: center; margin: 0; color: var(--family-text); font-size: 18px; line-height: 1.4; font-weight: 700; text-align: center; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-topbar p { display: none; }
+    #family-ledger-preview-v2 .fl-top-actions { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 4px; }
+    #family-ledger-preview-v2 .fl-top-back { justify-self: start; }
+    #family-ledger-preview-v2 .fl-top-back.fl-is-hidden { display: grid; visibility: hidden; pointer-events: none; }
+    #family-ledger-preview-v2 .fl-top-actions .fl-icon-button { border-color: transparent; }
+    #family-ledger-preview-v2 .fl-top-actions .fl-is-hidden { display: none; }
+    #family-ledger-preview-v2 .fl-top-notice { position: relative; display: grid; place-items: center; width: 30px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-top-notice svg { width: 17px; height: 17px; }
+    #family-ledger-preview-v2 .fl-notice-count { position: absolute; top: 3px; right: 0; display: grid; place-items: center; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--family-danger); color: light-dark(#ffffff, #17100f); font-size: 11px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-icon-button { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); color: var(--family-green); }
+    #family-ledger-preview-v2 .fl-page { display: none; padding: 16px 16px 86px; }
+    #family-ledger-preview-v2 .fl-page.is-active { display: block; }
+    #family-ledger-preview-v2 .is-desktop .fl-page { padding: 24px; }
+    #family-ledger-preview-v2 .fl-device.is-entry-mode .fl-topbar,
+    #family-ledger-preview-v2 .fl-device.is-entry-mode .fl-bottom,
+    #family-ledger-preview-v2 .fl-device.is-entry-mode .fl-sidebar { display: none; }
+    #family-ledger-preview-v2 .fl-device.is-desktop.is-entry-mode { grid-template-columns: minmax(0, 1fr); }
+    #family-ledger-preview-v2 .fl-device .fl-entry-page { padding: 0; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-entry-head { display: grid; grid-template-columns: 44px minmax(0, 1fr) 58px; align-items: center; gap: 7px; min-height: 60px; padding: 8px 10px; border-bottom: 1px solid var(--family-border); background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-entry-head h2 { margin: 0; color: var(--family-text); font-size: 20px; line-height: 1.4; font-weight: 700; text-align: center; }
+    #family-ledger-preview-v2 .fl-entry-head .fl-head-save { min-height: 44px; border: 0; background: transparent; color: var(--family-green); font-size: 15px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-entry-types { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: 10px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-entry-types button { min-width: 0; min-height: 40px; padding: 5px 1px; border: 0; border-radius: 8px; background: transparent; color: var(--family-muted); font-size: 13px; line-height: 1.4; }
+    #family-ledger-preview-v2 .fl-entry-types button.is-active { background: var(--family-surface); color: var(--family-text); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-entry-content { padding: 10px 16px 16px; }
+    #family-ledger-preview-v2 .fl-entry-date { position: relative; display: grid; place-items: center; min-height: 54px; padding: 7px 2px 11px; border-bottom: 1px solid var(--family-border); color: var(--family-text); font-size: 17px; line-height: 1.5; font-weight: 700; text-align: center; cursor: pointer; }
+    #family-ledger-preview-v2 .fl-entry-date input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    #family-ledger-preview-v2 .fl-entry-amount { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-entry-amount > span { color: var(--family-muted); font-size: 14px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-entry-amount label { color: var(--family-body); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-entry-amount input { width: 100%; min-width: 0; min-height: 48px; padding: 7px 0; border: 0; background: transparent; color: var(--family-text); font-size: 22px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-entry-list { margin-top: 6px; border-top: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-entry-field { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 58px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-entry-field label { color: var(--family-body); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-entry-field-label { display: flex; align-items: center; gap: 9px; min-width: 0; }
+    #family-ledger-preview-v2 .fl-entry-field-label .fl-field-icon { display: grid; flex: 0 0 24px; place-items: center; width: 24px; color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-entry-field input,
+    #family-ledger-preview-v2 .fl-entry-field select { width: 100%; min-width: 0; min-height: 44px; padding: 7px 4px; border: 0; background: transparent; color: var(--family-text); font-size: 16px; line-height: 1.5; text-align: right; }
+    #family-ledger-preview-v2 .fl-entry-field select { text-align-last: right; }
+    #family-ledger-preview-v2 .fl-entry-field button { display: flex; align-items: center; justify-content: flex-end; gap: 7px; width: 100%; min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--family-text); font-size: 16px; line-height: 1.5; text-align: right; }
+    #family-ledger-preview-v2 .fl-entry-field .fl-field-icon { font-size: 20px; }
+    #family-ledger-preview-v2 .fl-entry-field .fl-field-icon svg { width: 20px; height: 20px; }
+    #family-ledger-preview-v2 .fl-entry-choice-copy { min-width: 0; flex: 1; text-align: right; }
+    #family-ledger-preview-v2 .fl-entry-choice-copy > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-entry-choice-copy small { display: block; margin-top: 2px; color: var(--family-muted); font-size: 12px; line-height: 1.4; font-weight: 400; }
+    #family-ledger-preview-v2 .fl-mini-segments { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin: 10px 0 4px; padding: 3px; border-radius: 12px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-mini-segments button { min-height: 44px; padding: 7px 4px; border: 0; border-radius: 8px; background: transparent; color: var(--family-muted); font-size: 14px; }
+    #family-ledger-preview-v2 .fl-mini-segments button.is-active { background: var(--family-surface); color: var(--family-text); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-note-section { margin: 14px -16px 0; padding: 14px 16px 0; border-top: 8px solid var(--family-canvas); }
+    #family-ledger-preview-v2 .fl-note-section label { display: block; margin-bottom: 7px; color: var(--family-body); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-note-section textarea { width: 100%; min-height: 94px; padding: 11px 12px; border: 1px solid var(--family-border-strong); border-radius: 12px; background: var(--family-surface); color: var(--family-text); font-size: 16px; line-height: 1.5; resize: vertical; }
+    #family-ledger-preview-v2 .fl-fee-section { margin: 0 -16px; padding: 12px 16px 0; border-top: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-fee-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; color: var(--family-body); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-fee-toggle input { width: 20px; height: 20px; accent-color: var(--family-green); }
+    #family-ledger-preview-v2 .fl-fee-amount { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 52px; border-top: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-fee-amount label { color: var(--family-body); font-size: 15px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-fee-amount input { width: 100%; min-width: 0; min-height: 44px; padding: 7px 4px; border: 0; background: transparent; color: var(--family-text); font-size: 16px; text-align: right; }
+    #family-ledger-preview-v2 .fl-fee-amount span { color: var(--family-muted); font-size: 13px; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-advance-option { min-height: 52px; padding: 4px 0; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-participant-list { margin-top: 8px; overflow: hidden; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-participant-row { display: grid; grid-template-columns: minmax(0, 1fr) 108px 44px; align-items: center; gap: 8px; min-height: 54px; padding: 5px 7px 5px 12px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-participant-row:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-participant-row input { width: 100%; min-width: 0; min-height: 42px; padding: 6px 4px; border: 0; background: transparent; color: var(--family-text); font-size: 16px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-participant-row input[inputmode="decimal"] { text-align: right; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-participant-remove { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--family-danger); }
+    #family-ledger-preview-v2 .fl-add-participant { width: 100%; min-height: 46px; margin-top: 8px; border: 1px dashed var(--family-green-mid); border-radius: 12px; background: var(--family-surface); color: var(--family-green-deep); font-size: 15px; line-height: 1.5; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-detail-card { margin-top: 12px; overflow: hidden; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-detail-card .fl-detail-line { min-height: 50px; align-items: center; padding: 9px 14px; border-bottom: 1px solid var(--family-border); font-size: 15px; }
+    #family-ledger-preview-v2 .fl-detail-card .fl-detail-line:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-page-form { padding-bottom: 12px; }
+    #family-ledger-preview-v2 .fl-page-form .fl-field:first-child { margin-top: 0; }
+    #family-ledger-preview-v2 .fl-entry-help { margin-top: 8px; color: var(--family-muted); font-size: 13px; line-height: 1.55; text-align: center; }
+    #family-ledger-preview-v2 .fl-category-page-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 16px; }
+    #family-ledger-preview-v2 .fl-category-page-grid button { min-height: 86px; padding: 10px 4px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); color: var(--family-body); font-size: 15px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-category-page-grid button span { display: grid; place-items: center; margin-bottom: 7px; }
+    #family-ledger-preview-v2 .fl-category-page-grid button svg { width: 24px; height: 24px; stroke-width: 1.8; }
+    #family-ledger-preview-v2 .fl-category-page-grid button.is-active { border-color: var(--family-green); background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-picker-list { padding: 16px; }
+    #family-ledger-preview-v2 .fl-account-form-content { padding: 8px 16px 20px; background: var(--family-canvas); }
+    #family-ledger-preview-v2 .fl-account-form-group { margin-top: 12px; overflow: hidden; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-account-form-row { display: grid; grid-template-columns: 124px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 58px; padding: 5px 14px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-account-form-row:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-account-form-row label { color: var(--family-body); font-size: 15px; line-height: 1.5; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-account-form-row input:not([type="checkbox"]),
+    #family-ledger-preview-v2 .fl-account-form-row select { width: 100%; min-width: 0; min-height: 44px; padding: 6px 0; border: 0; background: transparent; color: var(--family-text); font-size: 16px; line-height: 1.5; text-align: right; text-align-last: right; }
+    #family-ledger-preview-v2 .fl-account-form-row small { display: block; margin-top: 2px; color: var(--family-muted); font-size: 12px; line-height: 1.4; text-align: right; }
+    #family-ledger-preview-v2 .fl-switch-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    #family-ledger-preview-v2 .fl-switch-wrap input { position: relative; width: 46px; height: 26px; margin: 0; appearance: none; border-radius: 999px; background: var(--family-border-strong); transition: background .18s ease; }
+    #family-ledger-preview-v2 .fl-switch-wrap input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: var(--family-surface); box-shadow: 0 1px 3px rgba(31,45,61,.24); transition: transform .18s ease; }
+    #family-ledger-preview-v2 .fl-switch-wrap input:checked { background: var(--family-green); }
+    #family-ledger-preview-v2 .fl-switch-wrap input:checked::after { transform: translateX(20px); }
+    #family-ledger-preview-v2 .fl-account-icon-section { margin-top: 12px; padding: 15px 14px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-account-icon-section > strong { color: var(--family-body); font-size: 15px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-account-form-content textarea { width: 100%; min-height: 88px; margin-top: 12px; padding: 12px 14px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); color: var(--family-text); font-size: 16px; line-height: 1.5; resize: vertical; }
+    #family-ledger-preview-v2 .fl-danger-button { width: 100%; min-height: 48px; margin-top: 14px; padding: 10px 14px; border: 1px solid var(--family-danger); border-radius: 12px; background: var(--family-surface); color: var(--family-danger); font-size: 15px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-alert { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 11px 14px; border: 1px solid var(--family-green-mid); border-radius: 12px; background: var(--family-green-soft); color: var(--family-green-deep); font-size: 15px; line-height: 1.6; font-weight: 700; text-align: left; }
+    #family-ledger-preview-v2 .fl-balance { margin-top: 8px; padding: 14px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-eyebrow { color: var(--family-muted); font-size: 13px; line-height: 1.55; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-balance-value { margin-top: 3px; color: var(--family-green-deep); font-size: 25px; line-height: 1.35; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-balance-note { margin-top: 4px; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    #family-ledger-preview-v2 .fl-stat { padding: 11px 6px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); text-align: center; }
+    #family-ledger-preview-v2 .fl-stat span { display: block; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-stat strong { display: block; margin-top: 3px; color: var(--family-text); font-size: 15px; line-height: 1.6; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 22px 0 8px; }
+    #family-ledger-preview-v2 .fl-section-title h2 { margin: 0; color: var(--family-text); font-size: 16px; line-height: 1.5; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-section-title span,
+    #family-ledger-preview-v2 .fl-section-title button { color: var(--family-green); font-size: 13px; line-height: 1.55; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-section-title button { min-height: 44px; border: 0; background: transparent; }
+    #family-ledger-preview-v2 .fl-budget { padding: 15px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-budget-row { display: flex; justify-content: space-between; gap: 12px; color: var(--family-body); font-size: 15px; line-height: 1.6; }
+    #family-ledger-preview-v2 .fl-budget-row strong { color: var(--family-text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-track { height: 8px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-track span { display: block; height: 100%; border-radius: 999px; background: var(--family-green); }
+    #family-ledger-preview-v2 .fl-caption { margin-top: 7px; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-list { overflow: hidden; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 11px; width: 100%; min-height: 68px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--family-border); background: transparent; color: inherit; text-align: left; }
+    #family-ledger-preview-v2 .fl-row:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-row-icon,
+    #family-ledger-preview-v2 .fl-category-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--family-sunken); color: var(--family-green-deep); font-size: 20px; line-height: 1; }
+    #family-ledger-preview-v2 .fl-row-icon svg,
+    #family-ledger-preview-v2 .fl-category-icon svg { width: 20px; height: 20px; stroke-width: 1.8; }
+    #family-ledger-preview-v2 .fl-row-title { display: block; color: var(--family-text); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-row-meta { display: block; margin-top: 5px; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-row-end { color: var(--family-text); font-size: 15px; line-height: 1.6; font-weight: 700; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-row-end small { display: block; color: var(--family-muted); font-size: 13px; line-height: 1.55; font-weight: 400; }
+    #family-ledger-preview-v2 .fl-expense { color: var(--family-danger); }
+    #family-ledger-preview-v2 .fl-page-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+    #family-ledger-preview-v2 .fl-page-title { display: flex; align-items: center; gap: 8px; }
+    #family-ledger-preview-v2 .fl-page-head h2 { margin: 0; color: var(--family-text); font-size: 22px; line-height: 1.4; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-back { width: 44px; height: 44px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); color: var(--family-green); font-size: 20px; }
+    #family-ledger-preview-v2 .fl-filters { display: flex; gap: 7px; margin-bottom: 12px; overflow: hidden; }
+    #family-ledger-preview-v2 .fl-filter { min-height: 44px; padding: 8px 13px; border: 1px solid var(--family-border-strong); border-radius: 999px; background: var(--family-surface); color: var(--family-muted); font-size: 13px; line-height: 1.55; font-weight: 700; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-filter.is-active { border-color: var(--family-green-mid); background: var(--family-green-soft); color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-view-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-bottom: 12px; padding: 3px; border-radius: 12px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-view-toggle button { min-height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--family-muted); font-size: 15px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-view-toggle button.is-active { background: var(--family-surface); color: var(--family-text); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-calendar { overflow: hidden; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-calendar-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-calendar-head strong { color: var(--family-text); font-size: 16px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-calendar-head button { display: grid; place-items: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--family-green); }
+    #family-ledger-preview-v2 .fl-calendar-weekdays,
+    #family-ledger-preview-v2 .fl-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    #family-ledger-preview-v2 .fl-calendar-weekdays span { padding: 5px 0; color: var(--family-muted); font-size: 13px; line-height: 1.55; text-align: center; }
+    #family-ledger-preview-v2 .fl-calendar-day { position: relative; min-width: 0; min-height: 48px; padding: 5px 1px 11px; border: 0; border-top: 1px solid var(--family-border); background: transparent; color: var(--family-text); font-size: 14px; line-height: 1.4; }
+    #family-ledger-preview-v2 .fl-calendar-day.is-outside { color: var(--family-border-strong); }
+    #family-ledger-preview-v2 .fl-calendar-day.is-selected { background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-calendar-day[data-has-entry]::after { content: ""; position: absolute; bottom: 5px; left: 50%; width: 5px; height: 5px; border-radius: 999px; background: var(--family-green); transform: translateX(-50%); }
+    #family-ledger-preview-v2 .fl-calendar-day[data-has-income]::before { content: ""; position: absolute; right: calc(50% - 8px); bottom: 5px; width: 5px; height: 5px; border-radius: 999px; background: var(--family-blue); }
+    #family-ledger-preview-v2 .fl-day-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 2px 8px; }
+    #family-ledger-preview-v2 .fl-day-summary strong { color: var(--family-text); font-size: 16px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-day-summary span { color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-transaction-detail { display: none; padding: 14px 16px 16px 70px; border-bottom: 1px solid var(--family-border); background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-transaction-detail.is-open { display: block; }
+    #family-ledger-preview-v2 .fl-detail-line { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; color: var(--family-body); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-detail-line strong { color: var(--family-text); font-weight: 700; text-align: right; }
+    #family-ledger-preview-v2 .fl-account-group + .fl-account-group { margin-top: 18px; }
+    #family-ledger-preview-v2 .fl-group-head { display: flex; justify-content: space-between; gap: 12px; margin: 0 2px 7px; color: var(--family-muted); font-size: 13px; line-height: 1.55; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-account-edit-row { display: grid; grid-template-columns: 0 minmax(0, 1fr) 0 0 0; align-items: center; overflow: hidden; border-bottom: 1px solid var(--family-border); transition: grid-template-columns .18s ease; }
+    #family-ledger-preview-v2 .fl-account-edit-row:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-account-edit-row > .fl-row { min-width: 0; border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-account-drag,
+    #family-ledger-preview-v2 .fl-account-inline-action,
+    #family-ledger-preview-v2 .fl-account-delete { display: grid; place-items: center; width: 40px; height: 48px; padding: 0; overflow: hidden; border: 0; background: transparent; color: var(--family-muted); opacity: 0; pointer-events: none; }
+    #family-ledger-preview-v2 .fl-account-inline-action { color: var(--family-green); }
+    #family-ledger-preview-v2 .fl-account-delete { color: var(--family-danger); }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-edit-row { grid-template-columns: 36px minmax(0, 1fr) 38px 38px 40px; }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-drag,
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-inline-action,
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-delete { opacity: 1; pointer-events: auto; }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-drag { touch-action: none; }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-edit-row { cursor: grab; }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-edit-row.is-dragging { opacity: .48; }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-account-edit-row > .fl-row { grid-template-columns: 40px minmax(0, 1fr); }
+    #family-ledger-preview-v2 .fl-account-manager.is-editing .fl-row-end { display: none; }
+    #family-ledger-preview-v2 .fl-account-summary { padding: 13px 14px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-account-summary-line { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+    #family-ledger-preview-v2 .fl-account-summary strong { display: block; margin: 0; color: var(--family-green-deep); font-size: 25px; line-height: 1.35; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #family-ledger-preview-v2 .fl-asset-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    #family-ledger-preview-v2 .fl-asset-part { padding: 8px 10px; border-radius: 12px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-asset-part span { display: block; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-asset-part strong { margin-top: 2px; color: var(--family-text); font-size: 15px; line-height: 1.6; text-align: left; }
+    #family-ledger-preview-v2 .fl-actions-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    #family-ledger-preview-v2 .fl-actions-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-top: 12px; }
+    #family-ledger-preview-v2 .fl-actions-three .fl-primary,
+    #family-ledger-preview-v2 .fl-actions-three .fl-secondary { min-width: 0; padding-right: 5px; padding-left: 5px; font-size: 14px; }
+    #family-ledger-preview-v2 .fl-account-flow-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; margin-top: 12px; overflow: hidden; border: 1px solid var(--family-border); border-radius: 14px; background: var(--family-border); }
+    #family-ledger-preview-v2 .fl-account-flow-summary div { padding: 11px 5px; background: var(--family-surface); text-align: center; }
+    #family-ledger-preview-v2 .fl-account-flow-summary span { display: block; color: var(--family-muted); font-size: 12px; line-height: 1.4; }
+    #family-ledger-preview-v2 .fl-account-flow-summary strong { display: block; margin-top: 3px; color: var(--family-text); font-size: 14px; line-height: 1.45; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-account-entry-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+    #family-ledger-preview-v2 .fl-account-entry-actions button { display: grid; place-items: center; align-content: center; gap: 5px; min-height: 62px; padding: 8px 4px; border: 1px solid var(--family-border-strong); border-radius: 12px; background: var(--family-surface); color: var(--family-green-deep); font-size: 14px; line-height: 1.4; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-account-entry-actions svg { width: 19px; height: 19px; }
+    #family-ledger-preview-v2 .fl-adjust-explanation { margin-top: 10px; padding: 10px 12px; border-left: 3px solid var(--family-green-mid); background: var(--family-green-soft); color: var(--family-green-deep); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-project-card { display: block; width: 100%; color: inherit; text-align: left; }
+    #family-ledger-preview-v2 .fl-project-card .fl-budget-row strong::after { content: "  ›"; color: var(--family-muted); }
+    #family-ledger-preview-v2 .fl-primary,
+    #family-ledger-preview-v2 .fl-secondary { min-height: 48px; padding: 10px 14px; border-radius: 12px; font-size: 16px; line-height: 1.5; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-primary { border: 1px solid var(--family-green); background: var(--family-green); color: light-dark(#ffffff, #082b23); }
+    #family-ledger-preview-v2 .fl-secondary { border: 1px solid var(--family-green-mid); background: var(--family-surface); color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-report-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #family-ledger-preview-v2 .fl-report-card { padding: 14px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-report-card span { color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-report-card strong { display: block; margin-top: 3px; color: var(--family-text); font-size: 18px; line-height: 1.45; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-report-card .fl-card-note { display: block; margin-top: 4px; }
+    #family-ledger-preview-v2 .fl-report-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin-bottom: 12px; padding: 3px; border-radius: 12px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-report-modes button { min-height: 44px; padding: 7px 4px; border: 0; border-radius: 8px; background: transparent; color: var(--family-muted); font-size: 14px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-report-modes button.is-active { background: var(--family-surface); color: var(--family-text); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-chart-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 .fl-chart-title { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--family-text); font-size: 15px; line-height: 1.6; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-chart-title span { color: var(--family-muted); font-size: 13px; font-weight: 400; }
+    #family-ledger-preview-v2 .fl-donut-wrap { display: grid; grid-template-columns: 126px minmax(0, 1fr); align-items: center; gap: 14px; }
+    #family-ledger-preview-v2 .fl-donut { position: relative; width: 126px; height: 126px; border-radius: 999px; background: conic-gradient(var(--family-green) 0 36%, var(--family-orange) 36% 60%, var(--family-purple) 60% 78%, var(--family-blue) 78% 91%, var(--family-border-strong) 91% 99%, var(--family-danger) 99% 100%); }
+    #family-ledger-preview-v2 .fl-donut::after { content: "49,520"; position: absolute; inset: 27px; display: grid; place-items: center; border-radius: 999px; background: var(--family-surface); color: var(--family-text); font-size: 13px; line-height: 1.55; font-weight: 700; text-align: center; }
+    #family-ledger-preview-v2 .fl-legend { display: grid; gap: 8px; }
+    #family-ledger-preview-v2 .fl-legend-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 7px; color: var(--family-body); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-swatch { width: 10px; height: 10px; border-radius: 999px; }
+    #family-ledger-preview-v2 .fl-bars { display: flex; align-items: end; gap: 9px; height: 126px; padding-top: 8px; }
+    #family-ledger-preview-v2 .fl-bar-group { flex: 1; display: grid; align-content: end; gap: 5px; height: 100%; color: var(--family-muted); font-size: 13px; line-height: 1.55; text-align: center; }
+    #family-ledger-preview-v2 .fl-bar { width: 100%; min-height: 8px; border-radius: 8px 8px 3px 3px; background: var(--family-green); }
+    #family-ledger-preview-v2 .fl-chart-panel.is-income .fl-bar { background: var(--family-blue); }
+    #family-ledger-preview-v2 .fl-chart-panel.is-assets .fl-bar { background: var(--family-purple); }
+    #family-ledger-preview-v2 .fl-is-hidden { display: none; }
+    #family-ledger-preview-v2 .fl-settings-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 11px; min-height: 68px; padding: 10px 12px; border-bottom: 1px solid var(--family-border); }
+    #family-ledger-preview-v2 .fl-settings-row:last-child { border-bottom: 0; }
+    #family-ledger-preview-v2 .fl-settlement-end { display: grid; justify-items: end; gap: 5px; }
+    #family-ledger-preview-v2 .fl-settlement-end strong { color: var(--family-text); font-size: 15px; line-height: 1.5; font-weight: 700; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-settlement-action { min-height: 38px; padding: 6px 12px; border: 1px solid var(--family-green-mid); border-radius: 10px; background: var(--family-surface); color: var(--family-green-deep); font-size: 13px; line-height: 1.4; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-chevron { color: var(--family-muted); font-size: 18px; }
+    #family-ledger-preview-v2 .fl-bottom { position: absolute; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-height: 68px; padding: 5px 3px; border-top: 1px solid var(--family-border); background: var(--family-surface); box-shadow: 0 2px 8px rgba(31,45,61,.06); }
+    #family-ledger-preview-v2 .is-desktop .fl-bottom { display: none; }
+    #family-ledger-preview-v2 .fl-bottom button { display: grid; place-items: center; align-content: center; gap: 2px; min-height: 56px; padding: 3px 1px; border: 0; border-radius: 12px; background: transparent; color: var(--family-muted); font-size: 13px; line-height: 1.4; }
+    #family-ledger-preview-v2 .fl-bottom button.is-active { background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-bottom .fl-add { width: 56px; height: 56px; min-height: 56px; margin: 0 auto; border-radius: 999px; background: var(--family-green); color: light-dark(#ffffff, #082b23); }
+    #family-ledger-preview-v2 .fl-bottom .fl-add svg { width: 24px; height: 24px; }
+    #family-ledger-preview-v2 .fl-sheet-layer { position: absolute; inset: 0; z-index: 20; display: none; align-items: flex-end; background: var(--family-scrim); }
+    #family-ledger-preview-v2 .fl-sheet-layer.is-open { display: flex; }
+    #family-ledger-preview-v2 .fl-sheet { width: 100%; max-height: 94%; overflow: auto; padding: 18px 16px 22px; border-radius: 16px 16px 0 0; background: var(--family-surface); }
+    #family-ledger-preview-v2 .is-desktop .fl-sheet-layer { align-items: center; padding: 20px; }
+    #family-ledger-preview-v2 .is-desktop .fl-sheet { max-width: 470px; margin: auto; border-radius: 16px; }
+    #family-ledger-preview-v2 .fl-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    #family-ledger-preview-v2 .fl-sheet-head h2 { margin: 0; color: var(--family-text); font-size: 22px; line-height: 1.4; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-close { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--family-sunken); color: var(--family-body); font-size: 20px; }
+    #family-ledger-preview-v2 .fl-segments { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 12px; background: var(--family-sunken); }
+    #family-ledger-preview-v2 .fl-segments button { min-height: 44px; padding: 7px 3px; border: 0; border-radius: 8px; background: transparent; color: var(--family-muted); font-size: 13px; line-height: 1.55; }
+    #family-ledger-preview-v2 .fl-segments button.is-active { background: var(--family-surface); color: var(--family-text); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-field { margin-top: 12px; }
+    #family-ledger-preview-v2 .fl-field label { display: block; margin-bottom: 5px; color: var(--family-muted); font-size: 13px; line-height: 1.55; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-field input,
+    #family-ledger-preview-v2 .fl-field select,
+    #family-ledger-preview-v2 .fl-field textarea { width: 100%; min-height: 48px; padding: 10px 13px; border: 1px solid var(--family-border-strong); border-radius: 12px; background: var(--family-surface); color: var(--family-text); font-size: 16px; line-height: 1.5; }
+    #family-ledger-preview-v2 .fl-field textarea { min-height: 76px; resize: vertical; }
+    #family-ledger-preview-v2 .fl-amount { font-size: 22px !important; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+    #family-ledger-preview-v2 .fl-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    #family-ledger-preview-v2 .fl-date-shortcuts { display: flex; gap: 7px; margin-top: 7px; }
+    #family-ledger-preview-v2 .fl-date-shortcuts button { min-height: 44px; padding: 7px 13px; border: 1px solid var(--family-border); border-radius: 999px; background: var(--family-surface); color: var(--family-body); font-size: 13px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-date-shortcuts button.is-active { border-color: var(--family-green-mid); background: var(--family-green-soft); color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-category-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; }
+    #family-ledger-preview-v2 .fl-category-choice { min-height: 68px; padding: 7px 2px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); color: var(--family-body); font-size: 13px; line-height: 1.4; }
+    #family-ledger-preview-v2 .fl-category-choice span { display: block; margin-bottom: 4px; font-size: 22px; }
+    #family-ledger-preview-v2 .fl-category-choice.is-active { border-color: var(--family-green); background: var(--family-green-soft); color: var(--family-green-deep); font-weight: 700; }
+    #family-ledger-preview-v2 .fl-submit { width: 100%; margin-top: 14px; }
+    #family-ledger-preview-v2 .fl-icon-picker { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+    #family-ledger-preview-v2 .fl-icon-picker button { min-height: 48px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); font-size: 22px; }
+    #family-ledger-preview-v2 .fl-icon-picker button.is-active { border-color: var(--family-green); background: var(--family-green-soft); }
+    #family-ledger-preview-v2 .fl-category-manage-actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+    #family-ledger-preview-v2 .fl-category-manage-actions button { min-height: 44px; padding: 8px 14px; border: 1px solid var(--family-border-strong); border-radius: 12px; background: var(--family-surface); color: var(--family-green-deep); font-size: 14px; font-weight: 700; }
+    #family-ledger-preview-v2 .fl-category-manage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    #family-ledger-preview-v2 .fl-category-manage-tile { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 82px; padding: 10px 4px; border: 1px solid var(--family-border); border-radius: 12px; background: var(--family-surface); color: var(--family-body); font-size: 13px; line-height: 1.45; text-align: center; }
+    #family-ledger-preview-v2 .fl-category-manage-tile svg { display: block; width: 22px; height: 22px; margin: 0 0 7px; color: var(--family-green-deep); stroke-width: 1.8; }
+    #family-ledger-preview-v2 .fl-category-manage-tile.is-add { border-style: dashed; color: var(--family-green-deep); }
+    #family-ledger-preview-v2 .fl-category-manage-tile .fl-grip { position: absolute; top: 4px; right: 6px; display: none; color: var(--family-muted); font-size: 13px; }
+    #family-ledger-preview-v2 .fl-category-manager.is-sorting .fl-category-manage-tile:not(.is-add) { border-color: var(--family-green-mid); }
+    #family-ledger-preview-v2 .fl-category-manager.is-sorting .fl-grip { display: block; }
+    #family-ledger-preview-v2 .fl-toast { position: absolute; top: 72px; right: 16px; left: 16px; z-index: 30; display: none; padding: 12px 14px; border-left: 4px solid var(--family-green-mid); border-radius: 12px; background: var(--family-text); color: var(--family-surface); font-size: 15px; line-height: 1.6; }
+    #family-ledger-preview-v2 .fl-toast.is-showing { display: block; }
+    #family-ledger-preview-v2 .is-hidden-money { filter: blur(7px); user-select: none; }
+    @media (max-width: 430px) {
+      #family-ledger-preview-v2 .fl-preview-switch { justify-content: stretch; }
+      #family-ledger-preview-v2 .fl-preview-switch button { flex: 1; }
+      #family-ledger-preview-v2 .fl-device { width: calc(100% - 20px); border-radius: 12px; }
+      #family-ledger-preview-v2 .fl-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; padding-right: 9px; padding-left: 9px; }
+      #family-ledger-preview-v2 .fl-row-icon { width: 40px; height: 40px; }
+      #family-ledger-preview-v2 .fl-stat { padding-right: 3px; padding-left: 3px; }
+      #family-ledger-preview-v2 .fl-stat strong { font-size: 13px; }
+      #family-ledger-preview-v2 .fl-form-grid { grid-template-columns: 1fr; gap: 0; }
+      #family-ledger-preview-v2 .fl-donut-wrap { grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+      #family-ledger-preview-v2 .fl-donut { width: 112px; height: 112px; }
+    }
+  </style>
+
+  <div class="fl-preview-switch" aria-label="預覽尺寸">
+    <button type="button" data-device="mobile" aria-pressed="true">手機版</button>
+    <button type="button" data-device="desktop" aria-pressed="false">電腦版</button>
+  </div>
+
+  <section class="fl-device is-mobile" aria-label="家庭記帳介面原型">
+    <aside class="fl-sidebar" aria-label="電腦版主導覽">
+      <div class="fl-brand">家庭帳本</div>
+      <button type="button" class="is-active" data-page-target="home"><i data-lucide="house" aria-hidden="true"></i>首頁</button>
+      <button type="button" data-page-target="transactions"><i data-lucide="calendar-days" aria-hidden="true"></i>明細</button>
+      <button type="button" data-page-target="accounts"><i data-lucide="landmark" aria-hidden="true"></i>帳戶</button>
+      <button type="button" data-open-entry="expense"><i data-lucide="circle-plus" aria-hidden="true"></i>記一筆</button>
+      <button type="button" data-page-target="reports"><i data-lucide="chart-pie" aria-hidden="true"></i>統計報表</button>
+      <button type="button" data-page-target="more"><i data-lucide="settings" aria-hidden="true"></i>更多管理</button>
+    </aside>
+
+    <div class="fl-main">
+      <header class="fl-topbar">
+        <button type="button" class="fl-icon-button fl-top-back fl-is-hidden" aria-label="上一頁" data-top-back><i data-lucide="arrow-left" aria-hidden="true"></i></button>
+        <h1 data-top-title>首頁</h1>
+        <div class="fl-top-actions"><button type="button" class="fl-top-notice" aria-label="2 筆定期收支待確認" data-top-home-notice data-top-pending data-page-target="pending"><i data-lucide="repeat-2" aria-hidden="true"></i><span class="fl-notice-count" data-pending-count>2</span></button><button type="button" class="fl-top-notice" aria-label="3 筆代墊與分帳待處理" data-top-home-notice data-top-advance data-open-advances="home"><i data-lucide="handshake" aria-hidden="true"></i><span class="fl-notice-count" data-advance-count>3</span></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="管理帳戶順序" aria-pressed="false" data-top-account-manage><i data-lucide="menu" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="新增帳戶" data-top-account-add><i data-lucide="plus" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="帳戶設定" data-top-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="調整餘額" data-top-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="新增專案" data-top-project-add><i data-lucide="plus" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="編輯專案" data-top-project-edit><i data-lucide="square-pen" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="新增分類預算" data-top-budget-add><i data-lucide="plus" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="新增定期項目" data-top-recurring-add><i data-lucide="plus" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="新增代墊" data-top-advance-add><i data-lucide="plus" aria-hidden="true"></i></button><button type="button" class="fl-icon-button fl-is-hidden" aria-label="編輯代墊明細" data-top-advance-edit><i data-lucide="square-pen" aria-hidden="true"></i></button><button type="button" class="fl-icon-button" aria-label="隱藏餘額" aria-pressed="false" data-toggle-money><i data-lucide="eye" aria-hidden="true"></i></button></div>
+      </header>
+
+      <main>
+        <section class="fl-page is-active" data-page="home">
+          <div class="fl-stats">
+            <div class="fl-stat"><span>本月收入</span><strong class="fl-money">62,000</strong></div>
+            <div class="fl-stat"><span>本月支出</span><strong class="fl-money">49,520</strong></div>
+            <div class="fl-stat"><span>本月結餘</span><strong class="fl-money">12,480</strong></div>
+          </div>
+          <div class="fl-section-title"><h2>8 月日常預算</h2><button type="button" data-open-budgets="home">設定</button></div>
+          <div class="fl-budget">
+            <div class="fl-budget-row"><span>已使用 73%</span><strong class="fl-money">24,800 / 34,000</strong></div>
+            <div class="fl-track" aria-label="日常預算已使用 73%"><span style="width:73%"></span></div>
+          </div>
+          <div class="fl-section-title"><h2>交易明細</h2><button type="button" data-page-target="transactions">看全部</button></div>
+          <div class="fl-list">
+            <button type="button" class="fl-row" data-toggle-transaction="home-lunch"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">午餐</span><span class="fl-row-meta">餐飲・信用卡・今天</span></span><span class="fl-row-end fl-expense fl-money">−180<small>明細 ›</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="home-lunch"><div class="fl-detail-line"><span>分類</span><strong>餐飲／外食</strong></div><div class="fl-detail-line"><span>帳戶</span><strong>家庭信用卡</strong></div><div class="fl-detail-line"><span>記帳日期</span><strong>2026/08/11</strong></div><div class="fl-detail-line"><span>性質</span><strong>日常支出</strong></div></div>
+            <button type="button" class="fl-row" data-toggle-transaction="home-trip"><span class="fl-row-icon"><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title">機場交通</span><span class="fl-row-meta">交通・日本旅遊・昨天</span></span><span class="fl-row-end fl-expense fl-money">−1,260<small>明細 ›</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="home-trip"><div class="fl-detail-line"><span>分類</span><strong>交通／大眾運輸</strong></div><div class="fl-detail-line"><span>專案</span><strong>2026 日本旅遊</strong></div><div class="fl-detail-line"><span>帳戶</span><strong>家庭信用卡</strong></div></div>
+            <button type="button" class="fl-row" data-toggle-transaction="home-payback"><span class="fl-row-icon"><i data-lucide="handshake" aria-hidden="true"></i></span><span><span class="fl-row-title">代墊收回</span><span class="fl-row-meta">現金・不列入收入・昨天</span></span><span class="fl-row-end fl-money">＋500<small>明細 ›</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="home-payback"><div class="fl-detail-line"><span>類型</span><strong>代墊還款</strong></div><div class="fl-detail-line"><span>進入帳戶</span><strong>家庭現金</strong></div><div class="fl-detail-line"><span>原代墊剩餘</span><strong>NT$ 320</strong></div></div>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="pending">
+          <div class="fl-list">
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="smartphone" aria-hidden="true"></i></span><span><span class="fl-row-title">手機月租費</span><span class="fl-row-meta">8/10・銀行扣款・NT$ 799</span></span><button type="button" class="fl-secondary" data-confirm-pending>確認</button></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span><span class="fl-row-title">影音訂閱</span><span class="fl-row-meta">8/11・信用卡・NT$ 390</span></span><button type="button" class="fl-secondary" data-confirm-pending>確認</button></div>
+          </div>
+          <div class="fl-section-title"><h2>未來 7 天</h2></div>
+          <div class="fl-list"><div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><span class="fl-row-title">ETF 定期定額</span><span class="fl-row-meta">8/15・銀行 → 投資帳戶</span></span><span class="fl-row-end fl-money">10,000</span></div></div>
+        </section>
+
+        <section class="fl-page" data-page="transactions">
+          <div class="fl-view-toggle" aria-label="明細顯示方式"><button type="button" class="is-active" data-transaction-view="calendar">行事曆</button><button type="button" data-transaction-view="list">清單</button></div>
+          <div data-transaction-calendar>
+            <div class="fl-calendar">
+              <div class="fl-calendar-head"><button type="button" aria-label="上個月" data-calendar-month="previous">‹</button><strong data-calendar-month-title>2026 年 8 月</strong><button type="button" aria-label="下個月" data-calendar-month="next">›</button></div>
+              <div class="fl-calendar-weekdays"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+              <div class="fl-calendar-grid">
+                <button type="button" class="fl-calendar-day is-outside">27</button><button type="button" class="fl-calendar-day is-outside">28</button><button type="button" class="fl-calendar-day is-outside">29</button><button type="button" class="fl-calendar-day is-outside">30</button><button type="button" class="fl-calendar-day is-outside">31</button><button type="button" class="fl-calendar-day" data-calendar-day="1">1</button><button type="button" class="fl-calendar-day" data-calendar-day="2">2</button>
+                <button type="button" class="fl-calendar-day" data-calendar-day="3">3</button><button type="button" class="fl-calendar-day" data-calendar-day="4">4</button><button type="button" class="fl-calendar-day" data-calendar-day="5">5</button><button type="button" class="fl-calendar-day" data-calendar-day="6">6</button><button type="button" class="fl-calendar-day" data-calendar-day="7">7</button><button type="button" class="fl-calendar-day" data-calendar-day="8" data-has-entry data-has-income>8</button><button type="button" class="fl-calendar-day" data-calendar-day="9">9</button>
+                <button type="button" class="fl-calendar-day" data-calendar-day="10" data-has-entry>10</button><button type="button" class="fl-calendar-day is-selected" data-calendar-day="11" data-has-entry>11</button><button type="button" class="fl-calendar-day" data-calendar-day="12" data-has-entry>12</button><button type="button" class="fl-calendar-day" data-calendar-day="13">13</button><button type="button" class="fl-calendar-day" data-calendar-day="14">14</button><button type="button" class="fl-calendar-day" data-calendar-day="15">15</button><button type="button" class="fl-calendar-day" data-calendar-day="16">16</button>
+                <button type="button" class="fl-calendar-day" data-calendar-day="17">17</button><button type="button" class="fl-calendar-day" data-calendar-day="18">18</button><button type="button" class="fl-calendar-day" data-calendar-day="19">19</button><button type="button" class="fl-calendar-day" data-calendar-day="20">20</button><button type="button" class="fl-calendar-day" data-calendar-day="21">21</button><button type="button" class="fl-calendar-day" data-calendar-day="22">22</button><button type="button" class="fl-calendar-day" data-calendar-day="23">23</button>
+                <button type="button" class="fl-calendar-day" data-calendar-day="24">24</button><button type="button" class="fl-calendar-day" data-calendar-day="25">25</button><button type="button" class="fl-calendar-day" data-calendar-day="26">26</button><button type="button" class="fl-calendar-day" data-calendar-day="27">27</button><button type="button" class="fl-calendar-day" data-calendar-day="28">28</button><button type="button" class="fl-calendar-day" data-calendar-day="29">29</button><button type="button" class="fl-calendar-day" data-calendar-day="30">30</button>
+                <button type="button" class="fl-calendar-day" data-calendar-day="31">31</button><button type="button" class="fl-calendar-day is-outside">1</button><button type="button" class="fl-calendar-day is-outside">2</button><button type="button" class="fl-calendar-day is-outside">3</button><button type="button" class="fl-calendar-day is-outside">4</button><button type="button" class="fl-calendar-day is-outside">5</button><button type="button" class="fl-calendar-day is-outside">6</button>
+              </div>
+            </div>
+            <div class="fl-day-summary"><strong data-calendar-title>8 月 11 日</strong><span data-calendar-total>支出 NT$ 374</span></div>
+            <div class="fl-list" data-calendar-items>
+              <button type="button" class="fl-row" data-calendar-item="0"><span class="fl-row-icon" data-calendar-item-icon><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title" data-calendar-item-title>午餐</span><span class="fl-row-meta" data-calendar-item-meta>餐飲・家庭信用卡</span></span><span class="fl-row-end fl-expense fl-money" data-calendar-item-amount>−180</span></button>
+              <button type="button" class="fl-row" data-calendar-item="1"><span class="fl-row-icon" data-calendar-item-icon><i data-lucide="shopping-basket" aria-hidden="true"></i></span><span><span class="fl-row-title" data-calendar-item-title>日用品</span><span class="fl-row-meta" data-calendar-item-meta>居家・家庭現金</span></span><span class="fl-row-end fl-expense fl-money" data-calendar-item-amount>−194</span></button>
+            </div>
+          </div>
+          <div class="fl-is-hidden" data-transaction-list>
+            <div class="fl-filters"><button type="button" class="fl-filter is-active" data-transaction-type-filter="all">全部</button><button type="button" class="fl-filter" data-transaction-type-filter="expense">支出</button><button type="button" class="fl-filter" data-transaction-type-filter="income">收入</button><button type="button" class="fl-filter" data-transaction-type-filter="transfer">轉帳</button></div>
+            <div class="fl-list">
+            <button type="button" class="fl-row" data-toggle-transaction="list-lunch"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">午餐</span><span class="fl-row-meta">餐飲・今天 12:40</span></span><span class="fl-row-end fl-expense fl-money">−180<small>家庭信用卡</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="list-lunch"><div class="fl-detail-line"><span>分類</span><strong>餐飲／外食</strong></div><div class="fl-detail-line"><span>日期</span><strong>2026/08/11</strong></div><div class="fl-detail-line"><span>備註</span><strong>午餐</strong></div></div>
+            <button type="button" class="fl-row" data-toggle-transaction="list-trip"><span class="fl-row-icon"><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title">機場交通</span><span class="fl-row-meta">交通・昨天</span></span><span class="fl-row-end fl-expense fl-money">−1,260<small>日本旅遊</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="list-trip"><div class="fl-detail-line"><span>分類</span><strong>交通／大眾運輸</strong></div><div class="fl-detail-line"><span>專案</span><strong>2026 日本旅遊</strong></div><div class="fl-detail-line"><span>帳戶</span><strong>家庭信用卡</strong></div></div>
+            <button type="button" class="fl-row" data-toggle-transaction="list-etf"><span class="fl-row-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><span class="fl-row-title">ETF 定期定額</span><span class="fl-row-meta">投資轉帳・8/08</span></span><span class="fl-row-end fl-money">10,000<small>銀行 → 投資</small></span></button>
+            <div class="fl-transaction-detail" data-transaction-detail="list-etf"><div class="fl-detail-line"><span>類型</span><strong>投資轉帳</strong></div><div class="fl-detail-line"><span>支出統計</span><strong>不列入</strong></div><div class="fl-detail-line"><span>定期規則</span><strong>每月 8 日</strong></div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="entry">
+          <form data-entry-form>
+            <div class="fl-entry-head"><button type="button" class="fl-back" data-entry-back aria-label="返回上一頁">‹</button><div class="fl-entry-types" aria-label="交易類型"><button type="button" class="is-active" data-entry-type="expense">支出</button><button type="button" data-entry-type="income">收入</button><button type="button" data-entry-type="transfer">轉帳</button><button type="button" data-entry-type="advance">代墊</button></div><button type="submit" class="fl-head-save">儲存</button></div>
+            <div class="fl-entry-content">
+              <label class="fl-entry-date" for="fl-date"><span data-entry-date-label>2026 年 8 月 11 日 週二</span><input id="fl-date" type="date" value="2026-08-11" aria-label="記帳日期"></label>
+              <div class="fl-entry-amount" data-main-amount><label class="fl-entry-field-label" for="fl-amount"><span class="fl-field-icon"><i data-lucide="coins" aria-hidden="true"></i></span><span>金額</span></label><input id="fl-amount" inputmode="decimal" value="180" aria-label="金額"><span data-entry-currency="standard">NT$</span></div>
+              <div class="fl-entry-list" data-standard-fields>
+                <div class="fl-entry-field"><label class="fl-entry-field-label"><span class="fl-field-icon" data-selected-category-icon><i data-lucide="utensils" aria-hidden="true"></i></span><span>分類</span></label><button type="button" data-open-category><span class="fl-entry-choice-copy"><span data-selected-category>餐飲／外食</span><small data-selected-category-budget>預算剩餘 NT$ 4,800</small></span><span>›</span></button><span></span></div>
+                <div class="fl-entry-field"><label class="fl-entry-field-label"><span class="fl-field-icon" data-account-choice-icon="standard"><i data-lucide="credit-card" aria-hidden="true"></i></span><span data-account-field-label>付款帳戶</span></label><button type="button" data-open-account="standard"><span class="fl-entry-choice-copy"><span data-account-choice-name="standard">家庭信用卡</span></span><span>›</span></button><span></span></div>
+                <div class="fl-entry-field"><label class="fl-entry-field-label"><span class="fl-field-icon" data-project-choice-icon="standard"><i data-lucide="circle-off" aria-hidden="true"></i></span><span>專案</span></label><button type="button" data-open-project="standard"><span class="fl-entry-choice-copy"><span data-project-choice-name="standard">無</span></span><span>›</span></button><span></span></div>
+              </div>
+              <div class="fl-entry-list fl-is-hidden" data-transfer-fields>
+                <div class="fl-entry-field"><label class="fl-entry-field-label"><span class="fl-field-icon" data-account-choice-icon="transfer-from"><i data-lucide="landmark" aria-hidden="true"></i></span><span>轉出</span></label><button type="button" data-open-account="transfer-from"><span class="fl-entry-choice-copy"><span data-account-choice-name="transfer-from">家庭主要帳戶</span></span><span>›</span></button><span></span></div>
+                <div class="fl-entry-field"><label class="fl-entry-field-label"><span class="fl-field-icon" data-account-choice-icon="transfer-to"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span>轉入</span></label><button type="button" data-open-account="transfer-to"><span class="fl-entry-choice-copy"><span data-account-choice-name="transfer-to">ETF 投資帳戶</span></span><span>›</span></button><span></span></div>
+                <div class="fl-entry-field"><label class="fl-entry-field-label" for="fl-transfer-amount"><span class="fl-field-icon"><i data-lucide="coins" aria-hidden="true"></i></span><span>轉出金額</span></label><input id="fl-transfer-amount" inputmode="decimal" value="180"><span data-entry-currency="transfer-from">NT$</span></div>
+                <div class="fl-is-hidden" data-transfer-exchange>
+                  <div class="fl-entry-field"><label for="fl-transfer-rate">換算匯率</label><input id="fl-transfer-rate" inputmode="decimal" value="0.215"><span data-transfer-rate-label>TWD / JPY</span></div>
+                  <div class="fl-entry-field"><label for="fl-transfer-received">轉入金額</label><input id="fl-transfer-received" inputmode="decimal" value="38.7"><span data-entry-currency="transfer-to">NT$</span></div>
+                </div>
+              </div>
+              <div class="fl-is-hidden" data-advance-fields>
+                <div class="fl-mini-segments" aria-label="代墊方向"><button type="button" class="is-active" data-advance-mode="mine">我先幫忙付</button><button type="button" data-advance-mode="theirs">別人先幫我付</button></div>
+                <div class="fl-entry-list">
+                  <div data-advance-mine-participants>
+                    <div class="fl-entry-help">加入這次應還款的人與各自金額</div>
+                    <div class="fl-participant-list" data-participant-list>
+                      <div class="fl-participant-row"><input value="小明" aria-label="代墊對象"><input inputmode="decimal" value="800" aria-label="小明應還金額"><button type="button" class="fl-participant-remove" aria-label="移除小明" data-remove-participant><i data-lucide="x" aria-hidden="true"></i></button></div>
+                      <div class="fl-participant-row"><input value="小美" aria-label="代墊對象"><input inputmode="decimal" value="500" aria-label="小美應還金額"><button type="button" class="fl-participant-remove" aria-label="移除小美" data-remove-participant><i data-lucide="x" aria-hidden="true"></i></button></div>
+                    </div>
+                    <button type="button" class="fl-add-participant" data-add-participant>＋ 新增對象</button>
+                  </div>
+                  <div class="fl-entry-field fl-is-hidden" data-advance-theirs-person><label for="fl-advance-person">代墊者</label><input id="fl-advance-person" value="潔思"><span></span></div>
+                  <div class="fl-entry-field fl-is-hidden" data-advance-theirs-amount><label class="fl-entry-field-label" for="fl-advance-amount"><span class="fl-field-icon"><i data-lucide="coins" aria-hidden="true"></i></span><span>我應還金額</span></label><input id="fl-advance-amount" inputmode="decimal" value="1,200"><span>NT$</span></div>
+                  <div class="fl-advance-option" data-advance-shared-toggle-row><label class="fl-fee-toggle" for="fl-advance-shared-toggle"><input id="fl-advance-shared-toggle" type="checkbox" data-advance-shared-toggle><span>這筆也包含我的消費</span></label></div>
+                  <div class="fl-entry-field fl-is-hidden" data-advance-own-row><label for="fl-advance-own">我自己負擔</label><input id="fl-advance-own" inputmode="decimal" value="400"><span>NT$</span></div>
+                  <div class="fl-entry-field fl-is-hidden" data-advance-expense-row><label for="fl-advance-category">分類</label><select id="fl-advance-category"><option>餐飲</option><option>交通</option><option>居家</option><option>其他</option></select><span></span></div>
+                  <div class="fl-entry-field" data-advance-account-row><label class="fl-entry-field-label"><span class="fl-field-icon" data-account-choice-icon="advance"><i data-lucide="credit-card" aria-hidden="true"></i></span><span>付款帳戶</span></label><button type="button" data-open-account="advance"><span class="fl-entry-choice-copy"><span data-account-choice-name="advance">家庭信用卡</span></span><span>›</span></button><span></span></div>
+                  <div class="fl-entry-field fl-is-hidden" data-advance-expense-row><label class="fl-entry-field-label"><span class="fl-field-icon" data-project-choice-icon="advance"><i data-lucide="circle-off" aria-hidden="true"></i></span><span>專案</span></label><button type="button" data-open-project="advance"><span class="fl-entry-choice-copy"><span data-project-choice-name="advance">無</span></span><span>›</span></button><span></span></div>
+                </div>
+              </div>
+              <div class="fl-note-section"><label for="fl-note">備註</label><textarea id="fl-note">午餐</textarea></div>
+              <div class="fl-fee-section fl-is-hidden" data-transfer-fee>
+                <label class="fl-fee-toggle" for="fl-transfer-fee-toggle"><input id="fl-transfer-fee-toggle" type="checkbox" data-transfer-fee-toggle><span>有手續費</span></label>
+                <div class="fl-fee-amount fl-is-hidden" data-transfer-fee-amount><label for="fl-transfer-fee-amount">手續費</label><input id="fl-transfer-fee-amount" inputmode="decimal" value="15"><span>計入支出</span></div>
+              </div>
+              <button type="button" class="fl-danger-button fl-is-hidden" data-entry-delete>刪除這筆明細</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="entry-category" data-swipe-back="entry">
+          <div class="fl-entry-head"><button type="button" class="fl-back" data-page-target="entry" aria-label="返回記帳">‹</button><h2>選擇分類</h2><span></span></div>
+          <div class="fl-category-page-grid" aria-label="支出分類" data-category-set="expense">
+            <button type="button" class="is-active" data-category-value="餐飲／外食" data-category-icon="utensils" data-category-budget="預算剩餘 NT$ 4,800"><span><i data-lucide="utensils" aria-hidden="true"></i></span>餐飲</button>
+            <button type="button" data-category-value="交通／大眾運輸" data-category-icon="train-front" data-category-budget="預算剩餘 NT$ 2,400"><span><i data-lucide="train-front" aria-hidden="true"></i></span>交通</button>
+            <button type="button" data-category-value="居家／日用品" data-category-icon="house" data-category-budget="預算剩餘 NT$ 3,200"><span><i data-lucide="house" aria-hidden="true"></i></span>居家</button>
+            <button type="button" data-category-value="娛樂／影音" data-category-icon="clapperboard" data-category-budget="年度剩餘 NT$ 17,600"><span><i data-lucide="clapperboard" aria-hidden="true"></i></span>娛樂</button>
+            <button type="button" data-category-value="醫療／看診" data-category-icon="stethoscope" data-category-budget="年度剩餘 NT$ 17,800"><span><i data-lucide="stethoscope" aria-hidden="true"></i></span>醫療</button>
+            <button type="button" data-category-value="服飾／衣物" data-category-icon="shirt" data-category-budget="未設定預算"><span><i data-lucide="shirt" aria-hidden="true"></i></span>服飾</button>
+            <button type="button" data-category-value="學習／書籍" data-category-icon="book-open" data-category-budget="未設定預算"><span><i data-lucide="book-open" aria-hidden="true"></i></span>學習</button>
+            <button type="button" data-category-value="奉獻" data-category-icon="heart-handshake" data-category-budget="未設定預算"><span><i data-lucide="heart-handshake" aria-hidden="true"></i></span>奉獻</button>
+            <button type="button" data-category-value="其他" data-category-icon="package" data-category-budget="預算剩餘 NT$ 4,900"><span><i data-lucide="package" aria-hidden="true"></i></span>其他</button>
+          </div>
+          <div class="fl-category-page-grid fl-is-hidden" aria-label="收入分類" data-category-set="income">
+            <button type="button" class="is-active" data-category-value="薪資" data-category-icon="briefcase"><span><i data-lucide="briefcase" aria-hidden="true"></i></span>薪資</button>
+            <button type="button" data-category-value="利息" data-category-icon="landmark"><span><i data-lucide="landmark" aria-hidden="true"></i></span>利息</button>
+            <button type="button" data-category-value="獎金" data-category-icon="award"><span><i data-lucide="award" aria-hidden="true"></i></span>獎金</button>
+            <button type="button" data-category-value="投資收益" data-category-icon="chart-no-axes-combined"><span><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span>投資</button>
+            <button type="button" data-category-value="副業" data-category-icon="briefcase-business"><span><i data-lucide="briefcase-business" aria-hidden="true"></i></span>副業</button>
+            <button type="button" data-category-value="禮金" data-category-icon="gift"><span><i data-lucide="gift" aria-hidden="true"></i></span>禮金</button>
+            <button type="button" data-category-value="回饋金" data-category-icon="badge-dollar-sign"><span><i data-lucide="badge-dollar-sign" aria-hidden="true"></i></span>回饋金</button>
+            <button type="button" data-category-value="退款" data-category-icon="undo-2"><span><i data-lucide="undo-2" aria-hidden="true"></i></span>退款</button>
+            <button type="button" data-category-value="其他收入" data-category-icon="package"><span><i data-lucide="package" aria-hidden="true"></i></span>其他</button>
+          </div>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="entry-account" data-swipe-back="entry">
+          <div class="fl-entry-head"><button type="button" class="fl-back" data-page-target="entry" aria-label="返回記帳">‹</button><h2 data-account-picker-title>選擇付款帳戶</h2><span></span></div>
+          <div class="fl-picker-list"><div class="fl-list">
+            <button type="button" class="fl-row" data-account-option="家庭現金" data-account-option-icon="wallet-cards" data-account-option-currency="TWD"><span class="fl-row-icon"><i data-lucide="wallet-cards" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭現金</span><span class="fl-row-meta">現金・TWD</span></span><span class="fl-row-end fl-money">8,600</span></button>
+            <button type="button" class="fl-row" data-account-option="家庭主要帳戶" data-account-option-icon="landmark" data-account-option-currency="TWD"><span class="fl-row-icon"><i data-lucide="landmark" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭主要帳戶</span><span class="fl-row-meta">銀行・TWD</span></span><span class="fl-row-end fl-money">312,500</span></button>
+            <button type="button" class="fl-row" data-account-option="家庭信用卡" data-account-option-icon="credit-card" data-account-option-currency="TWD"><span class="fl-row-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭信用卡</span><span class="fl-row-meta">信用卡・TWD</span></span><span class="fl-row-end fl-expense fl-money">−16,400</span></button>
+            <button type="button" class="fl-row" data-account-option="日本旅遊現金" data-account-option-icon="wallet-cards" data-account-option-currency="JPY"><span class="fl-row-icon"><i data-lucide="wallet-cards" aria-hidden="true"></i></span><span><span class="fl-row-title">日本旅遊現金</span><span class="fl-row-meta">現金・JPY</span></span><span class="fl-row-end fl-money">¥50,000</span></button>
+            <button type="button" class="fl-row" data-account-option="美元帳戶" data-account-option-icon="landmark" data-account-option-currency="USD"><span class="fl-row-icon"><i data-lucide="landmark" aria-hidden="true"></i></span><span><span class="fl-row-title">美元帳戶</span><span class="fl-row-meta">銀行・USD</span></span><span class="fl-row-end fl-money">US$1,200</span></button>
+            <button type="button" class="fl-row" data-account-option="ETF 投資帳戶" data-account-option-icon="chart-no-axes-combined" data-account-option-currency="TWD"><span class="fl-row-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><span class="fl-row-title">ETF 投資帳戶</span><span class="fl-row-meta">投資・TWD</span></span><span class="fl-row-end fl-money">798,200</span></button>
+          </div></div>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="entry-project" data-swipe-back="entry">
+          <div class="fl-entry-head"><button type="button" class="fl-back" data-page-target="entry" aria-label="返回記帳">‹</button><h2>選擇專案</h2><span></span></div>
+          <div class="fl-picker-list"><div class="fl-list">
+            <button type="button" class="fl-row" data-project-option="無" data-project-option-icon="circle-off"><span class="fl-row-icon"><i data-lucide="circle-off" aria-hidden="true"></i></span><span><span class="fl-row-title">不使用專案</span><span class="fl-row-meta">只併入整體收支</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-project-option="2026 日本旅遊" data-project-option-icon="plane"><span class="fl-row-icon"><i data-lucide="plane" aria-hidden="true"></i></span><span><span class="fl-row-title">2026 日本旅遊</span><span class="fl-row-meta">已用 35,200 / 80,000</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-project-option="居家設備更新" data-project-option-icon="sofa"><span class="fl-row-icon"><i data-lucide="sofa" aria-hidden="true"></i></span><span><span class="fl-row-title">居家設備更新</span><span class="fl-row-meta">已用 12,600 / 30,000</span></span><span class="fl-chevron">›</span></button>
+          </div></div>
+        </section>
+
+        <section class="fl-page fl-account-manager" data-page="accounts" data-account-manager>
+          <div class="fl-balance"><div class="fl-eyebrow">家庭淨資產</div><div class="fl-balance-value fl-money">NT$ 1,248,600</div><div class="fl-asset-breakdown"><div class="fl-asset-part"><span>總資產</span><strong class="fl-money">NT$ 1,265,000</strong></div><div class="fl-asset-part"><span>總負債</span><strong class="fl-money">NT$ 16,400</strong></div></div></div>
+          <div class="fl-account-group"><div class="fl-group-head"><span>現金</span><span class="fl-money">NT$ 8,600</span></div><div class="fl-list" data-account-sort-list>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳家庭現金"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="家庭現金" data-account-type-value="cash" data-balance="8600" data-icon="wallet-cards"><span class="fl-row-icon"><i data-lucide="wallet-cards" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭現金</span><span class="fl-row-meta">TWD・今天已核對</span></span><span class="fl-row-end fl-money">8,600<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定家庭現金" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整家庭現金餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="刪除家庭現金" data-delete-account><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+          </div></div>
+          <div class="fl-account-group"><div class="fl-group-head"><span>銀行</span><span class="fl-money">NT$ 458,200</span></div><div class="fl-list" data-account-sort-list>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳家庭主要帳戶"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="家庭主要帳戶" data-account-type-value="bank" data-balance="312500" data-icon="landmark"><span class="fl-row-icon"><i data-lucide="landmark" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭主要帳戶</span><span class="fl-row-meta">銀行・薪資與扣款</span></span><span class="fl-row-end fl-money">312,500<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定家庭主要帳戶" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整家庭主要帳戶餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="刪除家庭主要帳戶" data-delete-account><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳家庭預備金"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="家庭預備金" data-account-type-value="bank" data-balance="145700" data-icon="life-buoy"><span class="fl-row-icon"><i data-lucide="life-buoy" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭預備金</span><span class="fl-row-meta">銀行・緊急預備金</span></span><span class="fl-row-end fl-money">145,700<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定家庭預備金" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整家庭預備金餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="刪除家庭預備金" data-delete-account><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+          </div></div>
+          <div class="fl-account-group"><div class="fl-group-head"><span>外幣</span><span class="fl-money">折合 NT$ 49,300</span></div><div class="fl-list" data-account-sort-list>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳日本旅遊現金"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="日本旅遊現金" data-account-type-value="cash" data-balance="50000" data-currency="JPY" data-icon="wallet-cards"><span class="fl-row-icon"><i data-lucide="wallet-cards" aria-hidden="true"></i></span><span><span class="fl-row-title">日本旅遊現金</span><span class="fl-row-meta">JPY・匯率 0.215</span></span><span class="fl-row-end fl-money">¥50,000<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定日本旅遊現金" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整日本旅遊現金餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="封存日本旅遊現金" data-delete-account><i data-lucide="archive" aria-hidden="true"></i></button></div>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳美元帳戶"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="美元帳戶" data-account-type-value="bank" data-balance="1200" data-currency="USD" data-icon="landmark"><span class="fl-row-icon"><i data-lucide="landmark" aria-hidden="true"></i></span><span><span class="fl-row-title">美元帳戶</span><span class="fl-row-meta">USD・匯率 32.15</span></span><span class="fl-row-end fl-money">US$1,200<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定美元帳戶" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整美元帳戶餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="封存美元帳戶" data-delete-account><i data-lucide="archive" aria-hidden="true"></i></button></div>
+          </div></div>
+          <div class="fl-account-group"><div class="fl-group-head"><span>信用卡</span><span class="fl-money">待繳 NT$ 16,400</span></div><div class="fl-list" data-account-sort-list>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳家庭信用卡"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="家庭信用卡" data-account-type-value="card" data-balance="-16400" data-icon="credit-card"><span class="fl-row-icon"><i data-lucide="credit-card" aria-hidden="true"></i></span><span><span class="fl-row-title">家庭信用卡</span><span class="fl-row-meta">結帳日 5 日・繳款日 22 日</span></span><span class="fl-row-end fl-expense fl-money">−16,400<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定家庭信用卡" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整家庭信用卡餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="刪除家庭信用卡" data-delete-account><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+          </div></div>
+          <div class="fl-account-group"><div class="fl-group-head"><span>投資</span><span class="fl-money">累計投入 NT$ 798,200</span></div><div class="fl-list" data-account-sort-list>
+            <div class="fl-account-edit-row" draggable="true"><button type="button" class="fl-account-drag" aria-label="拖曳 ETF 投資帳戶"><i data-lucide="grip-vertical" aria-hidden="true"></i></button><button type="button" class="fl-row" data-account="ETF 投資帳戶" data-account-type-value="investment" data-balance="798200" data-icon="chart-no-axes-combined"><span class="fl-row-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><span class="fl-row-title">ETF 投資帳戶</span><span class="fl-row-meta">以累計投入顯示</span></span><span class="fl-row-end fl-money">798,200<small data-account-row-hint>明細 ›</small></span></button><button type="button" class="fl-account-inline-action" aria-label="設定 ETF 投資帳戶" data-manage-account-settings><i data-lucide="sliders-horizontal" aria-hidden="true"></i></button><button type="button" class="fl-account-inline-action" aria-label="調整 ETF 投資帳戶餘額" data-manage-account-adjust><i data-lucide="scale" aria-hidden="true"></i></button><button type="button" class="fl-account-delete" aria-label="刪除 ETF 投資帳戶" data-delete-account><i data-lucide="trash-2" aria-hidden="true"></i></button></div>
+          </div></div>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="account-form">
+          <form data-account-editor-form>
+            <div class="fl-entry-head"><button type="button" class="fl-back" data-account-editor-back aria-label="返回帳戶">‹</button><h2 data-account-editor-title>新增帳戶</h2><button type="submit" class="fl-head-save" data-account-editor-submit>儲存</button></div>
+            <div class="fl-account-form-content">
+              <div class="fl-account-form-group">
+                <div class="fl-account-form-row"><label for="fl-account-type">帳戶類型</label><select id="fl-account-type" data-account-type><option value="cash">現金</option><option value="bank" selected>銀行</option><option value="card">信用卡</option><option value="investment">投資理財</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-account-name">帳戶名稱</label><input id="fl-account-name" value="家庭主要帳戶" placeholder="輸入帳戶名稱"></div>
+                <div class="fl-account-form-row"><label for="fl-account-currency">幣別</label><select id="fl-account-currency" data-account-currency><option value="TWD" selected>新台幣 TWD</option><option value="JPY">日圓 JPY</option><option value="USD">美元 USD</option></select></div>
+                <div class="fl-account-form-row fl-is-hidden" data-foreign-currency-row><label for="fl-account-exchange-rate">換算台幣匯率</label><span><input id="fl-account-exchange-rate" inputmode="decimal" value="0.215"><small>對帳時可手動更新，供淨資產換算</small></span></div>
+                <div class="fl-account-form-row"><label for="fl-account-opening-balance">初始金額</label><input id="fl-account-opening-balance" inputmode="decimal" value="0"></div>
+                <div class="fl-account-form-row fl-is-hidden" data-credit-card-setting><label for="fl-card-close-day">結帳日</label><select id="fl-card-close-day"><option>每月 5 日</option><option>每月 10 日</option><option>每月 15 日</option><option>每月 20 日</option><option>每月 25 日</option></select></div>
+                <div class="fl-account-form-row fl-is-hidden" data-credit-card-setting><label for="fl-card-due-day">繳款日</label><select id="fl-card-due-day"><option>每月 22 日</option><option>每月 25 日</option><option>次月 2 日</option><option>次月 5 日</option></select></div>
+                <div class="fl-account-form-row fl-is-hidden" data-credit-card-setting><label for="fl-card-payment-account">預設扣款帳戶</label><select id="fl-card-payment-account"><option>家庭主要帳戶</option><option>家庭預備金</option><option>不指定</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-account-assets">納入淨資產</label><span class="fl-switch-wrap"><small data-account-assets-note>會計入總資產</small><input id="fl-account-assets" type="checkbox" checked data-account-assets></span></div>
+                <div class="fl-account-form-row"><label for="fl-account-position">顯示位置</label><select id="fl-account-position" data-account-position><option>銀行分類・第 1 位</option><option>銀行分類・第 2 位</option><option>銀行分類・最後</option></select></div>
+              </div>
+              <div class="fl-account-icon-section">
+                <strong>帳戶圖示</strong>
+                <div class="fl-icon-picker" data-account-icon-picker><button type="button" data-account-icon-choice="wallet-cards" aria-label="皮夾"><i data-lucide="wallet-cards" aria-hidden="true"></i></button><button type="button" class="is-active" data-account-icon-choice="landmark" aria-label="銀行"><i data-lucide="landmark" aria-hidden="true"></i></button><button type="button" data-account-icon-choice="piggy-bank" aria-label="存錢筒"><i data-lucide="piggy-bank" aria-hidden="true"></i></button><button type="button" data-account-icon-choice="credit-card" aria-label="信用卡"><i data-lucide="credit-card" aria-hidden="true"></i></button><button type="button" data-account-icon-choice="chart-no-axes-combined" aria-label="投資"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></button><button type="button" data-account-icon-choice="circle-dollar-sign" aria-label="金錢"><i data-lucide="circle-dollar-sign" aria-hidden="true"></i></button></div>
+              </div>
+              <textarea id="fl-account-note" aria-label="帳戶備註" placeholder="備註（可留空）"></textarea>
+            </div>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="account-detail">
+          <div class="fl-account-summary"><div class="fl-account-summary-line"><div class="fl-eyebrow"><span data-account-icon><i data-lucide="wallet-cards" aria-hidden="true"></i></span> 帳面餘額</div><strong class="fl-money" data-account-balance>NT$ 8,600</strong></div></div>
+          <div class="fl-account-flow-summary" aria-label="本月帳戶收支與轉帳"><div><span>本月收入</span><strong class="fl-money">＋62,000</strong></div><div><span>本月支出</span><strong class="fl-money fl-expense">−8,420</strong></div><div><span>本月轉帳</span><strong class="fl-money">−10,000</strong></div></div>
+          <div class="fl-account-entry-actions" aria-label="使用目前帳戶記帳"><button type="button" data-account-entry="expense"><i data-lucide="minus-circle" aria-hidden="true"></i>記支出</button><button type="button" data-account-entry="income"><i data-lucide="plus-circle" aria-hidden="true"></i>記收入</button><button type="button" data-account-entry="transfer"><i data-lucide="arrow-left-right" aria-hidden="true"></i>轉帳</button></div>
+          <div class="fl-section-title"><h2>這個帳戶的明細</h2><button type="button" data-page-target="transaction-filter">篩選</button></div>
+          <div class="fl-list">
+            <button type="button" class="fl-row"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">午餐</span><span class="fl-row-meta">今天 12:40・餐飲</span></span><span class="fl-row-end fl-expense fl-money">−180</span></button>
+            <button type="button" class="fl-row"><span class="fl-row-icon"><i data-lucide="handshake" aria-hidden="true"></i></span><span><span class="fl-row-title">代墊收回</span><span class="fl-row-meta">昨天・不列入收入</span></span><span class="fl-row-end fl-money">＋500</span></button>
+            <button type="button" class="fl-row"><span class="fl-row-icon"><i data-lucide="scale" aria-hidden="true"></i></span><span><span class="fl-row-title">帳務調整</span><span class="fl-row-meta">8/01・支出・記帳差額</span></span><span class="fl-row-end fl-expense fl-money">−220</span></button>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="transaction-filter">
+          <form class="fl-page-form" data-transaction-filter-form>
+            <div class="fl-field"><label for="fl-filter-type">交易類型</label><select id="fl-filter-type"><option>全部</option><option>支出</option><option>收入</option><option>轉帳</option><option>代墊與分帳</option></select></div>
+            <div class="fl-field"><label for="fl-filter-category">分類</label><select id="fl-filter-category"><option>全部分類</option><option>餐飲</option><option>交通</option><option>居家</option><option>帳務調整</option></select></div>
+            <div class="fl-field"><label for="fl-filter-project">專案</label><select id="fl-filter-project"><option>全部專案</option><option>無專案</option><option>2026 日本旅遊</option><option>居家設備更新</option></select></div>
+            <div class="fl-form-grid"><div class="fl-field"><label for="fl-filter-start">開始日期</label><input id="fl-filter-start" type="date" value="2026-08-01"></div><div class="fl-field"><label for="fl-filter-end">結束日期</label><input id="fl-filter-end" type="date" value="2026-08-31"></div></div>
+            <button type="submit" class="fl-primary fl-submit">套用篩選</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="report-filter">
+          <form class="fl-page-form" data-report-filter-form>
+            <div class="fl-form-grid"><div class="fl-field"><label for="fl-report-start">開始日期</label><input id="fl-report-start" type="date" value="2026-01-01"></div><div class="fl-field"><label for="fl-report-end">結束日期</label><input id="fl-report-end" type="date" value="2026-08-11"></div></div>
+            <div class="fl-field"><label for="fl-report-account">帳戶</label><select id="fl-report-account"><option>全部帳戶</option><option>只看納入淨資產帳戶</option><option>家庭主要帳戶</option><option>家庭信用卡</option></select></div>
+            <div class="fl-field"><label for="fl-report-project">專案</label><select id="fl-report-project"><option>全部專案</option><option>無專案</option><option>2026 日本旅遊</option><option>居家設備更新</option></select></div>
+            <button type="submit" class="fl-primary fl-submit">套用報表區間</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="reports">
+          <div class="fl-filters"><button type="button" class="fl-filter is-active" data-report-period="month">本月</button><button type="button" class="fl-filter" data-report-period="quarter">近 3 個月</button><button type="button" class="fl-filter" data-report-period="year">今年</button><button type="button" class="fl-filter" data-report-period="custom">自訂</button></div>
+          <div class="fl-report-modes" aria-label="報表種類"><button type="button" data-report-mode="income">收入趨勢</button><button type="button" class="is-active" data-report-mode="expense">支出趨勢</button><button type="button" data-report-mode="assets">淨資產趨勢</button></div>
+          <div class="fl-report-summary"><div class="fl-report-card"><span data-report-total-label>8 月支出</span><strong class="fl-money" data-report-total>NT$ 49,520</strong></div><div class="fl-report-card"><span>較上月</span><strong data-report-delta>少 8.4%</strong></div></div>
+          <div class="fl-chart-panel" data-trend-panel><div class="fl-chart-title"><span data-trend-title style="color:var(--family-text);font-size:15px;font-weight:700">近 6 個月支出趨勢</span><span data-trend-unit>單位：萬元</span></div><div class="fl-bars" role="img" aria-label="近六個月支出趨勢長條圖" data-trend-chart><div class="fl-bar-group"><div class="fl-bar" style="height:52%" data-trend-bar></div><span>3月</span></div><div class="fl-bar-group"><div class="fl-bar" style="height:69%" data-trend-bar></div><span>4月</span></div><div class="fl-bar-group"><div class="fl-bar" style="height:58%" data-trend-bar></div><span>5月</span></div><div class="fl-bar-group"><div class="fl-bar" style="height:83%" data-trend-bar></div><span>6月</span></div><div class="fl-bar-group"><div class="fl-bar" style="height:74%" data-trend-bar></div><span>7月</span></div><div class="fl-bar-group"><div class="fl-bar" style="height:62%" data-trend-bar></div><span>8月</span></div></div></div>
+          <div class="fl-chart-panel" data-expense-breakdown><div class="fl-chart-title">支出分類<span>本月占比</span></div><div class="fl-donut-wrap"><div class="fl-donut" role="img" aria-label="本月支出分類圓環圖：餐飲 36%、居家 24%、交通 18%、娛樂 13%、其他 8%、帳務調整 1%"></div><div class="fl-legend"><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-green)"></span><span>餐飲</span><strong>36%</strong></div><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-orange)"></span><span>居家</span><strong>24%</strong></div><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-purple)"></span><span>交通</span><strong>18%</strong></div><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-blue)"></span><span>娛樂</span><strong>13%</strong></div><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-border-strong)"></span><span>其他</span><strong>8%</strong></div><div class="fl-legend-row"><span class="fl-swatch" style="background:var(--family-danger)"></span><span>帳務調整</span><strong>1%</strong></div></div></div></div>
+          <div class="fl-section-title"><h2>專案支出</h2><button type="button" data-open-projects="reports">看專案</button></div>
+          <div class="fl-budget"><div class="fl-budget-row"><span>2026 日本旅遊</span><strong class="fl-money">35,200 / 80,000</strong></div><div class="fl-track"><span style="width:44%"></span></div></div>
+        </section>
+
+        <section class="fl-page" data-page="projects">
+          <button type="button" class="fl-budget fl-project-card" data-project-detail="japan"><div class="fl-budget-row"><span>2026 日本旅遊</span><strong class="fl-money">35,200 / 80,000</strong></div><div class="fl-track"><span style="width:44%"></span></div><div class="fl-caption">餐飲 7,000・交通 10,200・住宿 18,000</div></button>
+          <div class="fl-section-title"><h2>其他專案</h2></div>
+          <button type="button" class="fl-budget fl-project-card" data-project-detail="home"><div class="fl-budget-row"><span>居家設備更新</span><strong class="fl-money">12,600 / 30,000</strong></div><div class="fl-track"><span style="width:42%"></span></div><div class="fl-caption">非經常性開支・仍會併入整體統計</div></button>
+        </section>
+
+        <section class="fl-page" data-page="project-detail">
+          <div class="fl-budget"><div class="fl-budget-row"><span data-project-detail-name>2026 日本旅遊</span><strong class="fl-money" data-project-detail-budget>35,200 / 80,000</strong></div><div class="fl-track"><span style="width:44%" data-project-detail-track></span></div></div>
+          <div class="fl-stats"><div class="fl-stat"><span>收入</span><strong class="fl-money" data-project-detail-income>2,000</strong></div><div class="fl-stat"><span>支出</span><strong class="fl-money" data-project-detail-expense>35,200</strong></div><div class="fl-stat"><span>淨支出</span><strong class="fl-money" data-project-detail-net>33,200</strong></div></div>
+          <div class="fl-section-title"><h2>專案收支細項</h2></div>
+          <div class="fl-filters"><button type="button" class="fl-filter is-active" data-project-filter="all">全部</button><button type="button" class="fl-filter" data-project-filter="expense">支出</button><button type="button" class="fl-filter" data-project-filter="income">收入</button></div>
+          <div class="fl-list" data-project-transaction-list>
+            <button type="button" class="fl-row" data-project-transaction><span class="fl-row-icon" data-project-item-icon><i data-lucide="hotel" aria-hidden="true"></i></span><span><span class="fl-row-title" data-project-item-title>住宿訂金</span><span class="fl-row-meta" data-project-item-meta>住宿・家庭信用卡・8/05</span></span><span class="fl-row-end fl-expense fl-money" data-project-item-amount>−18,000</span></button>
+            <button type="button" class="fl-row" data-project-transaction><span class="fl-row-icon" data-project-item-icon><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title" data-project-item-title>機場交通</span><span class="fl-row-meta" data-project-item-meta>交通・家庭信用卡・8/10</span></span><span class="fl-row-end fl-expense fl-money" data-project-item-amount>−10,200</span></button>
+            <button type="button" class="fl-row" data-project-transaction><span class="fl-row-icon" data-project-item-icon><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title" data-project-item-title>旅遊餐費</span><span class="fl-row-meta" data-project-item-meta>餐飲・家庭現金・8/11</span></span><span class="fl-row-end fl-expense fl-money" data-project-item-amount>−7,000</span></button>
+            <button type="button" class="fl-row" data-project-transaction><span class="fl-row-icon" data-project-item-icon><i data-lucide="badge-dollar-sign" aria-hidden="true"></i></span><span><span class="fl-row-title" data-project-item-title>住宿退款</span><span class="fl-row-meta" data-project-item-meta>退款・家庭信用卡・8/12</span></span><span class="fl-row-end fl-money" data-project-item-amount>＋2,000</span></button>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="project-add">
+          <form data-project-form>
+            <div class="fl-field"><label for="fl-project-name">專案名稱</label><input id="fl-project-name" value="2026 家庭旅遊"></div>
+            <div class="fl-field"><label for="fl-project-budget">預算金額</label><input id="fl-project-budget" class="fl-amount" inputmode="decimal" value="80000"></div>
+            <div class="fl-form-grid"><div class="fl-field"><label for="fl-project-start">開始日期</label><input id="fl-project-start" type="date" value="2026-09-01"></div><div class="fl-field"><label for="fl-project-end">結束日期</label><input id="fl-project-end" type="date" value="2026-09-07"></div></div>
+            <div class="fl-field"><label for="fl-project-status">專案狀態</label><select id="fl-project-status"><option>進行中</option><option>已完成</option></select></div>
+            <div class="fl-field"><label for="fl-project-note">備註</label><textarea id="fl-project-note" placeholder="可留空"></textarea></div>
+            <button type="submit" class="fl-primary fl-submit" data-project-submit>新增專案</button>
+            <button type="button" class="fl-danger-button fl-is-hidden" data-archive-project>封存這個專案</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="budgets">
+          <div class="fl-report-summary">
+            <div class="fl-report-card"><span>每月預算合計</span><strong class="fl-money">NT$ 34,000</strong><span class="fl-card-note">按月重設的分類加總</span></div>
+            <div class="fl-report-card"><span>全年總預算</span><strong class="fl-money">NT$ 480,000</strong><span class="fl-card-note">34,000 × 12＋72,000</span></div>
+          </div>
+          <div class="fl-section-title"><h2>分類預算</h2></div>
+          <div class="fl-view-toggle" aria-label="預算週期"><button type="button" class="is-active" data-budget-tab="monthly">每月預算</button><button type="button" data-budget-tab="annual">年度預算</button></div>
+          <div class="fl-list" data-budget-list="monthly">
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">餐飲</span><span class="fl-row-meta">本月已用 7,200</span></span><span class="fl-settlement-end"><strong class="fl-money">12,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="monthly" data-budget-category="餐飲" data-budget-amount="12000">設定</button></span></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="shopping-basket" aria-hidden="true"></i></span><span><span class="fl-row-title">日常用品</span><span class="fl-row-meta">本月已用 3,800</span></span><span class="fl-settlement-end"><strong class="fl-money">8,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="monthly" data-budget-category="日常用品" data-budget-amount="8000">設定</button></span></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title">交通</span><span class="fl-row-meta">本月已用 2,600</span></span><span class="fl-settlement-end"><strong class="fl-money">5,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="monthly" data-budget-category="交通" data-budget-amount="5000">設定</button></span></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="house" aria-hidden="true"></i></span><span><span class="fl-row-title">其他日常</span><span class="fl-row-meta">本月已用 4,100</span></span><span class="fl-settlement-end"><strong class="fl-money">9,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="monthly" data-budget-category="其他日常" data-budget-amount="9000">設定</button></span></div>
+          </div>
+          <div class="fl-list fl-is-hidden" data-budget-list="annual">
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span><span class="fl-row-title">娛樂</span><span class="fl-row-meta">月均 3,000・今年已用 18,400</span></span><span class="fl-settlement-end"><strong class="fl-money">36,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="annual" data-budget-category="娛樂" data-budget-amount="36000">設定</button></span></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="stethoscope" aria-hidden="true"></i></span><span><span class="fl-row-title">醫療</span><span class="fl-row-meta">月均 2,000・今年已用 6,200</span></span><span class="fl-settlement-end"><strong class="fl-money">24,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="annual" data-budget-category="醫療" data-budget-amount="24000">設定</button></span></div>
+            <div class="fl-settings-row"><span class="fl-row-icon"><i data-lucide="sofa" aria-hidden="true"></i></span><span><span class="fl-row-title">居家設備</span><span class="fl-row-meta">月均 1,000・今年已用 3,900</span></span><span class="fl-settlement-end"><strong class="fl-money">12,000</strong><button type="button" class="fl-settlement-action" data-edit-budget data-budget-cycle="annual" data-budget-category="居家設備" data-budget-amount="12000">設定</button></span></div>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="more">
+          <div class="fl-list">
+            <button type="button" class="fl-row" data-open-projects="more"><span class="fl-row-icon"><i data-lucide="plane" aria-hidden="true"></i></span><span><span class="fl-row-title">專案記帳</span><span class="fl-row-meta">旅行、居家設備等專案</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-open-budgets="more"><span class="fl-row-icon"><i data-lucide="gauge" aria-hidden="true"></i></span><span><span class="fl-row-title">預算設定</span><span class="fl-row-meta">管理每月總額與分類預算</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-page-target="recurring"><span class="fl-row-icon"><i data-lucide="repeat-2" aria-hidden="true"></i></span><span><span class="fl-row-title">定期項目</span><span class="fl-row-meta">6 個規則・預設確認後入帳</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-open-advances="more"><span class="fl-row-icon"><i data-lucide="handshake" aria-hidden="true"></i></span><span><span class="fl-row-title">代墊與分帳</span><span class="fl-row-meta">待收 2 筆・待還 1 筆</span></span><span class="fl-chevron">›</span></button>
+            <button type="button" class="fl-row" data-page-target="category-icons"><span class="fl-row-icon"><i data-lucide="shapes" aria-hidden="true"></i></span><span><span class="fl-row-title">分類與圖像</span><span class="fl-row-meta">設定分類、子分類及代表圖像</span></span><span class="fl-chevron">›</span></button>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="advances">
+          <div class="fl-report-summary">
+            <div class="fl-report-card"><span>別人應還我</span><strong class="fl-money" data-advance-total="receivable" data-value="820">NT$ 820</strong></div>
+            <div class="fl-report-card"><span>我應還別人</span><strong class="fl-money" data-advance-total="payable" data-value="1200">NT$ 1,200</strong></div>
+          </div>
+          <div class="fl-section-title"><h2>未結清項目</h2></div>
+          <div class="fl-view-toggle" aria-label="代墊查看方式"><button type="button" class="is-active" data-advance-ledger-tab="receivable">待收</button><button type="button" data-advance-ledger-tab="payable">待還</button></div>
+          <div class="fl-list" data-advance-ledger-list="receivable">
+            <button type="button" class="fl-row" data-advance-detail data-direction="collect" data-person="小明" data-title="晚餐分帳" data-original="800" data-paid="480" data-amount="320"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">小明・晚餐分帳</span><span class="fl-row-meta">原代墊 800・已收 480</span></span><span class="fl-row-end fl-money">待收 320<small>明細 ›</small></span></button>
+            <button type="button" class="fl-row" data-advance-detail data-direction="collect" data-person="小美" data-title="機場交通" data-original="500" data-paid="0" data-amount="500"><span class="fl-row-icon"><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title">小美・機場交通</span><span class="fl-row-meta">日本旅遊・尚未收款</span></span><span class="fl-row-end fl-money">待收 500<small>明細 ›</small></span></button>
+          </div>
+          <div class="fl-list fl-is-hidden" data-advance-ledger-list="payable">
+            <button type="button" class="fl-row" data-advance-detail data-direction="repay" data-person="潔思" data-title="旅館代訂" data-original="1200" data-paid="0" data-amount="1200"><span class="fl-row-icon"><i data-lucide="hotel" aria-hidden="true"></i></span><span><span class="fl-row-title">潔思・旅館代訂</span><span class="fl-row-meta">日本旅遊・尚未還款</span></span><span class="fl-row-end fl-money">待還 1,200<small>明細 ›</small></span></button>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="advance-detail">
+          <div class="fl-balance"><div class="fl-eyebrow" data-advance-detail-direction>別人應還我</div><div class="fl-balance-value fl-money" data-advance-detail-remaining>NT$ 320</div><div class="fl-balance-note" data-advance-detail-heading>小明・晚餐分帳</div></div>
+          <div class="fl-detail-card">
+            <div class="fl-detail-line"><span>原始金額</span><strong class="fl-money" data-advance-detail-original>NT$ 800</strong></div>
+            <div class="fl-detail-line"><span>已處理</span><strong class="fl-money" data-advance-detail-paid>NT$ 480</strong></div>
+            <div class="fl-detail-line"><span>日期</span><strong>2026/08/09</strong></div>
+            <div class="fl-detail-line"><span>付款帳戶</span><strong>家庭信用卡</strong></div>
+            <div class="fl-detail-line"><span>專案</span><strong>無</strong></div>
+            <div class="fl-detail-line"><span>備註</span><strong data-advance-detail-note>晚餐分帳</strong></div>
+          </div>
+          <button type="button" class="fl-primary fl-submit" data-open-settlement-from-detail>登記收款</button>
+          <div class="fl-section-title"><h2>收款／還款紀錄</h2></div>
+          <div class="fl-list"><button type="button" class="fl-row" data-edit-settlement><span class="fl-row-icon"><i data-lucide="banknote" aria-hidden="true"></i></span><span><span class="fl-row-title">收到現金</span><span class="fl-row-meta">8/10・家庭現金</span></span><span class="fl-row-end fl-money">480<small>編輯 ›</small></span></button></div>
+        </section>
+
+        <section class="fl-page" data-page="recurring">
+          <div class="fl-report-summary"><div class="fl-report-card"><span>啟用中</span><strong>6 個規則</strong></div><div class="fl-report-card"><span>待確認</span><strong>2 筆</strong></div></div>
+          <div class="fl-section-title"><h2>定期收支與轉帳</h2></div>
+          <div class="fl-list">
+            <button type="button" class="fl-row" data-recurring-edit data-recurring-kind="expense"><span class="fl-row-icon"><i data-lucide="smartphone" aria-hidden="true"></i></span><span><span class="fl-row-title">手機月租費</span><span class="fl-row-meta">每月 10 日・確認後入帳</span></span><span class="fl-row-end fl-money">799<small>下一次 9/10 ›</small></span></button>
+            <button type="button" class="fl-row" data-recurring-edit data-recurring-kind="expense"><span class="fl-row-icon"><i data-lucide="clapperboard" aria-hidden="true"></i></span><span><span class="fl-row-title">影音訂閱</span><span class="fl-row-meta">每月 11 日・確認後入帳</span></span><span class="fl-row-end fl-money">390<small>下一次 9/11 ›</small></span></button>
+            <button type="button" class="fl-row" data-recurring-edit data-recurring-kind="transfer"><span class="fl-row-icon"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i></span><span><span class="fl-row-title">ETF 定期定額</span><span class="fl-row-meta">每月 15 日・銀行 → 投資</span></span><span class="fl-row-end fl-money">10,000<small>確認後入帳 ›</small></span></button>
+            <button type="button" class="fl-row" data-recurring-edit data-recurring-kind="income"><span class="fl-row-icon"><i data-lucide="briefcase" aria-hidden="true"></i></span><span><span class="fl-row-title">每月薪資</span><span class="fl-row-meta">每月 8 日・自動入帳</span></span><span class="fl-row-end fl-money">62,000<small>下一次 9/08 ›</small></span></button>
+          </div>
+        </section>
+
+        <section class="fl-page fl-entry-page" data-page="recurring-form">
+          <form data-recurring-form>
+            <div class="fl-entry-head"><button type="button" class="fl-back" data-recurring-back aria-label="返回定期項目">‹</button><h2 data-recurring-form-title>新增定期項目</h2><button type="submit" class="fl-head-save">儲存</button></div>
+            <div class="fl-account-form-content">
+              <div class="fl-account-form-group">
+                <div class="fl-account-form-row"><label for="fl-recurring-name">項目名稱</label><input id="fl-recurring-name" value="手機月租費"></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-type">交易類型</label><select id="fl-recurring-type" data-recurring-type><option value="expense">支出</option><option value="income">收入</option><option value="transfer">轉帳</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-amount">預設金額</label><input id="fl-recurring-amount" inputmode="decimal" value="799"></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-frequency">週期</label><select id="fl-recurring-frequency"><option>每月</option><option>每週</option><option>每年</option><option>自訂</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-day">執行日</label><select id="fl-recurring-day"><option>每月 10 日</option><option>每月 15 日</option><option>每月底</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-start">開始日期</label><input id="fl-recurring-start" type="date" value="2026-08-10"></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-end">結束日期</label><input id="fl-recurring-end" type="date"></div>
+              </div>
+              <div class="fl-account-form-group" data-recurring-standard-fields>
+                <div class="fl-account-form-row"><label for="fl-recurring-category">分類</label><select id="fl-recurring-category"><option>電話網路</option><option>餐飲</option><option>居家</option><option>薪資</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-account">帳戶</label><select id="fl-recurring-account"><option>家庭信用卡</option><option>家庭主要帳戶</option><option>家庭現金</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-project">專案</label><select id="fl-recurring-project"><option>無</option><option>2026 日本旅遊</option><option>居家設備更新</option></select></div>
+              </div>
+              <div class="fl-account-form-group fl-is-hidden" data-recurring-transfer-fields>
+                <div class="fl-account-form-row"><label for="fl-recurring-from">轉出帳戶</label><select id="fl-recurring-from"><option>家庭主要帳戶</option><option>家庭預備金</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-to">轉入帳戶</label><select id="fl-recurring-to"><option>ETF 投資帳戶</option><option>家庭預備金</option></select></div>
+              </div>
+              <div class="fl-account-form-group">
+                <div class="fl-account-form-row"><label for="fl-recurring-posting">入帳方式</label><select id="fl-recurring-posting"><option value="confirm">確認後入帳（預設）</option><option value="auto">自動入帳</option></select></div>
+                <div class="fl-account-form-row"><label for="fl-recurring-preview">提前顯示</label><select id="fl-recurring-preview"><option>提前 7 天</option><option>提前 3 天</option><option>當天</option></select></div>
+              </div>
+              <textarea id="fl-recurring-note" aria-label="定期項目備註" placeholder="備註（可留空）"></textarea>
+              <button type="button" class="fl-danger-button fl-is-hidden" data-archive-recurring>封存這個定期項目</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="account-adjust">
+          <form class="fl-page-form" data-adjust-form>
+            <div class="fl-field"><label for="fl-current-balance">目前帳面餘額</label><input id="fl-current-balance" value="NT$ 8,600" disabled></div>
+            <div class="fl-field"><label for="fl-actual-balance">實際餘額</label><input id="fl-actual-balance" class="fl-amount" inputmode="decimal" value="8380"></div>
+            <div class="fl-adjust-explanation" data-adjust-explanation>差額會記為「帳務調整」支出，計入收支報表，但不占用分類預算。</div>
+            <div class="fl-field"><label for="fl-adjust-category">收支分類</label><input id="fl-adjust-category" value="帳務調整" disabled></div>
+            <div class="fl-field"><label for="fl-adjust-date">調整日期</label><input id="fl-adjust-date" type="date" value="2026-08-11"></div>
+            <div class="fl-field"><label for="fl-adjust-reason">原因</label><textarea id="fl-adjust-reason">盤點時發現有一筆現金開銷漏記</textarea></div>
+            <button type="submit" class="fl-primary fl-submit" data-adjust-submit>記錄帳務調整 −220</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="category-form">
+          <form class="fl-page-form" data-category-form>
+            <div class="fl-field"><label for="fl-category-name">類別名稱</label><input id="fl-category-name" value="餐飲"></div>
+            <div class="fl-section-title"><h2>代表圖示</h2></div>
+            <div class="fl-icon-picker" data-category-icon-picker><button type="button" class="is-active" aria-label="餐具"><i data-lucide="utensils" aria-hidden="true"></i></button><button type="button" aria-label="湯碗"><i data-lucide="soup" aria-hidden="true"></i></button><button type="button" aria-label="沙拉"><i data-lucide="salad" aria-hidden="true"></i></button><button type="button" aria-label="咖啡"><i data-lucide="coffee" aria-hidden="true"></i></button><button type="button" aria-label="甜點"><i data-lucide="cake-slice" aria-hidden="true"></i></button><button type="button" aria-label="購物"><i data-lucide="shopping-basket" aria-hidden="true"></i></button></div>
+            <button type="submit" class="fl-primary fl-submit">儲存分類設定</button>
+            <button type="button" class="fl-danger-button" data-archive-category>封存這個分類</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="settlement">
+          <form class="fl-page-form" data-settlement-form>
+            <div class="fl-caption" data-settlement-context>小明・待收 NT$ 320</div>
+            <div class="fl-field"><label for="fl-settlement-amount">本次金額</label><input id="fl-settlement-amount" class="fl-amount" inputmode="decimal" value="320"></div>
+            <div class="fl-field"><label for="fl-settlement-account" data-settlement-account-label>收款帳戶</label><select id="fl-settlement-account"><option>家庭現金</option><option>家庭主要帳戶</option><option>家庭信用卡</option></select></div>
+            <div class="fl-field"><label for="fl-settlement-date">日期</label><input id="fl-settlement-date" type="date" value="2026-08-11"></div>
+            <div class="fl-field"><label for="fl-settlement-note">備註</label><textarea id="fl-settlement-note" placeholder="可留空"></textarea></div>
+            <div class="fl-caption">只更新代墊餘額與帳戶，不列入收入或支出。</div>
+            <button type="submit" class="fl-primary fl-submit" data-settlement-submit>確認收款</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="budget-form">
+          <form class="fl-page-form" data-budget-dialog-form>
+            <div class="fl-field"><label for="fl-budget-cycle">控管週期</label><select id="fl-budget-cycle" data-budget-cycle-select><option value="monthly">每月預算</option><option value="annual">年度預算</option></select></div>
+            <div class="fl-field"><label for="fl-budget-category">分類</label><select id="fl-budget-category"><option>餐飲</option><option>日常用品</option><option>交通</option><option>娛樂</option><option>醫療</option><option>居家設備</option><option>其他</option></select></div>
+            <div class="fl-field"><label for="fl-budget-amount">預算金額</label><input id="fl-budget-amount" class="fl-amount" inputmode="decimal" value="3000"></div>
+            <div class="fl-caption" data-budget-cycle-note>每月重新計算使用額度。</div>
+            <button type="submit" class="fl-primary fl-submit">儲存分類預算</button>
+            <button type="button" class="fl-danger-button fl-is-hidden" data-archive-budget>移除這個分類預算</button>
+          </form>
+        </section>
+
+        <section class="fl-page" data-page="category-icons">
+          <div class="fl-category-manager" data-category-manager>
+            <div class="fl-view-toggle" aria-label="分類種類"><button type="button" class="is-active" data-manage-category-type="expense">支出類別</button><button type="button" data-manage-category-type="income">收入類別</button></div>
+            <div class="fl-category-manage-actions"><button type="button" data-sort-categories>排序</button><button type="button" data-add-category>＋ 新增類別</button></div>
+            <div class="fl-category-manage-grid" data-manage-category-grid="expense">
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="餐飲"><span class="fl-grip">⋮⋮</span><i data-lucide="utensils" aria-hidden="true"></i>餐飲</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="日常用品"><span class="fl-grip">⋮⋮</span><i data-lucide="shopping-basket" aria-hidden="true"></i>日常用品</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="交通"><span class="fl-grip">⋮⋮</span><i data-lucide="train-front" aria-hidden="true"></i>交通</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="水電瓦斯"><span class="fl-grip">⋮⋮</span><i data-lucide="lightbulb" aria-hidden="true"></i>水電瓦斯</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="電話網路"><span class="fl-grip">⋮⋮</span><i data-lucide="smartphone" aria-hidden="true"></i>電話網路</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="家用"><span class="fl-grip">⋮⋮</span><i data-lucide="house" aria-hidden="true"></i>家用</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="服飾"><span class="fl-grip">⋮⋮</span><i data-lucide="shirt" aria-hidden="true"></i>服飾</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="娛樂旅遊"><span class="fl-grip">⋮⋮</span><i data-lucide="plane" aria-hidden="true"></i>娛樂旅遊</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="奉獻"><span class="fl-grip">⋮⋮</span><i data-lucide="heart-handshake" aria-hidden="true"></i>奉獻</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="學習"><span class="fl-grip">⋮⋮</span><i data-lucide="book-open" aria-hidden="true"></i>學習</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="醫療"><span class="fl-grip">⋮⋮</span><i data-lucide="stethoscope" aria-hidden="true"></i>醫療</button>
+              <button type="button" class="fl-category-manage-tile is-add" data-add-category><i data-lucide="plus" aria-hidden="true"></i>新增類別</button>
+            </div>
+            <div class="fl-category-manage-grid fl-is-hidden" data-manage-category-grid="income">
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="薪資"><span class="fl-grip">⋮⋮</span><i data-lucide="briefcase" aria-hidden="true"></i>薪資</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="利息"><span class="fl-grip">⋮⋮</span><i data-lucide="landmark" aria-hidden="true"></i>利息</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="獎金"><span class="fl-grip">⋮⋮</span><i data-lucide="award" aria-hidden="true"></i>獎金</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="投資收益"><span class="fl-grip">⋮⋮</span><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i>投資</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="副業"><span class="fl-grip">⋮⋮</span><i data-lucide="briefcase-business" aria-hidden="true"></i>副業</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="禮金"><span class="fl-grip">⋮⋮</span><i data-lucide="gift" aria-hidden="true"></i>禮金</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="回饋金"><span class="fl-grip">⋮⋮</span><i data-lucide="badge-dollar-sign" aria-hidden="true"></i>回饋金</button>
+              <button type="button" class="fl-category-manage-tile" data-edit-icon="退款"><span class="fl-grip">⋮⋮</span><i data-lucide="undo-2" aria-hidden="true"></i>退款</button>
+              <button type="button" class="fl-category-manage-tile is-add" data-add-category><i data-lucide="plus" aria-hidden="true"></i>新增類別</button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="fl-bottom" aria-label="手機版主導覽">
+        <button type="button" class="is-active" data-page-target="home"><i data-lucide="house" aria-hidden="true"></i>首頁</button>
+        <button type="button" data-page-target="accounts"><i data-lucide="landmark" aria-hidden="true"></i>帳戶</button>
+        <button type="button" class="fl-add" data-open-entry="expense" aria-label="記一筆"><i data-lucide="plus" aria-hidden="true"></i></button>
+        <button type="button" data-page-target="reports"><i data-lucide="chart-pie" aria-hidden="true"></i>報表</button>
+        <button type="button" data-page-target="more"><i data-lucide="settings" aria-hidden="true"></i>更多</button>
+      </nav>
+
+      <div class="fl-toast" role="status" aria-live="polite" data-toast>已完成</div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      try {
+      const root = document.getElementById('family-ledger-preview-v2');
+      if (!root) return;
+      const device = root.querySelector('.fl-device');
+      const toast = root.querySelector('[data-toast]');
+      const topTitle = root.querySelector('[data-top-title]');
+      const topBack = root.querySelector('[data-top-back]');
+      const pageTitles = { home: '首頁', pending: '待確認', transactions: '交易明細', accounts: '帳戶', 'account-detail': '帳戶明細', 'account-adjust': '調整帳戶餘額', 'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', reports: '統計報表', projects: '專案記帳', 'project-detail': '專案明細', 'project-add': '新增專案', budgets: '預算設定', 'budget-form': '新增分類預算', advances: '代墊與分帳', 'advance-detail': '代墊明細', settlement: '登記收款', recurring: '定期項目', more: '更多管理', 'category-icons': '分類與圖像', 'category-form': '編輯分類' };
+      const backTargets = { pending: 'home', transactions: 'home', 'account-detail': 'accounts', 'account-adjust': 'account-detail', 'transaction-filter': 'account-detail', 'report-filter': 'reports', projects: 'more', 'project-detail': 'projects', 'project-add': 'projects', budgets: 'home', 'budget-form': 'budgets', advances: 'more', 'advance-detail': 'advances', settlement: 'advance-detail', recurring: 'more', 'category-icons': 'more', 'category-form': 'category-icons' };
+      let currentAccountTitle = '帳戶明細';
+      let currentAccountType = 'bank';
+      let currentAccountIcon = 'landmark';
+      let currentAccountCurrency = 'TWD';
+      let currentEntryType = 'expense';
+      let currentAccountField = 'standard';
+      let currentProjectField = 'standard';
+      const entryAccountCurrencies = { standard: 'TWD', 'transfer-from': 'TWD', 'transfer-to': 'TWD', advance: 'TWD' };
+      let accountEditorMode = 'add';
+      let accountEditorReturn = 'accounts';
+      let isEditingTransaction = false;
+      let entryReturnPage = 'home';
+      let recurringFormMode = 'add';
+      let currentSettlementDirection = 'collect';
+      let currentAdvancePerson = '小明';
+      let currentAdvanceRemaining = 320;
+      let currentPageName = 'home';
+      let currentProjectKey = 'japan';
+      let projectFormMode = 'add';
+      let toastTimer;
+
+      if (window.innerWidth >= 680) {
+        device.classList.add('is-desktop');
+        root.querySelectorAll('[data-device]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.device === 'desktop')));
+      }
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('is-showing');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('is-showing'), 2200);
+      }
+      function showPage(name) {
+        currentPageName = name;
+        root.querySelectorAll('[data-page]').forEach(page => page.classList.toggle('is-active', page.dataset.page === name));
+        root.querySelectorAll('[data-page-target]').forEach(button => button.classList.toggle('is-active', button.dataset.pageTarget === name));
+        device.classList.toggle('is-entry-mode', ['entry', 'entry-category', 'entry-account', 'entry-project', 'account-form', 'recurring-form'].includes(name));
+        topTitle.textContent = name === 'account-detail' ? currentAccountTitle : (pageTitles[name] || '家庭帳本');
+        topBack.dataset.topBack = backTargets[name] || '';
+        topBack.classList.toggle('fl-is-hidden', !backTargets[name]);
+        root.querySelectorAll('[data-top-home-notice]').forEach(button => {
+          const count = Number(button.querySelector('.fl-notice-count').textContent);
+          button.classList.toggle('fl-is-hidden', name !== 'home' || count === 0);
+        });
+        root.querySelector('[data-top-account-add]').classList.toggle('fl-is-hidden', name !== 'accounts');
+        root.querySelector('[data-top-account-manage]').classList.toggle('fl-is-hidden', name !== 'accounts');
+        root.querySelector('[data-top-account-settings]').classList.toggle('fl-is-hidden', name !== 'account-detail');
+        root.querySelector('[data-top-account-adjust]').classList.toggle('fl-is-hidden', name !== 'account-detail');
+        root.querySelector('[data-top-project-add]').classList.toggle('fl-is-hidden', name !== 'projects');
+        root.querySelector('[data-top-project-edit]').classList.toggle('fl-is-hidden', name !== 'project-detail');
+        root.querySelector('[data-top-budget-add]').classList.toggle('fl-is-hidden', name !== 'budgets');
+        root.querySelector('[data-top-recurring-add]').classList.toggle('fl-is-hidden', name !== 'recurring');
+        root.querySelector('[data-top-advance-add]').classList.toggle('fl-is-hidden', name !== 'advances');
+        root.querySelector('[data-top-advance-edit]').classList.toggle('fl-is-hidden', name !== 'advance-detail');
+        root.querySelector('[data-toggle-money]').classList.toggle('fl-is-hidden', !['home', 'accounts', 'account-detail', 'reports'].includes(name));
+      }
+      function setEntryType(type) {
+        currentEntryType = type;
+        root.querySelectorAll('[data-entry-type]').forEach(button => button.classList.toggle('is-active', button.dataset.entryType === type));
+        const standard = type === 'expense' || type === 'income';
+        root.querySelector('[data-main-amount]').classList.toggle('fl-is-hidden', type === 'transfer' || type === 'advance');
+        root.querySelector('[data-standard-fields]').classList.toggle('fl-is-hidden', !standard);
+        root.querySelector('[data-transfer-fields]').classList.toggle('fl-is-hidden', type !== 'transfer');
+        root.querySelector('[data-advance-fields]').classList.toggle('fl-is-hidden', type !== 'advance');
+        root.querySelector('[data-transfer-fee]').classList.toggle('fl-is-hidden', type !== 'transfer');
+        root.querySelectorAll('[data-category-set]').forEach(grid => grid.classList.toggle('fl-is-hidden', grid.dataset.categorySet !== type));
+        if (type === 'income') {
+          root.querySelector('[data-account-field-label]').textContent = '入帳帳戶';
+          root.querySelector('[data-selected-category]').textContent = '薪資';
+          root.querySelector('[data-selected-category-budget]').textContent = '收入分類不設預算';
+          setLucideIcon(root.querySelector('[data-selected-category-icon]'), 'briefcase');
+        } else if (type === 'expense') {
+          root.querySelector('[data-account-field-label]').textContent = '付款帳戶';
+          root.querySelector('[data-selected-category]').textContent = '餐飲／外食';
+          root.querySelector('[data-selected-category-budget]').textContent = '預算剩餘 NT$ 4,800';
+          setLucideIcon(root.querySelector('[data-selected-category-icon]'), 'utensils');
+        }
+        if (type === 'advance') {
+          const activeMode = root.querySelector('[data-advance-mode].is-active');
+          updateAdvanceMode(activeMode ? activeMode.dataset.advanceMode : 'mine');
+        }
+      }
+      function updateAdvanceMode(mode) {
+        const mine = mode === 'mine';
+        const includesMine = root.querySelector('[data-advance-shared-toggle]').checked;
+        root.querySelector('[data-advance-mine-participants]').classList.toggle('fl-is-hidden', !mine);
+        root.querySelector('[data-advance-theirs-person]').classList.toggle('fl-is-hidden', mine);
+        root.querySelector('[data-advance-theirs-amount]').classList.toggle('fl-is-hidden', mine);
+        root.querySelector('[data-advance-shared-toggle-row]').classList.toggle('fl-is-hidden', !mine);
+        root.querySelector('[data-advance-account-row]').classList.toggle('fl-is-hidden', !mine);
+        root.querySelector('[data-advance-own-row]').classList.toggle('fl-is-hidden', !mine || !includesMine);
+        root.querySelectorAll('[data-advance-expense-row]').forEach(row => row.classList.toggle('fl-is-hidden', mine && !includesMine));
+      }
+      function setLucideIcon(holder, name) {
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', name);
+        icon.setAttribute('aria-hidden', 'true');
+        while (holder.firstChild) holder.removeChild(holder.firstChild);
+        holder.appendChild(icon);
+        if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+          try { lucide.createIcons({ attrs: { width: 18, height: 18 } }); } catch (iconError) { /* 圖示載入失敗不影響介面 */ }
+        }
+      }
+      function currencyLabel(code) {
+        return code === 'JPY' ? 'JPY ¥' : code === 'USD' ? 'USD $' : 'NT$';
+      }
+      function updateTransferExchange() {
+        const from = entryAccountCurrencies['transfer-from'];
+        const to = entryAccountCurrencies['transfer-to'];
+        root.querySelector('[data-transfer-exchange]').classList.toggle('fl-is-hidden', from === to);
+        root.querySelector('[data-transfer-rate-label]').textContent = `${to} / ${from}`;
+        const rates = { 'JPY-TWD': 0.215, 'USD-TWD': 32.15, 'TWD-JPY': 4.6512, 'TWD-USD': 0.0311 };
+        if (rates[`${from}-${to}`]) root.querySelector('#fl-transfer-rate').value = String(rates[`${from}-${to}`]);
+        updateTransferReceived();
+      }
+      function updateTransferReceived() {
+        const amount = Number(root.querySelector('#fl-transfer-amount').value.replace(/,/g, '')) || 0;
+        const rate = Number(root.querySelector('#fl-transfer-rate').value) || 0;
+        root.querySelector('#fl-transfer-received').value = (amount * rate).toFixed(entryAccountCurrencies['transfer-to'] === 'JPY' ? 0 : 2);
+      }
+
+      root.querySelectorAll('[data-device]').forEach(button => button.addEventListener('click', () => {
+        const mobile = button.dataset.device === 'mobile';
+        device.classList.toggle('is-desktop', !mobile);
+        root.querySelectorAll('[data-device]').forEach(peer => peer.setAttribute('aria-pressed', String(peer === button)));
+      }));
+      root.querySelectorAll('[data-page-target]').forEach(button => button.addEventListener('click', () => showPage(button.dataset.pageTarget)));
+      topBack.addEventListener('click', () => { if (topBack.dataset.topBack) showPage(topBack.dataset.topBack); });
+      root.querySelectorAll('[data-open-projects]').forEach(button => button.addEventListener('click', () => { backTargets.projects = button.dataset.openProjects; showPage('projects'); }));
+      root.querySelectorAll('[data-open-budgets]').forEach(button => button.addEventListener('click', () => { backTargets.budgets = button.dataset.openBudgets; showPage('budgets'); }));
+      root.querySelectorAll('[data-open-advances]').forEach(button => button.addEventListener('click', () => { backTargets.advances = button.dataset.openAdvances; showPage('advances'); }));
+      root.querySelectorAll('[data-budget-tab]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-budget-tab]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelectorAll('[data-budget-list]').forEach(list => list.classList.toggle('fl-is-hidden', list.dataset.budgetList !== button.dataset.budgetTab));
+      }));
+      root.querySelectorAll('[data-open-entry]').forEach(button => button.addEventListener('click', () => {
+        entryReturnPage = currentPageName === 'entry' ? 'home' : currentPageName;
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        setEntryType(button.dataset.openEntry || 'expense');
+        showPage('entry');
+      }));
+      root.querySelectorAll('[data-entry-type]').forEach(button => button.addEventListener('click', () => setEntryType(button.dataset.entryType)));
+      root.querySelector('#fl-date').addEventListener('change', event => {
+        const [year, month, day] = event.currentTarget.value.split('-').map(Number);
+        if (!year || !month || !day) return;
+        const weekdays = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+        const weekday = weekdays[new Date(year, month - 1, day).getDay()];
+        root.querySelector('[data-entry-date-label]').textContent = `${year} 年 ${month} 月 ${day} 日 ${weekday}`;
+      });
+      root.querySelector('[data-transfer-fee-toggle]').addEventListener('change', event => {
+        root.querySelector('[data-transfer-fee-amount]').classList.toggle('fl-is-hidden', !event.currentTarget.checked);
+      });
+      root.querySelector('#fl-transfer-amount').addEventListener('input', updateTransferReceived);
+      root.querySelector('#fl-transfer-rate').addEventListener('input', updateTransferReceived);
+      root.querySelector('[data-open-category]').addEventListener('click', () => showPage('entry-category'));
+      root.querySelectorAll('[data-category-value]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-category-value]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelector('[data-selected-category]').textContent = button.dataset.categoryValue;
+        root.querySelector('[data-selected-category-budget]').textContent = button.dataset.categoryBudget || '收入分類不設預算';
+        setLucideIcon(root.querySelector('[data-selected-category-icon]'), button.dataset.categoryIcon);
+        showPage('entry');
+      }));
+      const accountPickerTitles = { standard: '選擇付款帳戶', 'transfer-from': '選擇轉出帳戶', 'transfer-to': '選擇轉入帳戶', advance: '選擇付款帳戶' };
+      root.querySelectorAll('[data-open-account]').forEach(button => button.addEventListener('click', () => {
+        currentAccountField = button.dataset.openAccount;
+        root.querySelector('[data-account-picker-title]').textContent = currentAccountField === 'standard' && currentEntryType === 'income' ? '選擇入帳帳戶' : accountPickerTitles[currentAccountField];
+        showPage('entry-account');
+      }));
+      root.querySelectorAll('[data-account-option]').forEach(button => button.addEventListener('click', () => {
+        root.querySelector(`[data-account-choice-name="${currentAccountField}"]`).textContent = button.dataset.accountOption;
+        setLucideIcon(root.querySelector(`[data-account-choice-icon="${currentAccountField}"]`), button.dataset.accountOptionIcon);
+        entryAccountCurrencies[currentAccountField] = button.dataset.accountOptionCurrency || 'TWD';
+        const currencyHolder = root.querySelector(`[data-entry-currency="${currentAccountField}"]`);
+        if (currencyHolder) currencyHolder.textContent = currencyLabel(entryAccountCurrencies[currentAccountField]);
+        if (currentAccountField.startsWith('transfer-')) updateTransferExchange();
+        showPage('entry');
+      }));
+      root.querySelectorAll('[data-open-project]').forEach(button => button.addEventListener('click', () => { currentProjectField = button.dataset.openProject; showPage('entry-project'); }));
+      root.querySelectorAll('[data-project-option]').forEach(button => button.addEventListener('click', () => {
+        root.querySelector(`[data-project-choice-name="${currentProjectField}"]`).textContent = button.dataset.projectOption;
+        setLucideIcon(root.querySelector(`[data-project-choice-icon="${currentProjectField}"]`), button.dataset.projectOptionIcon);
+        showPage('entry');
+      }));
+      root.querySelector('[data-entry-form]').addEventListener('submit', event => {
+        event.preventDefault();
+        const returnPage = entryReturnPage;
+        const message = isEditingTransaction ? '已儲存明細修改' : '已加入範例交易（原型不會儲存資料）';
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        showPage(returnPage);
+        showToast(message);
+      });
+      root.querySelector('[data-entry-back]').addEventListener('click', () => {
+        const returnPage = entryReturnPage;
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        showPage(returnPage);
+      });
+      root.querySelector('[data-entry-delete]').addEventListener('click', () => {
+        const returnPage = entryReturnPage;
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        showPage(returnPage);
+        showToast('已刪除這筆明細（原型不會儲存）');
+      });
+      root.querySelectorAll('[data-advance-mode]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-advance-mode]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        updateAdvanceMode(button.dataset.advanceMode);
+      }));
+      root.querySelector('[data-advance-shared-toggle]').addEventListener('change', () => updateAdvanceMode('mine'));
+      root.querySelector('[data-add-participant]').addEventListener('click', () => {
+        const row = document.createElement('div');
+        row.className = 'fl-participant-row';
+        const nameInput = document.createElement('input');
+        nameInput.value = '新對象';
+        nameInput.setAttribute('aria-label', '代墊對象');
+        const amountInput = document.createElement('input');
+        amountInput.inputMode = 'decimal';
+        amountInput.value = '0';
+        amountInput.setAttribute('aria-label', '應還金額');
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'fl-participant-remove';
+        removeButton.setAttribute('aria-label', '移除對象');
+        removeButton.setAttribute('data-remove-participant', '');
+        const removeIcon = document.createElement('i');
+        removeIcon.setAttribute('data-lucide', 'x');
+        removeIcon.setAttribute('aria-hidden', 'true');
+        removeButton.appendChild(removeIcon);
+        row.appendChild(nameInput);
+        row.appendChild(amountInput);
+        row.appendChild(removeButton);
+        root.querySelector('[data-participant-list]').appendChild(row);
+        if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+          try { lucide.createIcons({ attrs: { width: 18, height: 18 } }); } catch (iconError) { /* 圖示載入失敗不影響介面 */ }
+        }
+      });
+      root.querySelector('[data-participant-list]').addEventListener('click', event => {
+        const remove = event.target.closest('[data-remove-participant]');
+        if (remove && root.querySelectorAll('[data-participant-list] .fl-participant-row').length > 1) remove.closest('.fl-participant-row').remove();
+      });
+      root.querySelectorAll('[data-advance-ledger-tab]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-advance-ledger-tab]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelectorAll('[data-advance-ledger-list]').forEach(list => list.classList.toggle('fl-is-hidden', list.dataset.advanceLedgerList !== button.dataset.advanceLedgerTab));
+      }));
+      root.querySelectorAll('[data-advance-detail]').forEach(button => button.addEventListener('click', () => {
+        currentSettlementDirection = button.dataset.direction;
+        currentAdvancePerson = button.dataset.person;
+        currentAdvanceRemaining = Number(button.dataset.amount);
+        const collecting = currentSettlementDirection === 'collect';
+        root.querySelector('[data-advance-detail-direction]').textContent = collecting ? '別人應還我' : '我應還別人';
+        root.querySelector('[data-advance-detail-remaining]').textContent = `NT$ ${currentAdvanceRemaining.toLocaleString('zh-TW')}`;
+        root.querySelector('[data-advance-detail-heading]').textContent = `${currentAdvancePerson}・${button.dataset.title}`;
+        root.querySelector('[data-advance-detail-original]').textContent = `NT$ ${Number(button.dataset.original).toLocaleString('zh-TW')}`;
+        root.querySelector('[data-advance-detail-paid]').textContent = `NT$ ${Number(button.dataset.paid).toLocaleString('zh-TW')}`;
+        root.querySelector('[data-advance-detail-note]').textContent = button.dataset.title;
+        root.querySelector('[data-open-settlement-from-detail]').textContent = collecting ? '登記收款' : '登記還款';
+        showPage('advance-detail');
+      }));
+      root.querySelector('[data-top-advance-add]').addEventListener('click', () => {
+        entryReturnPage = 'advances';
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        setEntryType('advance');
+        showPage('entry');
+      });
+      root.querySelector('[data-top-advance-edit]').addEventListener('click', () => {
+        entryReturnPage = 'advance-detail';
+        isEditingTransaction = true;
+        setEntryType('advance');
+        const mode = currentSettlementDirection === 'collect' ? 'mine' : 'theirs';
+        root.querySelectorAll('[data-advance-mode]').forEach(button => button.classList.toggle('is-active', button.dataset.advanceMode === mode));
+        updateAdvanceMode(mode);
+        root.querySelector('#fl-note').value = root.querySelector('[data-advance-detail-note]').textContent;
+        if (mode === 'theirs') {
+          root.querySelector('#fl-advance-person').value = currentAdvancePerson;
+          root.querySelector('#fl-advance-amount').value = currentAdvanceRemaining;
+        }
+        root.querySelector('[data-entry-delete]').classList.remove('fl-is-hidden');
+        showPage('entry');
+      });
+      function openSettlementPage(amount) {
+        const collecting = currentSettlementDirection === 'collect';
+        pageTitles.settlement = collecting ? '登記收款' : '登記還款';
+        root.querySelector('[data-settlement-context]').textContent = `${currentAdvancePerson}・${collecting ? '待收' : '待還'} NT$ ${currentAdvanceRemaining.toLocaleString('zh-TW')}`;
+        root.querySelector('#fl-settlement-amount').value = amount;
+        root.querySelector('[data-settlement-account-label]').textContent = collecting ? '收款帳戶' : '付款帳戶';
+        root.querySelector('[data-settlement-submit]').textContent = collecting ? '確認收款' : '確認還款';
+        showPage('settlement');
+      }
+      root.querySelector('[data-open-settlement-from-detail]').addEventListener('click', () => openSettlementPage(currentAdvanceRemaining));
+      root.querySelector('[data-edit-settlement]').addEventListener('click', () => openSettlementPage(480));
+      root.querySelectorAll('[data-swipe-back]').forEach(page => {
+        let swipeStartX = 0;
+        page.addEventListener('touchstart', event => { swipeStartX = event.changedTouches[0].clientX; }, { passive: true });
+        page.addEventListener('touchend', event => { if (event.changedTouches[0].clientX - swipeStartX > 70) showPage(page.dataset.swipeBack); }, { passive: true });
+      });
+      root.querySelectorAll('[data-transaction-view]').forEach(button => button.addEventListener('click', () => {
+        const calendarMode = button.dataset.transactionView === 'calendar';
+        root.querySelectorAll('[data-transaction-view]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelector('[data-transaction-calendar]').classList.toggle('fl-is-hidden', !calendarMode);
+        root.querySelector('[data-transaction-list]').classList.toggle('fl-is-hidden', calendarMode);
+      }));
+      root.querySelectorAll('[data-transaction-type-filter]').forEach(button => button.addEventListener('click', () => {
+        const filter = button.dataset.transactionTypeFilter;
+        root.querySelectorAll('[data-transaction-type-filter]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelectorAll('[data-transaction-list] .fl-row').forEach(row => {
+          const text = row.textContent;
+          const kind = text.includes('轉帳') || text.includes('銀行 → 投資') ? 'transfer' : row.querySelector('.fl-expense') ? 'expense' : 'income';
+          row.classList.toggle('fl-is-hidden', filter !== 'all' && filter !== kind);
+        });
+      }));
+      let visibleCalendarMonth = 8;
+      root.querySelectorAll('[data-calendar-month]').forEach(button => button.addEventListener('click', () => {
+        visibleCalendarMonth += button.dataset.calendarMonth === 'next' ? 1 : -1;
+        if (visibleCalendarMonth < 1) visibleCalendarMonth = 12;
+        if (visibleCalendarMonth > 12) visibleCalendarMonth = 1;
+        root.querySelector('[data-calendar-month-title]').textContent = `2026 年 ${visibleCalendarMonth} 月`;
+        root.querySelector('[data-calendar-title]').textContent = `${visibleCalendarMonth} 月 1 日`;
+        root.querySelector('[data-calendar-total]').textContent = '沒有收支';
+      }));
+      const calendarData = {
+        8: { total: '收入 NT$ 62,000', items: [{ icon: 'briefcase', title: '本月薪資', meta: '收入・家庭主要帳戶', amount: '＋62,000', expense: false }, { icon: 'chart-no-axes-combined', title: 'ETF 定期定額', meta: '投資轉帳・不列入支出', amount: '10,000', expense: false }] },
+        10: { total: '支出 NT$ 1,325', items: [{ icon: 'train-front', title: '機場交通', meta: '交通・日本旅遊', amount: '−1,260', expense: true }, { icon: 'coffee', title: '早餐', meta: '餐飲・家庭現金', amount: '−65', expense: true }] },
+        11: { total: '支出 NT$ 374', items: [{ icon: 'utensils', title: '午餐', meta: '餐飲・家庭信用卡', amount: '−180', expense: true }, { icon: 'shopping-basket', title: '日用品', meta: '居家・家庭現金', amount: '−194', expense: true }] },
+        12: { total: '支出 NT$ 799', items: [{ icon: 'smartphone', title: '手機月租費', meta: '通訊・家庭主要帳戶', amount: '−799', expense: true }] }
+      };
+      root.querySelectorAll('[data-calendar-day]').forEach(button => button.addEventListener('click', () => {
+        const day = Number(button.dataset.calendarDay);
+        const data = calendarData[day] || { total: '沒有收支', items: [] };
+        root.querySelectorAll('[data-calendar-day]').forEach(peer => peer.classList.toggle('is-selected', peer === button));
+        root.querySelector('[data-calendar-title]').textContent = `8 月 ${day} 日`;
+        root.querySelector('[data-calendar-total]').textContent = data.total;
+        root.querySelectorAll('[data-calendar-item]').forEach((row, index) => {
+          const item = data.items[index];
+          row.classList.toggle('fl-is-hidden', !item);
+          if (!item) return;
+          setLucideIcon(row.querySelector('[data-calendar-item-icon]'), item.icon);
+          row.querySelector('[data-calendar-item-title]').textContent = item.title;
+          row.querySelector('[data-calendar-item-meta]').textContent = item.meta;
+          const amount = row.querySelector('[data-calendar-item-amount]');
+          amount.textContent = item.amount;
+          amount.classList.toggle('fl-expense', item.expense);
+        });
+      }));
+      const reportData = {
+        income: { label: '8 月收入', total: 'NT$ 62,000', delta: '增加 2.1%', title: '近 6 個月收入趨勢', unit: '單位：萬元', heights: [58, 61, 59, 64, 62, 66] },
+        expense: { label: '8 月支出', total: 'NT$ 49,520', delta: '少 8.4%', title: '近 6 個月支出趨勢', unit: '單位：萬元', heights: [52, 69, 58, 83, 74, 62] },
+        assets: { label: '目前淨資產', total: 'NT$ 1,248,600', delta: '增加 3.2%', title: '近 6 個月淨資產趨勢', unit: '單位：萬元', heights: [48, 54, 61, 67, 78, 88] }
+      };
+      root.querySelectorAll('[data-report-mode]').forEach(button => button.addEventListener('click', () => {
+        const mode = button.dataset.reportMode;
+        const data = reportData[mode];
+        root.querySelectorAll('[data-report-mode]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelector('[data-report-total-label]').textContent = data.label;
+        root.querySelector('[data-report-total]').textContent = data.total;
+        root.querySelector('[data-report-delta]').textContent = data.delta;
+        root.querySelector('[data-trend-title]').textContent = data.title;
+        root.querySelector('[data-trend-unit]').textContent = data.unit;
+        root.querySelectorAll('[data-trend-bar]').forEach((bar, index) => { bar.style.height = `${data.heights[index]}%`; });
+        const trendPanel = root.querySelector('[data-trend-panel]');
+        trendPanel.classList.toggle('is-income', mode === 'income');
+        trendPanel.classList.toggle('is-assets', mode === 'assets');
+        root.querySelector('[data-trend-chart]').setAttribute('aria-label', data.title);
+        root.querySelector('[data-expense-breakdown]').classList.toggle('fl-is-hidden', mode !== 'expense');
+      }));
+      root.querySelectorAll('[data-report-period]').forEach(button => button.addEventListener('click', () => {
+        if (button.dataset.reportPeriod === 'custom') { showPage('report-filter'); return; }
+        root.querySelectorAll('[data-report-period]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        showToast(`已切換為${button.textContent.trim()}報表`);
+      }));
+      root.querySelector('[data-report-filter-form]').addEventListener('submit', event => {
+        event.preventDefault();
+        root.querySelectorAll('[data-report-period]').forEach(peer => peer.classList.toggle('is-active', peer.dataset.reportPeriod === 'custom'));
+        showPage('reports');
+        showToast('已套用自訂報表區間');
+      });
+      const accountManager = root.querySelector('[data-account-manager]');
+      function formatAccountCurrency(value, code) {
+        const prefix = code === 'JPY' ? '¥' : code === 'USD' ? 'US$' : 'NT$ ';
+        return `${prefix}${value.toLocaleString('zh-TW')}`;
+      }
+      function selectCurrentAccount(button) {
+        const balance = Number(button.dataset.balance);
+        currentAccountTitle = button.dataset.account;
+        currentAccountType = button.dataset.accountTypeValue || 'bank';
+        currentAccountIcon = button.dataset.icon || 'landmark';
+        currentAccountCurrency = button.dataset.currency || 'TWD';
+        setLucideIcon(root.querySelector('[data-account-icon]'), currentAccountIcon);
+        root.querySelector('[data-account-balance]').textContent = formatAccountCurrency(balance, currentAccountCurrency);
+        root.querySelector('#fl-current-balance').value = formatAccountCurrency(balance, currentAccountCurrency);
+        root.querySelector('#fl-actual-balance').value = String(balance - 220);
+      }
+      function beginAccountEdit(returnPage) {
+        accountEditorMode = 'edit';
+        accountEditorReturn = returnPage;
+        root.querySelector('[data-account-editor-title]').textContent = '編輯帳戶';
+        root.querySelector('[data-account-editor-submit]').textContent = '儲存';
+        root.querySelector('#fl-account-name').value = currentAccountTitle;
+        root.querySelector('[data-account-type]').value = currentAccountType;
+        root.querySelector('[data-account-type]').dispatchEvent(new Event('change'));
+        root.querySelector('[data-account-currency]').value = currentAccountCurrency;
+        root.querySelector('[data-account-currency]').dispatchEvent(new Event('change'));
+        root.querySelectorAll('[data-account-icon-choice]').forEach(choice => choice.classList.toggle('is-active', choice.dataset.accountIconChoice === currentAccountIcon));
+        showPage('account-form');
+      }
+      root.querySelectorAll('[data-account]').forEach(button => button.addEventListener('click', () => {
+        selectCurrentAccount(button);
+        if (accountManager.classList.contains('is-editing')) beginAccountEdit('accounts');
+        else showPage('account-detail');
+      }));
+      root.querySelector('[data-top-account-manage]').addEventListener('click', event => {
+        const editing = accountManager.classList.toggle('is-editing');
+        event.currentTarget.setAttribute('aria-pressed', String(editing));
+        event.currentTarget.setAttribute('aria-label', editing ? '完成帳戶管理' : '管理帳戶順序');
+        setLucideIcon(event.currentTarget, editing ? 'check' : 'menu');
+        root.querySelectorAll('[data-account-row-hint]').forEach(hint => { hint.textContent = editing ? '點擊設定' : '明細 ›'; });
+      });
+      root.querySelector('[data-top-account-add]').addEventListener('click', () => {
+        accountEditorMode = 'add';
+        accountEditorReturn = 'accounts';
+        root.querySelector('[data-account-editor-title]').textContent = '新增帳戶';
+        root.querySelector('[data-account-editor-submit]').textContent = '儲存';
+        root.querySelector('#fl-account-name').value = '';
+        root.querySelector('#fl-account-opening-balance').value = '0';
+        root.querySelector('[data-account-type]').value = 'bank';
+        root.querySelector('[data-account-type]').dispatchEvent(new Event('change'));
+        root.querySelector('[data-account-currency]').value = 'TWD';
+        root.querySelector('[data-account-currency]').dispatchEvent(new Event('change'));
+        showPage('account-form');
+      });
+      root.querySelector('[data-top-account-settings]').addEventListener('click', () => beginAccountEdit('account-detail'));
+      root.querySelector('[data-top-account-adjust]').addEventListener('click', () => { backTargets['account-adjust'] = 'account-detail'; updateAdjustPresentation(); showPage('account-adjust'); });
+      root.querySelectorAll('[data-manage-account-settings]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        selectCurrentAccount(button.closest('.fl-account-edit-row').querySelector('[data-account]'));
+        beginAccountEdit('accounts');
+      }));
+      root.querySelectorAll('[data-manage-account-adjust]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        selectCurrentAccount(button.closest('.fl-account-edit-row').querySelector('[data-account]'));
+        updateAdjustPresentation();
+        backTargets['account-adjust'] = 'accounts';
+        showPage('account-adjust');
+      }));
+      root.querySelector('[data-account-editor-back]').addEventListener('click', () => showPage(accountEditorReturn));
+      root.querySelectorAll('[data-account-entry]').forEach(button => button.addEventListener('click', () => {
+        const type = button.dataset.accountEntry;
+        entryReturnPage = 'account-detail';
+        isEditingTransaction = false;
+        root.querySelector('[data-entry-delete]').classList.add('fl-is-hidden');
+        setEntryType(type);
+        if (type === 'transfer') {
+          root.querySelector('[data-account-choice-name="transfer-from"]').textContent = currentAccountTitle;
+          setLucideIcon(root.querySelector('[data-account-choice-icon="transfer-from"]'), currentAccountIcon);
+          entryAccountCurrencies['transfer-from'] = currentAccountCurrency;
+          root.querySelector('[data-entry-currency="transfer-from"]').textContent = currencyLabel(currentAccountCurrency);
+          updateTransferExchange();
+        } else {
+          root.querySelector('[data-account-choice-name="standard"]').textContent = currentAccountTitle;
+          setLucideIcon(root.querySelector('[data-account-choice-icon="standard"]'), currentAccountIcon);
+          entryAccountCurrencies.standard = currentAccountCurrency;
+          root.querySelector('[data-entry-currency="standard"]').textContent = currencyLabel(currentAccountCurrency);
+        }
+        showPage('entry');
+      }));
+      root.querySelectorAll('[data-delete-account]').forEach(button => button.addEventListener('click', event => {
+        event.stopPropagation();
+        const row = button.closest('.fl-account-edit-row');
+        const name = row.querySelector('[data-account]').dataset.account;
+        row.classList.add('fl-is-hidden');
+        showToast(`已封存${name}，歷史明細仍保留`);
+      }));
+      let draggedAccountRow = null;
+      root.querySelectorAll('.fl-account-edit-row').forEach(row => {
+        row.addEventListener('dragstart', event => {
+          if (!accountManager.classList.contains('is-editing')) { event.preventDefault(); return; }
+          draggedAccountRow = row;
+          row.classList.add('is-dragging');
+        });
+        row.addEventListener('dragend', () => { row.classList.remove('is-dragging'); draggedAccountRow = null; showToast('已更新帳戶順序'); });
+      });
+      root.querySelectorAll('[data-account-sort-list]').forEach(list => list.addEventListener('dragover', event => {
+        if (!draggedAccountRow || draggedAccountRow.parentElement !== list) return;
+        event.preventDefault();
+        const target = event.target.closest('.fl-account-edit-row');
+        if (target && target !== draggedAccountRow) {
+          const targetBox = target.getBoundingClientRect();
+          list.insertBefore(draggedAccountRow, event.clientY < targetBox.top + targetBox.height / 2 ? target : target.nextSibling);
+        }
+      }));
+      root.querySelectorAll('[data-account-drag]').forEach(handle => {
+        let pointerRow = null;
+        handle.addEventListener('pointerdown', event => {
+          if (!accountManager.classList.contains('is-editing')) return;
+          event.preventDefault();
+          pointerRow = handle.closest('.fl-account-edit-row');
+          pointerRow.classList.add('is-dragging');
+          handle.setPointerCapture(event.pointerId);
+        });
+        handle.addEventListener('pointermove', event => {
+          if (!pointerRow) return;
+          const list = pointerRow.parentElement;
+          const targetElement = document.elementFromPoint(event.clientX, event.clientY);
+          const target = targetElement ? targetElement.closest('.fl-account-edit-row') : null;
+          if (!target || target === pointerRow || target.parentElement !== list) return;
+          const targetBox = target.getBoundingClientRect();
+          list.insertBefore(pointerRow, event.clientY < targetBox.top + targetBox.height / 2 ? target : target.nextSibling);
+        });
+        handle.addEventListener('pointerup', () => {
+          if (!pointerRow) return;
+          pointerRow.classList.remove('is-dragging');
+          pointerRow = null;
+          showToast('已更新帳戶順序');
+        });
+      });
+      const projectDetailData = {
+        japan: {
+          title: '2026 日本旅遊', budget: '35,200 / 80,000', track: 44, income: '2,000', expense: '35,200', net: '33,200',
+          items: [
+            { kind: 'expense', icon: 'hotel', title: '住宿訂金', meta: '住宿・家庭信用卡・8/05', amount: '−18,000' },
+            { kind: 'expense', icon: 'train-front', title: '機場交通', meta: '交通・家庭信用卡・8/10', amount: '−10,200' },
+            { kind: 'expense', icon: 'utensils', title: '旅遊餐費', meta: '餐飲・家庭現金・8/11', amount: '−7,000' },
+            { kind: 'income', icon: 'badge-dollar-sign', title: '住宿退款', meta: '退款・家庭信用卡・8/12', amount: '＋2,000' }
+          ]
+        },
+        home: {
+          title: '居家設備更新', budget: '12,600 / 30,000', track: 42, income: '0', expense: '12,600', net: '12,600',
+          items: [
+            { kind: 'expense', icon: 'armchair', title: '工作椅', meta: '居家・家庭信用卡・7/18', amount: '−8,200' },
+            { kind: 'expense', icon: 'lamp-desk', title: '桌燈', meta: '居家・家庭現金・7/22', amount: '−2,400' },
+            { kind: 'expense', icon: 'package-open', title: '收納用品', meta: '日常用品・家庭現金・7/28', amount: '−2,000' }
+          ]
+        }
+      };
+      root.querySelectorAll('[data-project-detail]').forEach(button => button.addEventListener('click', () => {
+        currentProjectKey = button.dataset.projectDetail;
+        const data = projectDetailData[button.dataset.projectDetail];
+        pageTitles['project-detail'] = data.title;
+        root.querySelector('[data-project-detail-name]').textContent = data.title;
+        root.querySelector('[data-project-detail-budget]').textContent = data.budget;
+        root.querySelector('[data-project-detail-track]').style.width = `${data.track}%`;
+        root.querySelector('[data-project-detail-income]').textContent = data.income;
+        root.querySelector('[data-project-detail-expense]').textContent = data.expense;
+        root.querySelector('[data-project-detail-net]').textContent = data.net;
+        root.querySelectorAll('[data-project-filter]').forEach(filter => filter.classList.toggle('is-active', filter.dataset.projectFilter === 'all'));
+        root.querySelectorAll('[data-project-transaction]').forEach((row, index) => {
+          const item = data.items[index];
+          row.dataset.projectActive = String(Boolean(item));
+          row.classList.toggle('fl-is-hidden', !item);
+          if (!item) return;
+          row.dataset.projectKind = item.kind;
+          setLucideIcon(row.querySelector('[data-project-item-icon]'), item.icon);
+          row.querySelector('[data-project-item-title]').textContent = item.title;
+          row.querySelector('[data-project-item-meta]').textContent = item.meta;
+          const amount = row.querySelector('[data-project-item-amount]');
+          amount.textContent = item.amount;
+          amount.classList.toggle('fl-expense', item.kind === 'expense');
+        });
+        showPage('project-detail');
+      }));
+      root.querySelectorAll('[data-project-filter]').forEach(button => button.addEventListener('click', () => {
+        const filter = button.dataset.projectFilter;
+        root.querySelectorAll('[data-project-filter]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelectorAll('[data-project-transaction]').forEach(row => row.classList.toggle('fl-is-hidden', row.dataset.projectActive === 'false' || (filter !== 'all' && row.dataset.projectKind !== filter)));
+      }));
+      root.querySelector('[data-top-project-add]').addEventListener('click', () => {
+        projectFormMode = 'add';
+        pageTitles['project-add'] = '新增專案';
+        backTargets['project-add'] = 'projects';
+        root.querySelector('#fl-project-name').value = '2026 家庭旅遊';
+        root.querySelector('#fl-project-budget').value = '80000';
+        root.querySelector('#fl-project-start').value = '2026-09-01';
+        root.querySelector('#fl-project-end').value = '2026-09-07';
+        root.querySelector('#fl-project-status').value = '進行中';
+        root.querySelector('#fl-project-note').value = '';
+        root.querySelector('[data-project-submit]').textContent = '新增專案';
+        root.querySelector('[data-archive-project]').classList.add('fl-is-hidden');
+        showPage('project-add');
+      });
+      root.querySelector('[data-top-project-edit]').addEventListener('click', () => {
+        const data = projectDetailData[currentProjectKey];
+        projectFormMode = 'edit';
+        pageTitles['project-add'] = '編輯專案';
+        backTargets['project-add'] = 'project-detail';
+        root.querySelector('#fl-project-name').value = data.title;
+        root.querySelector('#fl-project-budget').value = data.budget.split('/')[1].replace(/[^\d]/g, '');
+        root.querySelector('#fl-project-start').value = currentProjectKey === 'japan' ? '2026-08-05' : '2026-07-01';
+        root.querySelector('#fl-project-end').value = currentProjectKey === 'japan' ? '2026-08-15' : '2026-08-31';
+        root.querySelector('#fl-project-status').value = '進行中';
+        root.querySelector('#fl-project-note').value = currentProjectKey === 'japan' ? '日本旅遊的所有收支都歸在這個專案。' : '居家工作區與設備更新。';
+        root.querySelector('[data-project-submit]').textContent = '儲存專案設定';
+        root.querySelector('[data-archive-project]').classList.remove('fl-is-hidden');
+        showPage('project-add');
+      });
+      root.querySelector('[data-top-budget-add]').addEventListener('click', () => {
+        pageTitles['budget-form'] = '新增分類預算';
+        root.querySelector('#fl-budget-amount').value = '3000';
+        root.querySelector('[data-archive-budget]').classList.add('fl-is-hidden');
+        showPage('budget-form');
+      });
+      root.querySelector('[data-project-form]').addEventListener('submit', event => { event.preventDefault(); showPage(projectFormMode === 'edit' ? 'project-detail' : 'projects'); showToast(projectFormMode === 'edit' ? '已儲存專案設定' : '已新增專案'); });
+      root.querySelector('[data-archive-project]').addEventListener('click', () => { showPage('projects'); showToast('已封存專案，歷史收支仍保留'); });
+      const editableTransactionRows = new Set([
+        ...root.querySelectorAll('[data-toggle-transaction]'),
+        ...root.querySelectorAll('[data-calendar-item]'),
+        ...root.querySelectorAll('[data-page="account-detail"] .fl-list .fl-row'),
+        ...root.querySelectorAll('[data-project-transaction]')
+      ]);
+      editableTransactionRows.forEach(row => row.addEventListener('click', () => {
+        entryReturnPage = currentPageName;
+        isEditingTransaction = true;
+        const titleElement = row.querySelector('.fl-row-title');
+        const metaElement = row.querySelector('.fl-row-meta');
+        const amountElement = row.querySelector('.fl-row-end');
+        const amountMatch = amountElement ? amountElement.textContent.match(/[＋+−-]?[\d,]+/) : null;
+        const title = titleElement ? titleElement.textContent.trim() : '交易明細';
+        const meta = metaElement ? metaElement.textContent.trim() : '';
+        const amountText = amountMatch ? amountMatch[0] : '0';
+        const amount = amountText.replace(/[^\d.]/g, '');
+        const type = meta.includes('轉帳') || title.includes('轉帳') ? 'transfer' : (amountText.includes('＋') || amountText.includes('+') ? 'income' : 'expense');
+        const categoryDefs = {
+          dining: { value: '餐飲／外食', icon: 'utensils', budget: '預算剩餘 NT$ 4,800' },
+          transport: { value: '交通／大眾運輸', icon: 'train-front', budget: '預算剩餘 NT$ 2,400' },
+          home: { value: '居家／日用品', icon: 'house', budget: '預算剩餘 NT$ 3,200' },
+          refund: { value: '退款', icon: 'undo-2', budget: '收入分類不設預算' },
+          adjustment: { value: '帳務調整', icon: 'scale', budget: '不占用分類預算' },
+          income: { value: '薪資', icon: 'briefcase', budget: '收入分類不設預算' }
+        };
+        const accountIcons = { '家庭信用卡': 'credit-card', '家庭現金': 'wallet-cards', '家庭主要帳戶': 'landmark', '家庭預備金': 'piggy-bank', 'ETF 投資帳戶': 'chart-no-axes-combined' };
+        const account = Object.keys(accountIcons).find(value => meta.includes(value)) || (entryReturnPage === 'account-detail' ? currentAccountTitle : '家庭信用卡');
+        const category = title.includes('帳務調整') || meta.includes('帳務調整') ? categoryDefs.adjustment
+          : title.includes('午餐') || meta.includes('餐飲') ? categoryDefs.dining
+          : title.includes('交通') || meta.includes('交通') ? categoryDefs.transport
+          : title.includes('日用品') || meta.includes('居家') ? categoryDefs.home
+          : title.includes('退款') || meta.includes('退款') ? categoryDefs.refund
+          : type === 'income' ? categoryDefs.income : categoryDefs.dining;
+        const project = meta.includes('日本旅遊') || (entryReturnPage === 'project-detail' && currentProjectKey === 'japan') ? { name: '2026 日本旅遊', icon: 'plane' }
+          : entryReturnPage === 'project-detail' && currentProjectKey === 'home' ? { name: '居家設備更新', icon: 'sofa' }
+          : { name: '無', icon: 'circle-off' };
+
+        setEntryType(type);
+        root.querySelector('#fl-note').value = title;
+        root.querySelector('#fl-date').value = meta.includes('昨天') ? '2026-08-10' : '2026-08-11';
+        root.querySelector('#fl-date').dispatchEvent(new Event('change'));
+        if (type === 'transfer') {
+          root.querySelector('#fl-transfer-amount').value = amount;
+          const transferFrom = meta.includes('投資') || account === 'ETF 投資帳戶' ? '家庭主要帳戶' : account;
+          const transferTo = meta.includes('投資') ? 'ETF 投資帳戶' : '家庭預備金';
+          root.querySelector('[data-account-choice-name="transfer-from"]').textContent = transferFrom;
+          root.querySelector('[data-account-choice-name="transfer-to"]').textContent = transferTo;
+          setLucideIcon(root.querySelector('[data-account-choice-icon="transfer-from"]'), accountIcons[transferFrom] || 'landmark');
+          setLucideIcon(root.querySelector('[data-account-choice-icon="transfer-to"]'), accountIcons[transferTo] || 'piggy-bank');
+        } else {
+          root.querySelector('#fl-amount').value = amount;
+          root.querySelector('[data-selected-category]').textContent = category.value;
+          root.querySelector('[data-selected-category-budget]').textContent = category.budget;
+          setLucideIcon(root.querySelector('[data-selected-category-icon]'), category.icon);
+          root.querySelector('[data-account-choice-name="standard"]').textContent = account;
+          setLucideIcon(root.querySelector('[data-account-choice-icon="standard"]'), accountIcons[account] || currentAccountIcon);
+          root.querySelector('[data-project-choice-name="standard"]').textContent = project.name;
+          setLucideIcon(root.querySelector('[data-project-choice-icon="standard"]'), project.icon);
+        }
+        root.querySelector('[data-entry-delete]').classList.remove('fl-is-hidden');
+        showPage('entry');
+      }));
+      root.querySelectorAll('[data-edit-budget]').forEach(button => button.addEventListener('click', () => {
+        pageTitles['budget-form'] = `設定${button.dataset.budgetCategory}預算`;
+        root.querySelector('#fl-budget-cycle').value = button.dataset.budgetCycle;
+        root.querySelector('#fl-budget-category').value = button.dataset.budgetCategory;
+        root.querySelector('#fl-budget-amount').value = button.dataset.budgetAmount;
+        root.querySelector('[data-budget-cycle-select]').dispatchEvent(new Event('change'));
+        root.querySelector('[data-archive-budget]').classList.remove('fl-is-hidden');
+        showPage('budget-form');
+      }));
+      root.querySelector('[data-budget-cycle-select]').addEventListener('change', event => {
+        root.querySelector('[data-budget-cycle-note]').textContent = event.currentTarget.value === 'annual' ? '年度內可彈性使用，列表會顯示每月平均供參考。' : '每月重新計算使用額度。';
+      });
+      root.querySelector('[data-budget-dialog-form]').addEventListener('submit', event => { event.preventDefault(); showPage('budgets'); showToast('已儲存分類預算並更新總額'); });
+      root.querySelector('[data-archive-budget]').addEventListener('click', () => { showPage('budgets'); showToast('已移除這個分類預算，歷史支出不受影響'); });
+      root.querySelector('[data-account-type]').addEventListener('change', event => {
+        const icons = { cash: 'wallet-cards', bank: 'landmark', card: 'credit-card', investment: 'chart-no-axes-combined' };
+        const labels = { cash: '現金', bank: '銀行', card: '信用卡', investment: '投資理財' };
+        root.querySelectorAll('[data-account-icon-choice]').forEach(button => button.classList.toggle('is-active', button.dataset.accountIconChoice === icons[event.currentTarget.value]));
+        const positionSelect = root.querySelector('[data-account-position]');
+        while (positionSelect.firstChild) positionSelect.removeChild(positionSelect.firstChild);
+        ['第 1 位', '第 2 位', '最後'].forEach(position => {
+          const option = document.createElement('option');
+          option.textContent = `${labels[event.currentTarget.value]}分類・${position}`;
+          positionSelect.appendChild(option);
+        });
+        root.querySelector('[data-account-assets-note]').textContent = event.currentTarget.value === 'card' ? '會計入總負債' : '會計入總資產';
+        root.querySelectorAll('[data-credit-card-setting]').forEach(row => row.classList.toggle('fl-is-hidden', event.currentTarget.value !== 'card'));
+      });
+      root.querySelector('[data-account-currency]').addEventListener('change', event => {
+        root.querySelector('[data-foreign-currency-row]').classList.toggle('fl-is-hidden', event.currentTarget.value === 'TWD');
+        root.querySelector('#fl-account-exchange-rate').value = event.currentTarget.value === 'JPY' ? '0.215' : event.currentTarget.value === 'USD' ? '32.15' : '1';
+      });
+      root.querySelectorAll('[data-account-icon-choice]').forEach(button => button.addEventListener('click', () => root.querySelectorAll('[data-account-icon-choice]').forEach(peer => peer.classList.toggle('is-active', peer === button))));
+      root.querySelector('[data-account-assets]').addEventListener('change', event => { root.querySelector('[data-account-assets-note]').textContent = event.currentTarget.checked ? (root.querySelector('[data-account-type]').value === 'card' ? '會計入總負債' : '會計入總資產') : '不納入淨資產'; });
+      root.querySelector('[data-account-editor-form]').addEventListener('submit', event => { event.preventDefault(); const editing = accountEditorMode === 'edit'; showPage(editing ? accountEditorReturn : 'accounts'); showToast(editing ? '已儲存帳戶、圖示與位置' : '已新增帳戶'); });
+      function updateAdjustPresentation() {
+        const current = Number(root.querySelector('#fl-current-balance').value.replace(/[^\d.-]/g, '')) || 0;
+        const actual = Number(root.querySelector('#fl-actual-balance').value.replace(/[^\d.-]/g, '')) || 0;
+        const delta = actual - current;
+        const kind = delta < 0 ? '支出' : '收入';
+        const amount = Math.abs(delta).toLocaleString('zh-TW');
+        const conversion = currentAccountCurrency === 'TWD' ? '' : `，並依帳戶匯率換算為台幣`;
+        root.querySelector('[data-adjust-explanation]').textContent = `差額會記為「帳務調整」${kind}${conversion}，計入收支報表，但不占用分類預算。`;
+        root.querySelector('[data-adjust-submit]').textContent = `記錄帳務調整 ${delta < 0 ? '−' : '＋'}${amount} ${currentAccountCurrency}`;
+      }
+      root.querySelector('#fl-actual-balance').addEventListener('input', updateAdjustPresentation);
+      root.querySelector('[data-adjust-form]').addEventListener('submit', event => { event.preventDefault(); showPage(backTargets['account-adjust']); showToast('已記為帳務調整，會列入收支報表'); });
+      root.querySelectorAll('[data-manage-category-type]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-manage-category-type]').forEach(peer => peer.classList.toggle('is-active', peer === button));
+        root.querySelectorAll('[data-manage-category-grid]').forEach(grid => grid.classList.toggle('fl-is-hidden', grid.dataset.manageCategoryGrid !== button.dataset.manageCategoryType));
+      }));
+      root.querySelector('[data-sort-categories]').addEventListener('click', event => {
+        const sorting = root.querySelector('[data-category-manager]').classList.toggle('is-sorting');
+        event.currentTarget.textContent = sorting ? '完成排序' : '排序';
+      });
+      root.querySelectorAll('[data-add-category]').forEach(button => button.addEventListener('click', () => {
+        pageTitles['category-form'] = '新增分類';
+        root.querySelector('#fl-category-name').value = '';
+        root.querySelector('[data-archive-category]').classList.add('fl-is-hidden');
+        showPage('category-form');
+      }));
+      root.querySelectorAll('[data-edit-icon]').forEach(button => button.addEventListener('click', () => { pageTitles['category-form'] = `編輯${button.dataset.editIcon}`; root.querySelector('#fl-category-name').value = button.dataset.editIcon; root.querySelector('[data-archive-category]').classList.remove('fl-is-hidden'); showPage('category-form'); }));
+      root.querySelectorAll('[data-category-icon-picker] button').forEach(button => button.addEventListener('click', () => root.querySelectorAll('[data-category-icon-picker] button').forEach(peer => peer.classList.toggle('is-active', peer === button))));
+      root.querySelector('[data-category-form]').addEventListener('submit', event => { event.preventDefault(); showPage('category-icons'); showToast('已儲存分類設定'); });
+      root.querySelector('[data-archive-category]').addEventListener('click', () => { showPage('category-icons'); showToast('已封存分類，舊明細仍保留原分類'); });
+      root.querySelector('[data-settlement-form]').addEventListener('submit', event => {
+        event.preventDefault();
+        const repaying = currentSettlementDirection === 'repay';
+        const action = repaying ? '還款' : '收款';
+        const entered = Number(root.querySelector('#fl-settlement-amount').value);
+        const paid = Math.max(0, Math.min(currentAdvanceRemaining, Number.isFinite(entered) ? entered : 0));
+        currentAdvanceRemaining -= paid;
+        root.querySelector('[data-advance-detail-remaining]').textContent = `NT$ ${currentAdvanceRemaining.toLocaleString('zh-TW')}`;
+        root.querySelector('[data-open-settlement-from-detail]').textContent = currentAdvanceRemaining ? (repaying ? '登記還款' : '登記收款') : '已結清';
+        root.querySelector('[data-open-settlement-from-detail]').disabled = currentAdvanceRemaining === 0;
+        if (currentAdvanceRemaining === 0) {
+          const count = root.querySelector('[data-advance-count]');
+          const nextCount = Math.max(0, Number(count.textContent) - 1);
+          count.textContent = String(nextCount);
+          root.querySelector('[data-top-advance]').setAttribute('aria-label', `${nextCount} 筆代墊與分帳待處理`);
+        }
+        const total = root.querySelector(`[data-advance-total="${repaying ? 'payable' : 'receivable'}"]`);
+        const nextTotal = Math.max(0, Number(total.dataset.value) - paid);
+        total.dataset.value = String(nextTotal);
+        total.textContent = `NT$ ${nextTotal.toLocaleString('zh-TW')}`;
+        showPage('advance-detail');
+        showToast(`已登記${action}，不列入收入或支出`);
+      });
+      function updateRecurringType(type) {
+        root.querySelector('[data-recurring-standard-fields]').classList.toggle('fl-is-hidden', type === 'transfer');
+        root.querySelector('[data-recurring-transfer-fields]').classList.toggle('fl-is-hidden', type !== 'transfer');
+      }
+      root.querySelector('[data-top-recurring-add]').addEventListener('click', () => {
+        recurringFormMode = 'add';
+        root.querySelector('[data-recurring-form-title]').textContent = '新增定期項目';
+        root.querySelector('#fl-recurring-name').value = '';
+        root.querySelector('#fl-recurring-type').value = 'expense';
+        root.querySelector('#fl-recurring-amount').value = '0';
+        root.querySelector('#fl-recurring-posting').value = 'confirm';
+        root.querySelector('[data-archive-recurring]').classList.add('fl-is-hidden');
+        updateRecurringType('expense');
+        showPage('recurring-form');
+      });
+      root.querySelectorAll('[data-recurring-edit]').forEach(button => button.addEventListener('click', () => {
+        recurringFormMode = 'edit';
+        const kind = button.dataset.recurringKind;
+        root.querySelector('[data-recurring-form-title]').textContent = '編輯定期項目';
+        root.querySelector('#fl-recurring-name').value = button.querySelector('.fl-row-title').textContent;
+        root.querySelector('#fl-recurring-type').value = kind;
+        const recurringAmountMatch = button.querySelector('.fl-row-end').textContent.match(/[\d,]+/);
+        root.querySelector('#fl-recurring-amount').value = recurringAmountMatch ? recurringAmountMatch[0].replace(/,/g, '') : '0';
+        root.querySelector('#fl-recurring-posting').value = button.querySelector('.fl-row-meta').textContent.includes('自動') ? 'auto' : 'confirm';
+        root.querySelector('[data-archive-recurring]').classList.remove('fl-is-hidden');
+        updateRecurringType(kind);
+        showPage('recurring-form');
+      }));
+      root.querySelector('[data-recurring-type]').addEventListener('change', event => updateRecurringType(event.currentTarget.value));
+      root.querySelector('[data-recurring-back]').addEventListener('click', () => showPage('recurring'));
+      root.querySelector('[data-recurring-form]').addEventListener('submit', event => { event.preventDefault(); showPage('recurring'); showToast(recurringFormMode === 'edit' ? '已儲存定期項目' : '已新增定期項目'); });
+      root.querySelector('[data-archive-recurring]').addEventListener('click', () => { showPage('recurring'); showToast('已封存定期項目，不會再產生待確認交易'); });
+      root.querySelector('[data-transaction-filter-form]').addEventListener('submit', event => { event.preventDefault(); showPage(backTargets['transaction-filter']); showToast('已套用明細篩選'); });
+      root.querySelectorAll('[data-confirm-pending]').forEach(button => button.addEventListener('click', () => {
+        button.textContent = '已入帳';
+        button.disabled = true;
+        const count = root.querySelector('[data-pending-count]');
+        const nextCount = Math.max(0, Number(count.textContent) - 1);
+        count.textContent = String(nextCount);
+        root.querySelector('[data-top-pending]').setAttribute('aria-label', `${nextCount} 筆定期收支待確認`);
+        showToast('定期項目已確認入帳');
+      }));
+      root.querySelector('[data-toggle-money]').addEventListener('click', event => { const hidden = event.currentTarget.getAttribute('aria-pressed') !== 'true'; event.currentTarget.setAttribute('aria-pressed', String(hidden)); event.currentTarget.setAttribute('aria-label', hidden ? '顯示金額' : '隱藏金額'); root.querySelectorAll('.fl-money').forEach(value => value.classList.toggle('is-hidden-money', hidden)); });
+      if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+        try { lucide.createIcons({ attrs: { width: 18, height: 18 } }); } catch (iconError) { /* 圖示載入失敗不影響介面 */ }
+      }
+      } catch (runtimeError) {
+        const fallbackRoot = document.getElementById('family-ledger-preview-v2');
+        if (fallbackRoot) fallbackRoot.setAttribute('data-safe-fallback', 'true');
+      }
+    })();
+  </script>
+</div>
