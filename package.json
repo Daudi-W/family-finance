@@ -1,0 +1,12 @@
+{
+  "name": "family-finance",
+  "private": true,
+  "version": "2.0.0-dev",
+  "scripts": {
+    "test": "node --test tests/backend_security.test.js && node --experimental-strip-types --test tests/finance-core.test.mts",
+    "test:core": "node --experimental-strip-types --test tests/finance-core.test.mts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}

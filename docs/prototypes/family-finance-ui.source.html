@@ -161,6 +161,8 @@
     #family-ledger-preview-v2 .fl-section-title button { color: var(--family-green); font-size: 13px; line-height: 1.55; font-weight: 700; }
     #family-ledger-preview-v2 .fl-section-title button { min-height: 44px; border: 0; background: transparent; }
     #family-ledger-preview-v2 .fl-budget { padding: 15px; border: 1px solid var(--family-border); border-radius: 16px; background: var(--family-surface); }
+    #family-ledger-preview-v2 button.fl-budget { width: 100%; color: inherit; text-align: left; }
+    #family-ledger-preview-v2 .fl-home-budget-card .fl-budget-row strong::after { content: "  ›"; color: var(--family-muted); font-weight: 400; }
     #family-ledger-preview-v2 .fl-budget-row { display: flex; justify-content: space-between; gap: 12px; color: var(--family-body); font-size: 15px; line-height: 1.6; }
     #family-ledger-preview-v2 .fl-budget-row strong { color: var(--family-text); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
     #family-ledger-preview-v2 .fl-track { height: 8px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: var(--family-sunken); }
@@ -373,10 +375,10 @@
             <div class="fl-stat"><span>本月結餘</span><strong class="fl-money">12,480</strong></div>
           </div>
           <div class="fl-section-title"><h2>8 月日常預算</h2><button type="button" data-open-budgets="home">設定</button></div>
-          <div class="fl-budget">
+          <button type="button" class="fl-budget fl-home-budget-card" aria-label="查看 8 月收支與各分類預算" data-open-budget-overview>
             <div class="fl-budget-row"><span>已使用 73%</span><strong class="fl-money">24,800 / 34,000</strong></div>
             <div class="fl-track" aria-label="日常預算已使用 73%"><span style="width:73%"></span></div>
-          </div>
+          </button>
           <div class="fl-section-title"><h2>交易明細</h2><button type="button" data-page-target="transactions">看全部</button></div>
           <div class="fl-list">
             <button type="button" class="fl-row" data-toggle-transaction="home-lunch"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">午餐</span><span class="fl-row-meta">餐飲・信用卡・今天</span></span><span class="fl-row-end fl-expense fl-money">−180<small>明細 ›</small></span></button>
@@ -385,6 +387,31 @@
             <div class="fl-transaction-detail" data-transaction-detail="home-trip"><div class="fl-detail-line"><span>分類</span><strong>交通／大眾運輸</strong></div><div class="fl-detail-line"><span>專案</span><strong>2026 日本旅遊</strong></div><div class="fl-detail-line"><span>帳戶</span><strong>家庭信用卡</strong></div></div>
             <button type="button" class="fl-row" data-toggle-transaction="home-payback"><span class="fl-row-icon"><i data-lucide="handshake" aria-hidden="true"></i></span><span><span class="fl-row-title">代墊收回</span><span class="fl-row-meta">現金・不列入收入・昨天</span></span><span class="fl-row-end fl-money">＋500<small>明細 ›</small></span></button>
             <div class="fl-transaction-detail" data-transaction-detail="home-payback"><div class="fl-detail-line"><span>類型</span><strong>代墊還款</strong></div><div class="fl-detail-line"><span>進入帳戶</span><strong>家庭現金</strong></div><div class="fl-detail-line"><span>原代墊剩餘</span><strong>NT$ 320</strong></div></div>
+          </div>
+        </section>
+
+        <section class="fl-page" data-page="budget-overview">
+          <div class="fl-stats">
+            <div class="fl-stat"><span>本月收入</span><strong class="fl-money">62,000</strong></div>
+            <div class="fl-stat"><span>本月支出</span><strong class="fl-money">49,520</strong></div>
+            <div class="fl-stat"><span>本月結餘</span><strong class="fl-money">12,480</strong></div>
+          </div>
+          <div class="fl-section-title"><h2>日常預算</h2><button type="button" data-open-budgets="budget-overview">管理預算</button></div>
+          <div class="fl-budget">
+            <div class="fl-budget-row"><span>已使用 73%</span><strong class="fl-money">24,800 / 34,000</strong></div>
+            <div class="fl-track" aria-label="8 月日常預算已使用 73%"><span style="width:73%"></span></div>
+          </div>
+          <div class="fl-section-title"><h2>各分類開銷</h2><span>點分類看明細</span></div>
+          <div class="fl-list">
+            <button type="button" class="fl-row" data-budget-category-detail="餐飲"><span class="fl-row-icon"><i data-lucide="utensils" aria-hidden="true"></i></span><span><span class="fl-row-title">餐飲</span><span class="fl-row-meta">已用 7,200・預算 12,000</span></span><span class="fl-row-end fl-money">剩餘 4,800<small>60% ›</small></span></button>
+            <button type="button" class="fl-row" data-budget-category-detail="日常用品"><span class="fl-row-icon"><i data-lucide="shopping-basket" aria-hidden="true"></i></span><span><span class="fl-row-title">日常用品</span><span class="fl-row-meta">已用 3,800・預算 8,000</span></span><span class="fl-row-end fl-money">剩餘 4,200<small>48% ›</small></span></button>
+            <button type="button" class="fl-row" data-budget-category-detail="交通"><span class="fl-row-icon"><i data-lucide="train-front" aria-hidden="true"></i></span><span><span class="fl-row-title">交通</span><span class="fl-row-meta">已用 2,600・預算 5,000</span></span><span class="fl-row-end fl-money">剩餘 2,400<small>52% ›</small></span></button>
+            <button type="button" class="fl-row" data-budget-category-detail="其他日常"><span class="fl-row-icon"><i data-lucide="house" aria-hidden="true"></i></span><span><span class="fl-row-title">其他日常</span><span class="fl-row-meta">已用 11,200・預算 9,000</span></span><span class="fl-row-end fl-expense fl-money">超出 2,200<small>124% ›</small></span></button>
+          </div>
+          <div class="fl-section-title"><h2>其他本月支出</h2><span class="fl-money">24,720</span></div>
+          <div class="fl-list">
+            <button type="button" class="fl-row" data-budget-category-detail="專案支出"><span class="fl-row-icon"><i data-lucide="plane" aria-hidden="true"></i></span><span><span class="fl-row-title">專案支出</span><span class="fl-row-meta">日本旅遊等專案</span></span><span class="fl-row-end fl-expense fl-money">21,220<small>明細 ›</small></span></button>
+            <button type="button" class="fl-row" data-budget-category-detail="年度預算分類"><span class="fl-row-icon"><i data-lucide="calendar-range" aria-hidden="true"></i></span><span><span class="fl-row-title">年度預算分類</span><span class="fl-row-meta">娛樂、醫療與居家設備</span></span><span class="fl-row-end fl-expense fl-money">3,500<small>明細 ›</small></span></button>
           </div>
         </section>
 
@@ -849,8 +876,8 @@
       const toast = root.querySelector('[data-toast]');
       const topTitle = root.querySelector('[data-top-title]');
       const topBack = root.querySelector('[data-top-back]');
-      const pageTitles = { home: '首頁', pending: '待確認', transactions: '交易明細', accounts: '帳戶', 'account-detail': '帳戶明細', 'account-adjust': '調整帳戶餘額', 'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', reports: '統計報表', projects: '專案記帳', 'project-detail': '專案明細', 'project-add': '新增專案', budgets: '預算設定', 'budget-form': '新增分類預算', advances: '代墊與分帳', 'advance-detail': '代墊明細', settlement: '登記收款', recurring: '定期項目', more: '更多管理', 'category-icons': '分類與圖像', 'category-form': '編輯分類' };
-      const backTargets = { pending: 'home', transactions: 'home', 'account-detail': 'accounts', 'account-adjust': 'account-detail', 'transaction-filter': 'account-detail', 'report-filter': 'reports', projects: 'more', 'project-detail': 'projects', 'project-add': 'projects', budgets: 'home', 'budget-form': 'budgets', advances: 'more', 'advance-detail': 'advances', settlement: 'advance-detail', recurring: 'more', 'category-icons': 'more', 'category-form': 'category-icons' };
+      const pageTitles = { home: '首頁', 'budget-overview': '8 月收支與預算', pending: '待確認', transactions: '交易明細', accounts: '帳戶', 'account-detail': '帳戶明細', 'account-adjust': '調整帳戶餘額', 'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', reports: '統計報表', projects: '專案記帳', 'project-detail': '專案明細', 'project-add': '新增專案', budgets: '預算設定', 'budget-form': '新增分類預算', advances: '代墊與分帳', 'advance-detail': '代墊明細', settlement: '登記收款', recurring: '定期項目', more: '更多管理', 'category-icons': '分類與圖像', 'category-form': '編輯分類' };
+      const backTargets = { 'budget-overview': 'home', pending: 'home', transactions: 'home', 'account-detail': 'accounts', 'account-adjust': 'account-detail', 'transaction-filter': 'account-detail', 'report-filter': 'reports', projects: 'more', 'project-detail': 'projects', 'project-add': 'projects', budgets: 'home', 'budget-form': 'budgets', advances: 'more', 'advance-detail': 'advances', settlement: 'advance-detail', recurring: 'more', 'category-icons': 'more', 'category-form': 'category-icons' };
       let currentAccountTitle = '帳戶明細';
       let currentAccountType = 'bank';
       let currentAccountIcon = 'landmark';
@@ -885,6 +912,7 @@
       }
       function showPage(name) {
         currentPageName = name;
+        if (name === 'home') backTargets.transactions = 'home';
         root.querySelectorAll('[data-page]').forEach(page => page.classList.toggle('is-active', page.dataset.page === name));
         root.querySelectorAll('[data-page-target]').forEach(button => button.classList.toggle('is-active', button.dataset.pageTarget === name));
         device.classList.toggle('is-entry-mode', ['entry', 'entry-category', 'entry-account', 'entry-project', 'account-form', 'recurring-form'].includes(name));
@@ -981,6 +1009,14 @@
       topBack.addEventListener('click', () => { if (topBack.dataset.topBack) showPage(topBack.dataset.topBack); });
       root.querySelectorAll('[data-open-projects]').forEach(button => button.addEventListener('click', () => { backTargets.projects = button.dataset.openProjects; showPage('projects'); }));
       root.querySelectorAll('[data-open-budgets]').forEach(button => button.addEventListener('click', () => { backTargets.budgets = button.dataset.openBudgets; showPage('budgets'); }));
+      root.querySelector('[data-open-budget-overview]').addEventListener('click', () => showPage('budget-overview'));
+      root.querySelectorAll('[data-budget-category-detail]').forEach(button => button.addEventListener('click', () => {
+        root.querySelectorAll('[data-transaction-view]').forEach(peer => peer.classList.toggle('is-active', peer.dataset.transactionView === 'list'));
+        root.querySelector('[data-transaction-calendar]').classList.add('fl-is-hidden');
+        root.querySelector('[data-transaction-list]').classList.remove('fl-is-hidden');
+        backTargets.transactions = 'budget-overview';
+        showPage('transactions');
+      }));
       root.querySelectorAll('[data-open-advances]').forEach(button => button.addEventListener('click', () => { backTargets.advances = button.dataset.openAdvances; showPage('advances'); }));
       root.querySelectorAll('[data-budget-tab]').forEach(button => button.addEventListener('click', () => {
         root.querySelectorAll('[data-budget-tab]').forEach(peer => peer.classList.toggle('is-active', peer === button));
@@ -1221,7 +1257,6 @@
       root.querySelectorAll('[data-report-period]').forEach(button => button.addEventListener('click', () => {
         if (button.dataset.reportPeriod === 'custom') { showPage('report-filter'); return; }
         root.querySelectorAll('[data-report-period]').forEach(peer => peer.classList.toggle('is-active', peer === button));
-        showToast(`已切換為${button.textContent.trim()}報表`);
       }));
       root.querySelector('[data-report-filter-form]').addEventListener('submit', event => {
         event.preventDefault();
