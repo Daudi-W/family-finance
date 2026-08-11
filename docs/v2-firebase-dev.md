@@ -44,6 +44,17 @@ npm run deploy:dev:v2
 firebase deploy --only firestore:rules,firestore:indexes --project dev
 ```
 
-## 下一步
+## 目前狀態
 
-先以示意資料建立第一個 Firestore 集合並接上畫面。建議由「分類」開始，因為不涉及真實金額，最適合先驗證讀取、排序、圖示與成員權限。
+分類、帳戶、交易、預算、專案、定期項目、代墊分帳、行事曆與報表都已接上 dev Firestore。測試站已有一組不含真實資訊的示範資料，供手機與電腦版操作驗證。
+
+完整測試目前共 31 項，另包含 lint 與 production build。實際雲端已驗證新增／編輯／作廢交易、餘額與報表回算，以及多人代墊的部分收款。
+
+## 尚未進行
+
+- 尚未匯入舊版 GAS／Sheets／天天記帳資料
+- 尚未建立正式 production Firebase 專案或切換正式入口
+- 尚未開啟 Render 推播；目前提醒只在開啟 App 後處理
+- 尚未進行 PWA 安裝、離線操作與前端程式碼分割最佳化
+
+下一步先由 Pei Ching 使用示範資料完整走一次日常情境，記錄操作不順或欄位缺漏；確認後才建立一次性匯入預覽，不直接寫入正式資料。

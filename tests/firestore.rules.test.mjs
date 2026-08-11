@@ -61,6 +61,13 @@ test('成員可以新增與修改自己的交易資料', async () => {
   await assertSucceeds(setDoc(transaction, { type: 'expense', amount: 200 }))
 })
 
+test('成員可以管理 v2 的分類、帳戶、預算、專案、定期與代墊對象', async () => {
+  const db = testEnvironment.authenticatedContext('pei').firestore()
+  for (const collectionName of ['categories', 'accounts', 'budgets', 'projects', 'recurringRules', 'advancePeople']) {
+    await assertSucceeds(setDoc(doc(db, 'households', householdId, collectionName, 'sample'), { name: '測試資料', schemaVersion: 1 }))
+  }
+})
+
 test('成員仍不能讀取其他家庭帳本', async () => {
   const db = testEnvironment.authenticatedContext('pei').firestore()
   await assertFails(getDoc(doc(db, 'households', 'other-household')))
