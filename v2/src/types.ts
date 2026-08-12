@@ -31,6 +31,7 @@ export type Account = BaseDocument & {
   openingBalanceMinor: number
   openingDate: string
   referenceRateToTwd?: number
+  note?: string
   creditCard?: {
     closingDay: number
     paymentDay: number
@@ -79,6 +80,7 @@ export type ReportLine = {
 
 export type AdvanceShare = {
   personId: string
+  name?: string
   expectedMinor: number
 }
 
@@ -149,6 +151,7 @@ export type FinanceData = {
   transactions: FinanceTransaction[]
   budgets: Budget[]
   recurringRules: RecurringRule[]
+  /** 舊版資料相容用途；新版 UI 不提供獨立的代墊對象管理。 */
   advancePeople: AdvancePerson[]
 }
 

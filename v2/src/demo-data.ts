@@ -115,7 +115,7 @@ export function buildDemoData(): FinanceData {
       kind: 'advance', note: '聚餐代墊',
       accountMoves: [{ accountId: 'card', deltaMinor: 2400, currency: 'TWD' }],
       reportLines: [{ direction: 'expense', categoryId: 'food', amountMinor: 800, currency: 'TWD', amountTwdMinor: 800, countsTowardBudget: true }],
-      advance: { direction: 'receivable', totalMinor: 2400, ownShareMinor: 800, currency: 'TWD', people: [{ personId: 'friend-a', expectedMinor: 800 }, { personId: 'friend-b', expectedMinor: 800 }] },
+      advance: { direction: 'receivable', totalMinor: 2400, ownShareMinor: 800, currency: 'TWD', people: [{ personId: 'friend-a', name: '朋友 A', expectedMinor: 800 }, { personId: 'friend-b', name: '朋友 B', expectedMinor: 800 }] },
     },
   ]
 

@@ -1,8 +1,8 @@
 # 家庭記帳系統第二版：資料結構與計算規則
 
-> 版本：v0.1  
-> 日期：2026-08-11  
-> 狀態：開發前資料契約；不含真實帳戶、金額或家庭成員資料
+> 版本：v0.2
+> 日期：2026-08-12
+> 狀態：已依確認 UI 更新；不含真實帳戶、金額或家庭成員資料
 
 ## 1. 核心原則
 
@@ -25,7 +25,6 @@ households/{householdId}
   categories/{categoryId}
   projects/{projectId}
   transactions/{transactionId}
-  advancePeople/{personId}
   recurringRules/{ruleId}
   recurringOccurrences/{occurrenceId}
   budgets/{budgetId}
@@ -213,11 +212,14 @@ type AdvanceDetail = {
   currency: string
   people: Array<{
     personId: string
+    name: string
     expectedMinor: number
     settledMinor: number
   }>
 }
 ```
+
+代墊對象直接保存在該筆交易，不另設「代墊對象」管理功能。舊測試資料若仍有 `advancePeople` 集合，只作為舊紀錄名稱的唯讀相容來源，新交易不依賴它。
 
 首頁鈴鐺顯示尚未結清的代墊筆數；管理頁分成「別人應還我」與「我應還別人」。
 
