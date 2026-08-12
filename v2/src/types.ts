@@ -82,6 +82,8 @@ export type AdvanceShare = {
   personId: string
   name?: string
   expectedMinor: number
+  /** 舊版資料相容；新版以 settlement 交易保存收還款。 */
+  settledMinor?: number
 }
 
 export type FinanceTransaction = BaseDocument & {

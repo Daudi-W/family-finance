@@ -117,21 +117,21 @@ export function settlementsByAdvance(transactions: FinanceTransaction[]) {
 }
 
 export function advanceRows(transactions: FinanceTransaction[]) {
-  const settled = settlementsByAdvance(transactions)
   return activeTransactions(transactions)
     .filter((transaction) => transaction.kind === 'advance' && transaction.advance)
     .map((transaction) => ({
       transaction,
-      remaining: Math.max(0, (transaction.advance?.people.reduce((sum, person) => sum + person.expectedMinor, 0) ?? 0) - (settled[transaction.id] ?? 0)),
+      remaining: advancePeopleRows(transaction, transactions).reduce((sum, person) => sum + person.remainingMinor, 0),
     }))
 }
 
 export function advancePeopleRows(advance: FinanceTransaction, transactions: FinanceTransaction[]) {
   if (!advance.advance) return []
   return advance.advance.people.map((person) => {
-    const settled = activeTransactions(transactions)
+    const settledByTransactions = activeTransactions(transactions)
       .filter((transaction) => transaction.settlement?.advanceTransactionId === advance.id && transaction.settlement.personId === person.personId)
       .reduce((sum, transaction) => sum + (transaction.settlement?.amountMinor ?? 0), 0)
+    const settled = Math.max(person.settledMinor ?? 0, settledByTransactions)
     return { ...person, settledMinor: settled, remainingMinor: Math.max(0, person.expectedMinor - settled) }
   })
 }

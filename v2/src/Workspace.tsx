@@ -134,8 +134,17 @@ const relativeDate = (date: string) => {
 }
 const currentMonth = () => monthKey(todayIso())
 
-function emptyEntry(kind: EntryKind = 'expense', accountId = ''): EntryDraft {
-  return { kind, date: todayIso(), amount: '', toAmount: '', categoryId: '', accountId, toAccountId: '', projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
+function emptyEntry(kind: EntryKind = 'expense', accountId = '', categoryId = '', toAccountId = ''): EntryDraft {
+  return { kind, date: todayIso(), amount: '', toAmount: '', categoryId, accountId, toAccountId, projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
+}
+
+function newEntryDraft(kind: EntryKind, data: FinanceData, preferredAccountId = '') {
+  const accounts = activeSorted(data.accounts)
+  const accountId = preferredAccountId || accounts[0]?.id || ''
+  const toAccountId = kind === 'transfer' ? accounts.find((item) => item.id !== accountId)?.id ?? '' : ''
+  const direction: Direction = kind === 'income' ? 'income' : 'expense'
+  const categoryId = activeSorted(data.categories.filter((item) => item.direction === direction))[0]?.id ?? ''
+  return emptyEntry(kind, accountId, categoryId, toAccountId)
 }
 
 function draftFromTransaction(transaction: FinanceTransaction, data: FinanceData): EntryDraft {
@@ -192,14 +201,18 @@ export default function Workspace({ user }: { user: User }) {
     setRoutes([{ name }])
     if (name !== 'accounts') setManageAccounts(false)
     if (name === 'entry') {
-      setEntryDraft(emptyEntry())
+      setEntryDraft(newEntryDraft('expense', store.data))
       setEditingTransactionId('')
     }
   }
   const openNewEntry = (kind: EntryKind = 'expense', accountId = '') => {
-    setEntryDraft(emptyEntry(kind, accountId))
+    setEntryDraft(newEntryDraft(kind, store.data, accountId))
     setEditingTransactionId('')
     push({ name: 'entry' })
+  }
+  const continueEntry = (kind: EntryKind) => {
+    setEntryDraft(newEntryDraft(kind, store.data))
+    setEditingTransactionId('')
   }
   const editTransaction = (transaction: FinanceTransaction) => {
     setEntryDraft(draftFromTransaction(transaction, store.data))
@@ -234,7 +247,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEntry={openNewEntry} onEditTransaction={editTransaction} filter={transactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
-      case 'entry': return <EntryPage store={store} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} onPush={push} onBack={leaveEntry} onDone={leaveEntry} />
+      case 'entry': return <EntryPage store={store} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={activeSorted(store.data.accounts).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
@@ -288,6 +301,7 @@ export default function Workspace({ user }: { user: User }) {
               <IconButton label={manageAccounts ? '完成帳戶編輯' : '編輯帳戶'} onClick={() => setManageAccounts((value) => !value)}>{manageAccounts ? <Check /> : <Menu />}</IconButton>
             </> : null}
             {route.name === 'account-detail' ? <><IconButton label="帳戶設定" onClick={() => push({ name: 'account-form', id: route.id })}><SlidersHorizontal /></IconButton><IconButton label="調整餘額" onClick={() => push({ name: 'account-adjust', id: route.id })}><Scale /></IconButton></> : null}
+            {route.name === 'account-adjust' ? <button className="topbar-text-action" type="submit" form="account-adjust-form">儲存</button> : null}
             {route.name === 'projects' ? <IconButton label="新增專案" onClick={() => push({ name: 'project-form' })}><Plus /></IconButton> : null}
             {route.name === 'project-detail' ? <IconButton label="編輯專案" onClick={() => push({ name: 'project-form', id: route.id })}><Pencil /></IconButton> : null}
             {route.name === 'budgets' ? <IconButton label="新增分類預算" onClick={() => push({ name: 'budget-form' })}><Plus /></IconButton> : null}
@@ -359,15 +373,15 @@ function HomePage({ store, onPush, onEditTransaction, hideBalances }: { store: S
   if (empty) return <main className="workspace-page"><EmptyDataCard onSeed={store.seedDemo} /></main>
   return <main className="workspace-page">
     <section className="home-summary" aria-label="本月收支摘要">
-      <article><span>本月收入</span><strong className={hideBalances ? 'is-hidden-money' : ''}>{money(report.income)}</strong></article>
-      <article><span>本月支出</span><strong className={hideBalances ? 'is-hidden-money' : ''}>{money(report.expense)}</strong></article>
-      <article><span>本月結餘</span><strong className={hideBalances ? 'is-hidden-money' : ''}>{money(report.balance)}</strong></article>
+      <article><span>本月收入</span><strong>{hideBalances ? '••••' : money(report.income)}</strong></article>
+      <article><span>本月支出</span><strong>{hideBalances ? '••••' : money(report.expense)}</strong></article>
+      <article><span>本月結餘</span><strong>{hideBalances ? '••••' : money(report.balance)}</strong></article>
     </section>
     <section className="workspace-section">
       <div className="section-heading"><h2>{Number(month.slice(5))} 月日常預算</h2><button type="button" onClick={() => onPush({ name: 'budgets' })}>設定</button></div>
       <button className="home-budget-card" type="button" onClick={() => onPush({ name: 'budget' })}>
-        <span><span>已使用 {budgetTotal ? Math.round(spent / budgetTotal * 100) : 0}%</span><strong className={hideBalances ? 'is-hidden-money' : ''}>{money(spent)} / {money(budgetTotal)} <small>›</small></strong></span>
-        <i><b style={{ width: `${Math.min(100, budgetTotal ? spent / budgetTotal * 100 : 0)}%` }} /></i>
+        <span><span>{hideBalances ? '預算使用已隱藏' : `已使用 ${budgetTotal ? Math.round(spent / budgetTotal * 100) : 0}%`}</span><strong>{hideBalances ? '••••' : `${money(spent)} / ${money(budgetTotal)}`} <small>›</small></strong></span>
+        <i><b style={{ width: hideBalances ? '0%' : `${Math.min(100, budgetTotal ? spent / budgetTotal * 100 : 0)}%` }} /></i>
       </button>
     </section>
     <section className="workspace-section">
@@ -387,7 +401,7 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false }: {
     return <button className="transaction-row-v2" type="button" key={transaction.id} onClick={() => onEdit(transaction)}>
       <EntityIcon iconKey={category?.iconKey ?? (transaction.kind === 'transfer' ? 'rotate-ccw' : transaction.kind === 'settlement' ? 'hand-coins' : 'receipt-text')} />
       <span><strong>{transaction.note || category?.name || transactionLabels[transaction.kind]}</strong><small>{category?.name ?? transactionLabels[transaction.kind]}{account ? ` · ${account.name}` : ''} · {relativeDate(transaction.occurredOn)}</small></span>
-      <b className={`${amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''} ${hideBalances ? 'is-hidden-money' : ''}`}>{amount > 0 ? '+' : ''}{money(amount)}<small>明細 ›</small></b>
+      <b className={amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''}>{hideBalances ? '••••' : `${amount > 0 ? '+' : ''}${money(amount)}`}<small>明細 ›</small></b>
     </button>
   })}</div>
 }
@@ -435,7 +449,7 @@ function AccountDetailPage({ store, accountId, onPush, onEntry, onEditTransactio
   </main>
 }
 
-function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone }: { store: Store; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; onPush: (route: Route) => void; onBack: () => void; onDone: () => void }) {
+function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone, onContinue }: { store: Store; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const accounts = activeSorted(store.data.accounts)
@@ -453,8 +467,8 @@ function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone }
   if (existingTransaction?.kind === 'settlement') return <SettlementTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
   if (existingTransaction?.kind === 'balance_adjustment') return <AdjustmentTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
 
-  const changeKind = (kind: EntryKind) => setDraft((current) => ({ ...emptyEntry(kind), date: current.date }))
-  const save = async () => {
+  const changeKind = (kind: EntryKind) => setDraft((current) => ({ ...newEntryDraft(kind, store.data), date: current.date }))
+  const save = async (continueAfterSave = false) => {
     setError('')
     if (!amount) return setError('請輸入金額')
     if (draft.kind !== 'advance' || draft.advanceDirection === 'receivable') if (!account) return setError('請選擇帳戶')
@@ -474,22 +488,23 @@ function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone }
     } else if (draft.kind === 'advance') {
       const advanceCurrency = account?.currency ?? 'TWD'
       const shareIds = draft.advanceDirection === 'payable' ? draft.shareOrder.slice(0, 1) : draft.shareOrder
-      const people = shareIds.map((personId) => ({ personId, name: draft.shareNames[personId]?.trim() || undefined, expectedMinor: draft.advanceDirection === 'payable' ? amount : toMinor(draft.shares[personId] || 0, advanceCurrency) })).filter((item) => item.name && item.expectedMinor > 0)
-      if (!people.length) return setError('請至少填寫一位對象的金額')
+      const singleReceivable = draft.advanceDirection === 'receivable' && shareIds.length === 1
+      const people = shareIds.map((personId) => ({ personId, name: draft.shareNames[personId]?.trim() || undefined, expectedMinor: draft.advanceDirection === 'payable' ? amount : singleReceivable ? Math.max(0, amount - ownShare) : toMinor(draft.shares[personId] || 0, advanceCurrency) })).filter((item) => item.name && item.expectedMinor > 0)
+      if (!people.length) return setError('請填寫代墊對象')
       const peopleTotal = people.reduce((sum, person) => sum + person.expectedMinor, 0)
       if (draft.advanceDirection === 'receivable' && peopleTotal + ownShare !== amount) return setError('自己負擔與各對象金額加總必須等於消費總額')
       if (draft.advanceDirection === 'payable' && peopleTotal !== amount) return setError('各對象金額加總必須等於應還總額')
       transaction = { ...common, kind: 'advance', projectId: ownShare ? draft.projectId || undefined : undefined, accountMoves: draft.advanceDirection === 'receivable' && account ? [{ accountId: account.id, deltaMinor: outflowDelta(account, amount), currency: account.currency }] : [], reportLines: ownShare && category && account ? [{ direction: 'expense', categoryId: category.id, amountMinor: ownShare, currency: account.currency, amountTwdMinor: toTwdMinor(ownShare, account), countsTowardBudget: true }] : [], advance: { direction: draft.advanceDirection, totalMinor: amount, ownShareMinor: ownShare, currency: account?.currency ?? 'TWD', people } }
     } else return setError('資料不完整')
     setSaving(true)
-    try { await store.save('transactions', { ...transaction, updatedAt: now }); onDone() } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
+    try { await store.save('transactions', { ...transaction, updatedAt: now }); if (continueAfterSave) onContinue(draft.kind); else onDone() } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
   }
 
   return <main className="entry-page-v2">
     <header className="entry-page-head">
       <IconButton label="返回上一頁" onClick={onBack}><ArrowLeft /></IconButton>
       <div className="entry-kind-tabs">{(['expense', 'income', 'transfer', 'advance'] as EntryKind[]).map((kind) => <button className={draft.kind === kind ? 'active' : ''} type="button" key={kind} onClick={() => changeKind(kind)}>{{ expense: '支出', income: '收入', transfer: '轉帳', advance: '代墊' }[kind]}</button>)}</div>
-      <button className="entry-head-save" type="button" disabled={saving} onClick={() => void save()}>{saving ? '儲存中' : '儲存'}</button>
+      <span />
     </header>
     <div className="entry-page-content">
       <label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label>
@@ -509,7 +524,7 @@ function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone }
         </> : null}
         {draft.kind === 'advance' ? <>
           <AmountField label={draft.advanceDirection === 'receivable' ? '消費總額' : '我應還總額'} value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} />
-          <AdvanceShareFields store={store} draft={draft} setDraft={setDraft} />
+          <AdvanceShareFields draft={draft} setDraft={setDraft} />
           {advanceHasPersonalExpense ? <FieldButton icon={category?.iconKey ?? 'receipt-text'} label="分類" value={category?.name ?? '請選擇'} hint={category ? budgetHint(category.id, store.data) : undefined} onClick={() => onPush({ name: 'category-picker' })} /> : null}
           {draft.advanceDirection === 'receivable' ? <FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="付款帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /> : null}
           {advanceHasPersonalExpense ? <FieldButton icon={project?.iconKey ?? 'circle-off'} label="專案" value={project?.name ?? '無'} onClick={() => onPush({ name: 'project-picker' })} /> : null}
@@ -519,12 +534,13 @@ function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone }
       {draft.kind === 'transfer' ? <section className="transfer-fee-section"><label className="fee-toggle"><input type="checkbox" checked={draft.fee !== ''} onChange={(event) => setDraft((current) => ({ ...current, fee: event.target.checked ? '0' : '' }))} /><span>有手續費</span></label>{draft.fee !== '' ? <label className="fee-amount"><span>手續費</span><input inputMode="numeric" value={draft.fee} onChange={(event) => setDraft((current) => ({ ...current, fee: event.target.value }))} /><small>計入支出</small></label> : null}</section> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       {editingId ? <button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(editingId).then(onDone)}><Trash2 />刪除這筆明細</button> : null}
+      <div className="entry-submit-actions"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '儲存中' : '儲存'}</button><button type="button" disabled={saving} onClick={() => void save(true)}>{saving ? '儲存中' : '再記一筆'}</button></div>
     </div>
   </main>
 }
 
 function AmountField({ label, value, currency, onChange, icon = 'coins' }: { label: string; value: string; currency: string; onChange: (value: string) => void; icon?: string }) {
-  return <label className="field-row amount-field-row"><EntityIcon iconKey={icon} /><span><b>{label}</b></span><input inputMode="decimal" placeholder="輸入金額" value={value} onChange={(event) => onChange(event.target.value)} /><small>{currency === 'TWD' ? 'NT$' : currency}</small></label>
+  return <label className="field-row amount-field-row"><EntityIcon iconKey={icon} /><span className="field-label"><b>{label}</b></span><input inputMode="decimal" placeholder="輸入金額" value={value} onChange={(event) => onChange(event.target.value)} /><small>{currency === 'TWD' ? 'NT$' : currency}</small></label>
 }
 
 function SettlementTransactionEditor({ store, transaction, draft, setDraft, onPush, onDone }: { store: Store; transaction: FinanceTransaction; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; onPush: (route: Route) => void; onDone: () => void }) {
@@ -560,7 +576,7 @@ function EditorPageHeader({ title, onBack, onSave }: { title: string; onBack: ()
 }
 
 function FieldButton({ icon, label, value, hint, onClick }: { icon: string; label: string; value: string; hint?: string; onClick: () => void }) {
-  return <button className="field-row" type="button" onClick={onClick}><EntityIcon iconKey={icon} /><span><b>{label}</b>{hint ? <small>{hint}</small> : null}</span><strong>{value}</strong><ChevronRight /></button>
+  return <button className="field-row" type="button" onClick={onClick}><EntityIcon iconKey={icon} /><span className="field-label"><b>{label}</b></span><span className="field-value"><strong>{value}</strong>{hint ? <small>{hint}</small> : null}</span><ChevronRight /></button>
 }
 
 function budgetHint(categoryId: string, data: FinanceData) {
@@ -568,15 +584,21 @@ function budgetHint(categoryId: string, data: FinanceData) {
   return row ? `本月預算剩餘 ${money(row.monthlyAmount - row.spent)}` : '尚未設定預算'
 }
 
-function AdvanceShareFields({ draft, setDraft }: { store: Store; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void }) {
+function AdvanceShareFields({ draft, setDraft }: { draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void }) {
   const addShare = () => {
     const id = crypto.randomUUID()
-    setDraft((current) => ({ ...current, shares: { ...current.shares, [id]: '' }, shareNames: { ...current.shareNames, [id]: '' }, shareOrder: [...current.shareOrder, id] }))
+    setDraft((current) => {
+      const firstId = current.shareOrder[0]
+      const automaticallyCalculated = Math.max(0, Number(current.amount.replaceAll(',', '')) - Number((current.ownShare || '0').replaceAll(',', '')))
+      return { ...current, shares: { ...current.shares, ...(current.shareOrder.length === 1 && firstId ? { [firstId]: String(automaticallyCalculated || '') } : {}), [id]: '' }, shareNames: { ...current.shareNames, [id]: '' }, shareOrder: [...current.shareOrder, id] }
+    })
   }
   const removeShare = (id: string) => setDraft((current) => ({ ...current, shareOrder: current.shareOrder.filter((item) => item !== id) }))
+  const singleReceivable = draft.advanceDirection === 'receivable' && draft.shareOrder.length === 1
+  const automaticallyCalculated = Math.max(0, Number(draft.amount.replaceAll(',', '')) - Number((draft.ownShare || '0').replaceAll(',', '')))
   return <div className="advance-shares">
-    <p>{draft.advanceDirection === 'receivable' ? '加入這次應還款的人與各自金額' : '填寫這次代墊者與我應還金額'}</p>
-    {(draft.advanceDirection === 'payable' ? draft.shareOrder.slice(0, 1) : draft.shareOrder).map((id) => <div className={`advance-share-row ${draft.advanceDirection === 'payable' ? 'payable-person-row' : ''}`} key={id}><input aria-label="姓名" placeholder={draft.advanceDirection === 'receivable' ? '姓名' : '代墊者'} value={draft.shareNames[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shareNames: { ...current.shareNames, [id]: event.target.value } }))} />{draft.advanceDirection === 'receivable' ? <><input aria-label="應還金額" inputMode="decimal" placeholder="金額" value={draft.shares[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shares: { ...current.shares, [id]: event.target.value } }))} /><button type="button" aria-label="移除" onClick={() => removeShare(id)}><X /></button></> : null}</div>)}
+    <p>{draft.advanceDirection === 'receivable' ? singleReceivable ? '填寫應還款的人，金額會自動計算' : '填寫每個人各自應還的金額' : '填寫這次代墊者'}</p>
+    {(draft.advanceDirection === 'payable' ? draft.shareOrder.slice(0, 1) : draft.shareOrder).map((id) => <div className={`advance-share-row ${draft.advanceDirection === 'payable' ? 'payable-person-row' : singleReceivable ? 'single-person-row' : ''}`} key={id}><input aria-label="姓名" placeholder={draft.advanceDirection === 'receivable' ? '姓名' : '代墊者'} value={draft.shareNames[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shareNames: { ...current.shareNames, [id]: event.target.value } }))} />{draft.advanceDirection === 'receivable' ? singleReceivable ? <span className="auto-share-amount">應還 {draft.amount ? new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(automaticallyCalculated) : '依總額計算'}</span> : <><input aria-label="應還金額" inputMode="decimal" placeholder="金額" value={draft.shares[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shares: { ...current.shares, [id]: event.target.value } }))} /><button type="button" aria-label="移除" onClick={() => removeShare(id)}><X /></button></> : null}</div>)}
     {draft.advanceDirection === 'receivable' ? <button className="add-share-button" type="button" onClick={addShare}><Plus />新增對象</button> : null}
     {draft.advanceDirection === 'receivable' ? <label className="advance-own-toggle"><input type="checkbox" checked={draft.ownShare !== ''} onChange={(event) => setDraft((current) => ({ ...current, ownShare: event.target.checked ? '0' : '' }))} /><span>這筆也包含我的消費</span></label> : null}
     {draft.advanceDirection === 'receivable' && draft.ownShare !== '' ? <label className="advance-own-row"><span>我自己負擔</span><input inputMode="decimal" value={draft.ownShare} onChange={(event) => setDraft((current) => ({ ...current, ownShare: event.target.value }))} /></label> : null}
@@ -652,7 +674,7 @@ function AccountAdjustPage({ store, accountId, onDone }: { store: Store; account
     })
     onDone()
   }
-  return <main className="workspace-page"><section className="adjust-card"><span>目前帳面餘額</span><strong>{money(current, account.currency)}</strong></section><div className="settings-form"><label><span>實際餘額</span><input inputMode="numeric" value={actual} onChange={(event) => setActual(event.target.value)} /></label><div className="difference-row"><span>帳務調整</span><b className={difference < 0 ? 'expense-text' : 'income-text'}>{difference > 0 ? '+' : ''}{money(difference, account.currency)}</b></div><label><span>收支分類</span><input value="帳務調整" disabled /></label><label><span>調整日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>原因</span><textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="primary-button" type="button" disabled={!difference} onClick={() => void submit()}><Save />記錄帳務調整 {difference > 0 ? '+' : ''}{money(difference, account.currency)}</button></div></main>
+  return <main className="workspace-page"><section className="adjust-card"><span>目前帳面餘額</span><strong>{money(current, account.currency)}</strong></section><form id="account-adjust-form" className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit() }}><label><span>實際餘額</span><input inputMode="numeric" value={actual} onChange={(event) => setActual(event.target.value)} /></label><div className="difference-row"><span>帳務調整</span><b className={difference < 0 ? 'expense-text' : 'income-text'}>{difference > 0 ? '+' : ''}{money(difference, account.currency)}</b></div><label><span>調整日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>原因</span><textarea value={note} onChange={(event) => setNote(event.target.value)} /></label></form></main>
 }
 
 function TransactionsPage({ store, onEdit }: { store: Store; onEdit: (transaction: FinanceTransaction) => void }) {
@@ -896,7 +918,7 @@ function advanceShareName(share: { personId: string; name?: string }, data: Fina
 
 function AdvancesPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {
   const [tab, setTab] = useState<'receivable' | 'payable'>('receivable')
-  const rows = advanceRows(store.data.transactions).filter((row) => row.transaction.advance?.direction === tab)
+  const rows = advanceRows(store.data.transactions).filter((row) => row.remaining > 0 && row.transaction.advance?.direction === tab)
   const allRows = advanceRows(store.data.transactions)
   const receivable = allRows.filter((row) => row.transaction.advance?.direction === 'receivable').reduce((sum, row) => sum + row.remaining, 0)
   const payable = allRows.filter((row) => row.transaction.advance?.direction === 'payable').reduce((sum, row) => sum + row.remaining, 0)

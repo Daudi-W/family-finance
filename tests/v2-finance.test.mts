@@ -47,6 +47,14 @@ test('v2 代墊剩餘與定期預覽皆由原始文件計算', () => {
   assert.equal(pendingRecurring(data.recurringRules).length, 2)
 })
 
+test('舊版已寫入代墊份額的結清金額時，不再顯示為未結清', () => {
+  const data = buildDemoData()
+  const advance = data.transactions.find((transaction) => transaction.kind === 'advance')
+  assert.ok(advance?.advance)
+  advance.advance.people = advance.advance.people.map((person) => ({ ...person, settledMinor: person.expectedMinor }))
+  assert.equal(advanceRows(data.transactions)[0]?.remaining, 0)
+})
+
 test('報表月份序列不受台灣時區影響而多出前一個月', () => {
   assert.deepEqual(monthSequence('2026-08-01', '2026-08-31'), ['2026-08'])
   assert.deepEqual(monthSequence('2026-06-01', '2026-08-31'), ['2026-06', '2026-07', '2026-08'])
