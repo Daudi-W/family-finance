@@ -470,6 +470,229 @@
 .detail-card-v2 b { text-align: right; }
 .full-width-action { width: 100%; margin-top: 14px; }
 
+/* 林間刊物：只覆寫視覺，不更動版面結構與互動。 */
+.workspace-topbar,
+.workspace-bottom-nav,
+.entry-page-head,
+.entry-submit-actions {
+  background: rgba(243,241,231,.98);
+  backdrop-filter: none;
+}
+
+.topbar-view-switch,
+.entry-kind-tabs,
+.advance-direction,
+.filter-chips,
+.view-toggle-v2,
+.report-mode-tabs {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper-soft);
+}
+
+.topbar-view-switch button,
+.entry-kind-tabs button,
+.advance-direction button,
+.filter-chips button,
+.view-toggle-v2 button,
+.report-mode-tabs button,
+.report-primary-tabs button,
+.report-chart-toggle {
+  border-radius: 2px;
+}
+
+.topbar-view-switch button.active,
+.entry-kind-tabs button.active,
+.advance-direction button.active,
+.filter-chips button.active,
+.view-toggle-v2 button.active,
+.report-mode-tabs button.active,
+.report-primary-tabs button.active,
+.report-period-tabs button.active,
+.workspace-sidebar nav button.active {
+  color: #fff;
+  background: var(--primary);
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.home-summary article,
+.report-summary article,
+.home-budget-card,
+.workspace-list,
+.settings-menu-v2,
+.recurring-list,
+.advance-list-v2,
+.project-grid,
+.empty-data-card,
+.net-worth-v2,
+.account-balance-compact,
+.account-action-grid button,
+.account-flow-summary span,
+.simple-empty,
+.picker-grid button,
+.settings-form > label,
+.settings-form .form-columns label,
+.icon-chooser,
+.manager-list,
+.adjust-card,
+.calendar-grid-v2,
+.report-card,
+.report-category-summary,
+.report-primary-tabs,
+.report-chart-panel,
+.report-legend-card,
+.report-detail-card,
+.report-trend-summary article,
+.budget-rows-v2,
+.budget-summary-cards article,
+.category-tile,
+.budget-total,
+.budget-editor-list,
+.project-hero,
+.advance-hero,
+.project-budget-card,
+.advance-person-breakdown,
+.settlement-form,
+.paid-off,
+.advance-balance,
+.detail-card-v2 {
+  border-color: var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  box-shadow: none;
+}
+
+.entity-icon,
+.workspace-environment,
+.net-worth-v2 > div span,
+.difference-row,
+.project-hero > div span,
+.workspace-user {
+  color: var(--primary-dark);
+  border-radius: 2px;
+  background: var(--paper-soft);
+}
+
+.settings-form input,
+.settings-form select,
+.settings-form textarea,
+.settlement-form input,
+.settlement-form select,
+.entry-note textarea,
+.advance-share-row input,
+.budget-editor-list input,
+.inline-add input {
+  color: var(--text);
+  border-color: var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+}
+
+.primary-button,
+.danger-button,
+.entry-submit-actions button,
+.empty-data-card button,
+.floating-add,
+.inline-add button {
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.entry-type-label,
+.picker-grid button.selected,
+.picker-list-v2 > button.selected {
+  color: var(--primary-dark);
+  border-color: var(--primary-dark);
+  border-radius: 2px;
+  background: var(--paper-soft);
+}
+
+.calendar-grid-v2 {
+  padding: 8px;
+}
+
+.calendar-grid-v2 button {
+  border-radius: 2px;
+}
+
+.calendar-grid-v2 button.selected {
+  color: #fff;
+  background: var(--primary);
+}
+
+.report-donut > div,
+.donut-chart::after {
+  background: var(--surface);
+}
+
+.balance-chart-legend .income,
+.balance-line-chart .income-bar {
+  background: var(--income-accent);
+  fill: var(--income-accent);
+}
+
+.balance-chart-legend .expense,
+.balance-line-chart .expense-bar {
+  background: var(--expense-accent);
+  fill: var(--expense-accent);
+}
+
+.balance-chart-legend .balance { background: var(--balance); }
+.balance-chart-legend .net-worth { background: var(--primary); }
+.balance-line-chart .income polyline,
+.balance-line-chart .income circle { stroke: var(--income-accent); fill: var(--income-accent); }
+.balance-line-chart .expense polyline,
+.balance-line-chart .expense circle { stroke: var(--expense-accent); fill: var(--expense-accent); }
+.balance-line-chart .balance polyline { stroke: var(--balance); fill: none; }
+.balance-line-chart .balance circle { stroke: var(--balance); fill: var(--balance); }
+.balance-line-chart .net-worth polyline { stroke: var(--primary); fill: none; }
+.balance-line-chart .net-worth circle { stroke: var(--primary); fill: var(--primary); }
+.balance-line-chart circle { stroke-width: 1.5; }
+.dual-scale-chart .axis-right { fill: var(--balance); }
+
+.income-amount,
+.amount-income,
+.report-date-summary > b {
+  color: var(--income);
+}
+
+.expense-amount,
+.amount-expense,
+.report-date-summary > b small {
+  color: var(--expense);
+}
+
+.workspace-topbar h1,
+.month-picker strong,
+.home-summary strong,
+.report-summary strong,
+.workspace-list > button > span > strong,
+.workspace-list > button > strong,
+.transaction-row strong,
+.report-detail-card > button > span,
+.report-detail-card > button > strong,
+.report-trend-summary b,
+.manager-list strong,
+.category-tile strong,
+.project-card-head,
+.detail-card-v2 b {
+  font-weight: 700;
+}
+
+@media (min-width: 900px) {
+  .workspace-frame {
+    border-color: var(--line-strong);
+    border-radius: 2px;
+    background: var(--canvas);
+    box-shadow: none;
+  }
+
+  .workspace-sidebar {
+    background: var(--surface);
+  }
+}
+
 @media (max-width: 420px) {
   .workspace-page { padding-inline: 12px; }
   .account-action-grid { grid-template-columns: repeat(3,1fr); }
@@ -504,4 +727,28 @@
   .workspace-frame.is-entry-mode { display: block; }
   .workspace-frame.is-entry-mode .workspace-sidebar { display: none; }
   .workspace-frame.is-entry-mode .workspace-main { width: 100%; }
+}
+
+@media (min-width: 900px) {
+  .workspace-frame {
+    border-color: var(--line-strong);
+    border-radius: 2px;
+    background: var(--canvas);
+    box-shadow: none;
+  }
+
+  .workspace-sidebar {
+    background: var(--surface);
+  }
+
+  .workspace-sidebar nav button.active {
+    color: #fff;
+    border-radius: 2px;
+    background: var(--primary);
+  }
+
+  .workspace-user {
+    border-radius: 2px;
+    background: var(--paper-soft);
+  }
 }

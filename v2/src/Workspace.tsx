@@ -807,7 +807,7 @@ function ReportFilterPage({ store, value, onChange, onDone }: { store: Store; va
   return <main className="workspace-page"><form className="settings-form" onSubmit={(event) => { event.preventDefault(); onChange(draft); onDone() }}><div className="form-columns"><label><span>開始日期</span><input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label><label><span>結束日期</span><input type="date" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label></div><label><span>帳戶</span><select value={draft.accountId} onChange={(event) => setDraft({ ...draft, accountId: event.target.value })}><option value="">全部帳戶</option>{activeSorted(store.data.accounts).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>專案</span><select value={draft.projectId} onChange={(event) => setDraft({ ...draft, projectId: event.target.value })}><option value="">全部專案</option>{activeSorted(store.data.projects).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="primary-button" type="submit">套用報表區間</button></form></main>
 }
 
-const reportColors = ['#ef476f', '#ffbd2e', '#118ab2', '#06a77d', '#7b61a8', '#f78c6b', '#4d908e', '#8d99ae']
+const reportColors = ['#e87658', '#c89836', '#05769a', '#5f8734', '#35565c', '#f3ae8c', '#548468', '#96764b']
 
 function selectionRange(period: ReportSelection, anchorMonth: string, customRange: ReportRange) {
   return period === '自訂' ? customRange : reportRangeForPeriod(period, anchorMonth)

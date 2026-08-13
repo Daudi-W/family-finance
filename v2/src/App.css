@@ -1,16 +1,21 @@
 :root {
-  --primary: #0f6e56;
-  --primary-dark: #09523f;
-  --primary-soft: #def3ec;
-  --canvas: #f4f6f8;
-  --surface: #ffffff;
-  --text: #1f2d3d;
-  --muted: #718096;
-  --line: #dce4e9;
-  --line-strong: #c9d3dd;
-  --expense: #c55252;
-  --income: #18815f;
-  --shadow: 0 8px 30px rgba(31, 45, 61, 0.08);
+  --primary: #05769a;
+  --primary-dark: #35565c;
+  --primary-soft: #e7dec3;
+  --canvas: #f3f1e7;
+  --surface: #f3f1e7;
+  --text: #35565c;
+  --muted: #546949;
+  --hint: #80927d;
+  --line: #a3a892;
+  --line-strong: #35565c;
+  --expense: #c64f35;
+  --expense-accent: #e87658;
+  --income: #506b2a;
+  --income-accent: #5f8734;
+  --balance: #c89836;
+  --paper-soft: #e7dec3;
+  --shadow: none;
 }
 
 button {
@@ -36,7 +41,7 @@ button {
   padding: 40px 32px 32px;
   text-align: center;
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 2px;
   background: var(--surface);
   box-shadow: var(--shadow);
 }
@@ -48,7 +53,7 @@ button {
   display: grid;
   place-items: center;
   color: white;
-  border-radius: 20px;
+  border-radius: 4px;
   background: var(--primary);
 }
 
@@ -82,7 +87,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  border-radius: 14px;
+  border-radius: 4px;
   color: white;
   background: var(--primary);
   font-weight: 700;
