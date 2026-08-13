@@ -4,6 +4,10 @@
 .workspace-topbar { position: sticky; z-index: 30; top: 0; min-height: 54px; display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.97); backdrop-filter: blur(14px); }
 .workspace-topbar h1 { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 700; text-align: center; white-space: nowrap; }
 .workspace-top-actions { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 4px; }
+.topbar-view-switch { display: grid; grid-template-columns: 32px 32px; gap: 2px; padding: 2px; border-radius: 10px; background: #e8edf0; }
+.topbar-view-switch button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; }
+.topbar-view-switch button.active { color: var(--primary-dark); background: #fff; box-shadow: 0 2px 7px rgba(31,45,61,.08); }
+.topbar-view-switch svg { width: 17px; height: 17px; stroke-width: 1.8; }
 .topbar-text-action { min-width: 44px; min-height: 42px; padding: 0 4px; color: var(--primary); font-size: 15px; font-weight: 700; }
 .workspace-icon-button,.workspace-badge-button { position: relative; width: 42px; height: 42px; display: grid; place-items: center; color: var(--primary-dark); }
 .workspace-icon-button svg,.workspace-badge-button svg { width: 21px; stroke-width: 1.8; }
@@ -163,6 +167,7 @@
 .entry-submit-actions button { min-height: 50px; border: 1px solid var(--primary); border-radius: 12px; color: var(--primary); font-size: 16px; font-weight: 700; }
 .entry-submit-actions button:last-child { color: #fff; background: var(--primary); }
 .entry-submit-actions button:disabled { opacity: .55; }
+.entry-submit-actions.is-single { grid-template-columns: 1fr; }
 .primary-button svg,.danger-button svg { width: 19px; }
 .picker-page-head { grid-template-columns: 44px minmax(0,1fr) 44px; }
 .picker-page-head h1 { margin: 0; font-size: 20px; line-height: 1.4; text-align: center; }
@@ -324,13 +329,12 @@
 .project-budget-card { padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
 .project-budget-card strong { white-space: nowrap; }
 .project-stats { margin-top: 14px; }
-.recurring-list > div { min-height: 82px; display: grid; grid-template-columns: 42px minmax(0,1fr) auto auto; align-items: center; gap: 8px; padding: 11px; }
+.recurring-list > div { min-height: 82px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; padding: 5px 8px; }
 .recurring-list > div + div { border-top: 1px solid var(--line); }
 .recurring-list small { display: block; margin-top: 4px; color: var(--muted); }
-.recurring-list button { display: flex; align-items: center; gap: 3px; padding: 8px; color: var(--primary); font-weight: 700; }
-.recurring-list button svg { width: 16px; }
-.recurring-actions { display: flex; align-items: center; }
-.recurring-actions button:first-child { color: var(--muted); font-size: 12px; }
+.recurring-edit-target,.recurring-preview-row { min-width: 0; min-height: 70px; display: grid; grid-template-columns: 42px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 6px 3px; text-align: left; }
+.recurring-edit-target > strong,.recurring-preview-row > strong { white-space: nowrap; }
+.recurring-confirm { min-width: 48px; min-height: 42px; padding: 0 5px; color: var(--primary); font-weight: 700; }
 .inline-add { display: flex; gap: 8px; margin-top: 12px; }
 .inline-add input { min-height: 46px; flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; }
 .inline-add button { display: flex; align-items: center; gap: 5px; padding: 0 14px; color: #fff; border-radius: 12px; background: var(--primary); font-weight: 700; }
