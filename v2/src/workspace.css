@@ -3,6 +3,7 @@
 .workspace-main { width: 100%; max-width: 720px; min-height: 100vh; padding-bottom: 86px; background: var(--canvas); }
 .workspace-topbar { position: sticky; z-index: 30; top: 0; min-height: 54px; display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 8px; padding: 5px 12px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.97); backdrop-filter: blur(14px); }
 .workspace-topbar h1 { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 700; text-align: center; white-space: nowrap; }
+.workspace-topbar.reports-topbar { grid-template-columns: 44px minmax(0,300px) 44px; justify-content: center; }
 .workspace-top-actions { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 4px; }
 .topbar-view-switch { display: grid; grid-template-columns: 32px 32px; gap: 2px; padding: 2px; border-radius: 10px; background: #e8edf0; }
 .topbar-view-switch button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; }
@@ -56,6 +57,8 @@
 .transaction-row-v2 > b small { display: block; margin-top: 0; color: var(--muted); font-size: 13px; line-height: 1.55; font-weight: 400; }
 .transaction-date-groups { display: grid; gap: 14px; margin-top: 10px; }
 .transaction-date-group > h3 { margin: 0; padding: 6px 4px; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.transaction-date-group > h3 { white-space: nowrap; }
+.neutral-money { color: var(--text)!important; }
 .workspace-list svg:last-child,.settings-menu-v2 > button > svg:last-child,.advance-list-v2 > button > svg:last-child,.project-grid > button > svg:last-child { width: 18px; color: #a4afb8; }
 .entity-icon { flex: 0 0 auto; width: 42px; height: 42px; display: inline-grid; place-items: center; color: var(--primary-dark); border-radius: 13px; background: #edf3f4; }
 .entity-icon svg { width: 21px; height: 21px; stroke-width: 1.8; }
@@ -265,6 +268,8 @@
 .report-primary-tabs { width: min(100%,360px); display: grid; grid-template-columns: repeat(3,1fr); justify-self: center; padding: 3px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; }
 .report-primary-tabs button { min-height: 42px; color: var(--muted); border-radius: 9px; font-size: 16px; }
 .report-primary-tabs button.active { color: var(--text); background: var(--primary-soft); font-weight: 700; }
+.report-primary-tabs.compact { width: 100%; padding: 2px; }
+.report-primary-tabs.compact button { min-height: 38px; font-size: 15px; }
 .report-period-tabs { display: grid; grid-template-columns: repeat(4,1fr); overflow: hidden; border-block: 1px solid var(--line-strong); background: #fff; }
 .report-period-tabs.three { grid-template-columns: repeat(3,1fr); }
 .report-period-tabs button { min-height: 48px; color: var(--text); font-size: 15px; }
@@ -300,6 +305,12 @@
 .report-detail-card > button > span { font-weight: 700; }
 .report-detail-card > button > strong { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .report-detail-card > button > svg { width: 18px; color: var(--hint); }
+.trend-detail-card > button { grid-template-columns: 128px minmax(0,1fr) 18px; }
+.trend-detail-card > button > span:first-child { white-space: nowrap; }
+.trend-row-values { min-width: 0; display: grid; justify-items: end; text-align: right; }
+.trend-row-values small,.trend-row-values strong { display: block; max-width: 100%; white-space: nowrap; }
+.trend-row-values small { color: var(--muted); font-size: 13px; font-weight: 400; }
+.trend-row-values strong { margin: 2px 0; font-variant-numeric: tabular-nums; }
 .report-category-columns { width: 100%; height: 246px; display: flex; align-items: flex-end; gap: 8px; padding: 26px 4px 0; border-bottom: 1px solid var(--line); }
 .report-category-columns > div { min-width: 0; height: 100%; display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; }
 .report-category-columns span { max-width: 100%; overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -309,6 +320,11 @@
 .report-balance-summary span,.report-balance-summary strong { display: flex; align-items: center; gap: 5px; }
 .report-balance-summary strong { grid-column: 2; grid-row: 1 / span 2; justify-self: end; }
 .report-balance-summary b { font-variant-numeric: tabular-nums; }
+.report-trend-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.report-trend-summary article { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.report-trend-summary span,.report-trend-summary b { display: block; }
+.report-trend-summary span { color: var(--muted); font-size: 13px; }
+.report-trend-summary b { margin-top: 4px; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .balance-chart-panel { min-height: 284px; display: block; padding-top: 18px; }
 .balance-line-chart { width: 100%; }
 .balance-chart-legend { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: 13px; }
@@ -317,12 +333,18 @@
 .balance-chart-legend .income { background: var(--income); }
 .balance-chart-legend .expense { background: #ffbd2e; }
 .balance-chart-legend .balance { background: #ef476f; }
+.balance-chart-legend .net-worth { background: #4f8df7; }
 .balance-line-chart svg { width: 100%; height: auto; overflow: visible; margin-top: 4px; }
 .balance-line-chart polyline { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .balance-line-chart circle { stroke: #fff; stroke-width: 1.5; }
 .balance-line-chart .income polyline,.balance-line-chart .income circle { stroke: var(--income); fill: var(--income); }
 .balance-line-chart .expense polyline,.balance-line-chart .expense circle { stroke: #ffbd2e; fill: #ffbd2e; }
-.balance-line-chart .balance polyline,.balance-line-chart .balance circle { stroke: #ef476f; fill: #ef476f; }
+.balance-line-chart .balance polyline { stroke: #ef476f; fill: none; }
+.balance-line-chart .balance circle { stroke: #ef476f; fill: #ef476f; }
+.balance-line-chart .net-worth polyline { stroke: #4f8df7; fill: none; }
+.balance-line-chart .net-worth circle { stroke: #4f8df7; fill: #4f8df7; }
+.balance-line-chart .income-bar { fill: var(--income); opacity: .88; }
+.balance-line-chart .expense-bar { fill: #ffbd2e; opacity: .9; }
 .balance-line-chart .zero-line { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 4; }
 .balance-line-chart text { fill: var(--muted); font-size: 12px; }
 .report-date-summary { grid-template-columns: minmax(0,1fr) auto; }
