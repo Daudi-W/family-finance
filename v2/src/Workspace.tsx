@@ -3,7 +3,9 @@ import type { User } from 'firebase/auth'
 import {
   ArrowDownLeft,
   ArrowLeft,
+  ArrowUpDown,
   ArrowUpRight,
+  ChartColumn,
   CalendarDays,
   ChartPie,
   Check,
@@ -47,12 +49,12 @@ import {
   fromMinor,
   money,
   monthKey,
-  monthRange,
-  monthSequence,
   monthlyBudgetRows,
   pendingRecurring,
   reportForMonth,
   reportForRange,
+  reportRangeForPeriod,
+  type ReportPeriod,
   todayIso,
   toMinor,
 } from './finance.ts'
@@ -60,6 +62,7 @@ import { iconFor, selectableIcons } from './icons.tsx'
 import type {
   Account,
   AccountType,
+  Category,
   Direction,
   FinanceData,
   FinanceTransaction,
@@ -72,7 +75,7 @@ type RouteName =
   | 'home' | 'accounts' | 'entry' | 'reports' | 'more'
   | 'transactions' | 'budget' | 'budget-category' | 'budgets' | 'budget-form' | 'pending'
   | 'account-detail' | 'account-form' | 'account-adjust'
-  | 'transaction-filter' | 'report-filter' | 'report-category'
+  | 'transaction-filter' | 'report-filter' | 'report-category' | 'report-date'
   | 'categories' | 'category-form' | 'category-picker'
   | 'account-picker' | 'project-picker'
   | 'projects' | 'project-detail' | 'project-form'
@@ -101,6 +104,8 @@ type EntryDraft = {
 
 type TransactionFilter = { kind: 'all' | TransactionKind; categoryId: string; projectId: string; from: string; to: string }
 type ReportRange = { from: string; to: string; accountId: string; projectId: string }
+type ReportSelection = ReportPeriod | '自訂'
+type ReportMode = 'expense' | 'income' | 'balance'
 
 type Store = ReturnType<typeof useFinanceStore>
 
@@ -209,7 +214,9 @@ export default function Workspace({ user }: { user: User }) {
   const [manageAccounts, setManageAccounts] = useState(false)
   const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>({ kind: 'all', categoryId: '', projectId: '', from: '', to: '' })
   const [reportRange, setReportRange] = useState<ReportRange>({ from: `${todayIso().slice(0, 4)}-01-01`, to: todayIso(), accountId: '', projectId: '' })
-  const [reportPeriod, setReportPeriod] = useState<'本月' | '近三個月' | '今年' | '自訂'>('本月')
+  const [reportPeriod, setReportPeriod] = useState<ReportSelection>('月')
+  const [reportAnchorMonth, setReportAnchorMonth] = useState(currentMonth())
+  const [reportMode, setReportMode] = useState<ReportMode>('expense')
   const [transactionView, setTransactionView] = useState<'calendar' | 'list'>('calendar')
   const autoPosting = useRef(new Set<string>())
   const swipeStart = useRef<number | null>(null)
@@ -289,9 +296,10 @@ export default function Workspace({ user }: { user: User }) {
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
       case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter} onChange={setTransactionFilter} onDone={back} />
-      case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} onCustom={() => push({ name: 'report-filter' })} onCategory={(id) => push({ name: 'report-category', id })} />
+      case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} anchorMonth={reportAnchorMonth} setAnchorMonth={setReportAnchorMonth} mode={reportMode} setMode={setReportMode} onCustom={() => push({ name: 'report-filter' })} onCategory={(direction, id) => push({ name: 'report-category', id: `${direction}:${id}` })} onDate={(id) => push({ name: 'report-date', id })} />
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
-      case 'report-category': return <ReportCategoryPage store={store} categoryId={route.id ?? ''} customRange={reportRange} period={reportPeriod} onEditTransaction={editTransaction} />
+      case 'report-category': return <ReportCategoryPage store={store} reference={route.id ?? ''} customRange={reportRange} period={reportPeriod} anchorMonth={reportAnchorMonth} onEditTransaction={editTransaction} />
+      case 'report-date': return <ReportDatePage store={store} dateKey={route.id ?? ''} customRange={reportRange} period={reportPeriod} onEditTransaction={editTransaction} />
       case 'budget': return <BudgetSummaryPage store={store} onPush={push} />
       case 'budget-category': return <BudgetCategoryPage store={store} categoryId={route.id ?? ''} onEditTransaction={editTransaction} />
       case 'more': return <MorePage onPush={push} />
@@ -360,7 +368,7 @@ function routeTitle(route: Route, data: FinanceData) {
   const staticTitles: Partial<Record<RouteName, string>> = {
     home: '首頁', accounts: '帳戶', entry: route.id ? '編輯明細' : '記一筆', reports: '統計報表', more: '更多管理',
     transactions: '交易明細', budget: '本月收支與預算', 'budget-category': '分類預算明細', budgets: '預算設定', 'budget-form': route.id ? '編輯分類預算' : '新增分類預算', pending: '待確認',
-    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類支出明細',
+    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類明細', 'report-date': '日期明細',
     'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', settlement: '登記收款／還款',
@@ -777,56 +785,158 @@ function ReportFilterPage({ store, value, onChange, onDone }: { store: Store; va
   return <main className="workspace-page"><form className="settings-form" onSubmit={(event) => { event.preventDefault(); onChange(draft); onDone() }}><div className="form-columns"><label><span>開始日期</span><input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label><label><span>結束日期</span><input type="date" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label></div><label><span>帳戶</span><select value={draft.accountId} onChange={(event) => setDraft({ ...draft, accountId: event.target.value })}><option value="">全部帳戶</option>{activeSorted(store.data.accounts).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>專案</span><select value={draft.projectId} onChange={(event) => setDraft({ ...draft, projectId: event.target.value })}><option value="">全部專案</option>{activeSorted(store.data.projects).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="primary-button" type="submit">套用報表區間</button></form></main>
 }
 
-function ReportsPage({ store, customRange, period, setPeriod, onCustom, onCategory }: { store: Store; customRange: ReportRange; period: '本月' | '近三個月' | '今年' | '自訂'; setPeriod: (value: '本月' | '近三個月' | '今年' | '自訂') => void; onCustom: () => void; onCategory: (id: string) => void }) {
-  const [mode, setMode] = useState<'income' | 'expense' | 'assets'>('expense')
-  const range = period === '自訂' ? customRange : monthRange(period)
+const reportColors = ['#ef476f', '#ffbd2e', '#118ab2', '#06a77d', '#7b61a8', '#f78c6b', '#4d908e', '#8d99ae']
+
+function selectionRange(period: ReportSelection, anchorMonth: string, customRange: ReportRange) {
+  return period === '自訂' ? customRange : reportRangeForPeriod(period, anchorMonth)
+}
+
+function reportPeriodLabel(period: ReportSelection, anchorMonth: string, range: { from: string; to: string }) {
+  const [year, month] = anchorMonth.split('-').map(Number)
+  if (period === '月') return `${year} 年 ${month} 月`
+  if (period === '年') return `${year} 年`
+  if (period === '近6個月') return `${Number(range.from.slice(0, 4))} 年 ${Number(range.from.slice(5, 7))} 月－${year} 年 ${month} 月`
+  const short = (date: string) => `${Number(date.slice(0, 4))}/${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+  return `${short(range.from)}－${short(range.to)}`
+}
+
+function categoryReportRows(data: FinanceData, transactions: FinanceTransaction[], range: { from: string; to: string }, direction: Direction) {
+  const amounts = new Map<string, number>()
+  for (const transaction of activeTransactions(transactions)) {
+    if (transaction.occurredOn < range.from || transaction.occurredOn > range.to) continue
+    for (const line of transaction.reportLines.filter((item) => item.direction === direction)) amounts.set(line.categoryId, (amounts.get(line.categoryId) ?? 0) + line.amountTwdMinor)
+  }
+  return [...amounts].map(([id, amount]) => ({ id, amount, category: data.categories.find((item) => item.id === id) })).filter((item): item is { id: string; amount: number; category: Category } => Boolean(item.category)).sort((a, b) => b.amount - a.amount)
+}
+
+function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAnchorMonth, mode, setMode, onCustom, onCategory, onDate }: { store: Store; customRange: ReportRange; period: ReportSelection; setPeriod: (value: ReportSelection) => void; anchorMonth: string; setAnchorMonth: (value: string) => void; mode: ReportMode; setMode: (value: ReportMode) => void; onCustom: () => void; onCategory: (direction: Direction, id: string) => void; onDate: (id: string) => void }) {
+  const [chartView, setChartView] = useState<'donut' | 'bar'>('donut')
+  const [descending, setDescending] = useState(true)
+  const [legendPage, setLegendPage] = useState(0)
+  const range = selectionRange(period, anchorMonth, customRange)
   const accountFilter = period === '自訂' ? customRange.accountId : ''
   const projectFilter = period === '自訂' ? customRange.projectId : ''
   const sourceTransactions = store.data.transactions.filter((transaction) => (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter))
   const totals = reportForRange(sourceTransactions, range.from, range.to)
-  const reportAccounts = accountFilter ? store.data.accounts.filter((item) => item.id === accountFilter) : store.data.accounts
-  const balances = calculateBalances(reportAccounts, sourceTransactions)
-  const net = calculateNetWorth(reportAccounts, balances)
-  const categories = Object.entries(totals.byCategory).filter(([, value]) => value < 0).map(([id, value]) => ({ category: store.data.categories.find((item) => item.id === id), amount: Math.abs(value) })).sort((a, b) => b.amount - a.amount)
-  const monthSeries = buildReportSeries({ ...store.data, accounts: reportAccounts, transactions: sourceTransactions }, range.from, range.to)
-  const trendValues = monthSeries.map((item) => mode === 'income' ? item.income : mode === 'expense' ? item.expense : item.netWorth)
-  const modeTotal = mode === 'income' ? totals.income : mode === 'expense' ? totals.expense : net.netWorth
-  const colors = ['#12765f', '#c56c10', '#7654ad', '#3c78a8', '#bdc8d2', '#c94b4b']
-  const donut = categories.length ? categories.map((item, index) => ({ ...item, color: colors[index % colors.length], percent: item.amount / Math.max(1, totals.expense) * 100 })) : []
+  const direction: Direction = mode === 'income' ? 'income' : 'expense'
+  const total = direction === 'income' ? totals.income : totals.expense
+  const rows = categoryReportRows(store.data, sourceTransactions, range, direction).map((item, index) => ({ ...item, color: reportColors[index % reportColors.length], percent: item.amount / Math.max(1, total) * 100 }))
+  const sortedRows = descending ? rows : [...rows].reverse()
+  const legendPageSize = 6
+  const legendPages = Math.max(1, Math.ceil(rows.length / legendPageSize))
+  const visibleLegend = rows.slice(Math.min(legendPage, legendPages - 1) * legendPageSize, (Math.min(legendPage, legendPages - 1) + 1) * legendPageSize)
   let stop = 0
-  const gradient = donut.map((item) => { const start = stop; stop += item.percent; return `${item.color} ${start}% ${stop}%` }).join(', ')
-  return <main className="workspace-page"><div className="filter-chips report-period">{(['本月', '近三個月', '今年', '自訂'] as const).map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item) }} key={item}>{item}</button>)}</div><div className="report-mode-tabs"><button className={mode === 'income' ? 'active' : ''} type="button" onClick={() => setMode('income')}>收入趨勢</button><button className={mode === 'expense' ? 'active' : ''} type="button" onClick={() => setMode('expense')}>支出趨勢</button><button className={mode === 'assets' ? 'active' : ''} type="button" onClick={() => setMode('assets')}>淨資產趨勢</button></div><section className="report-summary"><article><span>{mode === 'income' ? '收入' : mode === 'expense' ? '支出' : '家庭淨資產'}</span><b className={mode === 'income' ? 'income-text' : mode === 'expense' ? 'expense-text' : ''}>{money(modeTotal)}</b></article>{mode === 'assets' ? <><article><span>總資產</span><b>{money(net.assets)}</b></article><article><span>總負債</span><b>{money(net.liabilities)}</b></article></> : <article><span>本期結餘</span><b>{money(totals.balance)}</b></article>}</section><TrendBars series={monthSeries.map((item, index) => ({ label: `${Number(item.month.slice(5))}月`, value: trendValues[index] ?? 0 }))} mode={mode} />{mode === 'expense' ? <section className="report-card"><h2>支出分類</h2><div className="donut-layout"><div className="donut-chart" style={{ background: gradient ? `conic-gradient(${gradient})` : '#e8edf0' }}><span>{money(totals.expense)}</span></div><div className="donut-legend">{donut.map((item) => item.category ? <button type="button" key={item.category.id} onClick={() => onCategory(item.category!.id)}><i style={{ background: item.color }} /><span>{item.category.name}</span><b>{Math.round(item.percent)}%</b><ChevronRight /></button> : <div key={item.color}><i style={{ background: item.color }} /><span>其他</span><b>{Math.round(item.percent)}%</b></div>)}</div></div></section> : null}</main>
+  const gradient = rows.map((item) => { const start = stop; stop += item.percent; return `${item.color} ${start}% ${stop}%` }).join(', ')
+  const balanceSeries = buildBalanceSeries(sourceTransactions, range, period)
+  const periodTabs: ReportSelection[] = mode === 'balance' ? ['月', '年', '自訂'] : ['月', '近6個月', '年', '自訂']
+  const movePeriod = (delta: number) => {
+    const [year, month] = anchorMonth.split('-').map(Number)
+    const next = new Date(year, month - 1 + delta * (period === '年' ? 12 : 1), 1)
+    setAnchorMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
+  }
+  const changeMode = (value: ReportMode) => {
+    setMode(value)
+    setLegendPage(0)
+    if (value === 'balance' && period === '近6個月') setPeriod('月')
+  }
+  return <main className="workspace-page reports-v3">
+    <div className="report-primary-tabs" role="group" aria-label="報表類型">
+      {([['expense', '支出'], ['income', '收入'], ['balance', '結餘']] as const).map(([value, label]) => <button className={mode === value ? 'active' : ''} type="button" aria-pressed={mode === value} onClick={() => changeMode(value)} key={value}>{label}</button>)}
+    </div>
+    <div className={`report-period-tabs ${mode === 'balance' ? 'three' : ''}`} role="group" aria-label="報表期間">
+      {periodTabs.map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item); setLegendPage(0) }} key={item}>{item}</button>)}
+    </div>
+    <div className="report-period-switch">
+      {period !== '自訂' ? <button type="button" aria-label="上一個期間" onClick={() => movePeriod(-1)}><ChevronLeft /></button> : <span />}
+      <strong>{reportPeriodLabel(period, anchorMonth, range)}</strong>
+      {period !== '自訂' ? <button type="button" aria-label="下一個期間" onClick={() => movePeriod(1)}><ChevronRight /></button> : <span />}
+    </div>
+    {mode === 'balance' ? <BalanceReport totals={totals} series={balanceSeries} descending={descending} onToggleSort={() => setDescending((value) => !value)} onDate={onDate} /> : <>
+      <section className="report-chart-panel">
+        <button className="report-chart-toggle" type="button" aria-label={chartView === 'donut' ? '切換成柱狀圖' : '切換成圓環圖'} onClick={() => setChartView((value) => value === 'donut' ? 'bar' : 'donut')}>{chartView === 'donut' ? <ChartColumn /> : <ChartPie />}</button>
+        {rows.length ? chartView === 'donut' ? <div className="report-donut" style={{ background: `conic-gradient(${gradient})` }}><div><span>總{mode === 'income' ? '收入' : '支出'}</span><strong>{money(total)}</strong></div></div> : <CategoryBarChart rows={rows} /> : <div className="simple-empty compact">這個期間沒有{mode === 'income' ? '收入' : '支出'}資料</div>}
+      </section>
+      {rows.length ? <section className="report-legend-card">
+        <div className="report-legend-grid">{visibleLegend.map((item) => <button type="button" key={item.id} onClick={() => onCategory(direction, item.id)}><i style={{ background: item.color }} /><span>{item.category.name}</span><b>{Math.round(item.percent)}%</b></button>)}</div>
+        {legendPages > 1 ? <div className="report-legend-pages">{Array.from({ length: legendPages }, (_, index) => <button className={legendPage === index ? 'active' : ''} type="button" aria-label={`圖例第 ${index + 1} 頁`} onClick={() => setLegendPage(index)} key={index} />)}</div> : null}
+      </section> : null}
+      <section className="report-detail-card">
+        <header><h2>{mode === 'income' ? '收入' : '支出'}明細</h2><button type="button" aria-label={descending ? '改為金額由小到大' : '改為金額由大到小'} onClick={() => setDescending((value) => !value)}><ArrowUpDown /></button></header>
+        {sortedRows.length ? sortedRows.map((item) => <button type="button" key={item.id} onClick={() => onCategory(direction, item.id)}><EntityIcon iconKey={item.category.iconKey} /><span>{item.category.name}</span><strong>{money(item.amount)}</strong><ChevronRight /></button>) : <div className="simple-empty compact">沒有分類明細</div>}
+      </section>
+    </>}
+  </main>
 }
 
-function ReportCategoryPage({ store, categoryId, customRange, period, onEditTransaction }: { store: Store; categoryId: string; customRange: ReportRange; period: '本月' | '近三個月' | '今年' | '自訂'; onEditTransaction: (transaction: FinanceTransaction) => void }) {
+function CategoryBarChart({ rows }: { rows: { id: string; amount: number; category: Category; color: string }[] }) {
+  const visible = rows.slice(0, 8)
+  const max = Math.max(...visible.map((item) => item.amount), 1)
+  return <div className="report-category-columns">{visible.map((item) => <div key={item.id}><span>{money(item.amount)}</span><i style={{ height: `${Math.max(8, item.amount / max * 100)}%`, background: item.color }} /><b>{item.category.name}</b></div>)}</div>
+}
+
+type BalancePoint = { key: string; label: string; income: number; expense: number; balance: number }
+
+function buildBalanceSeries(transactions: FinanceTransaction[], range: { from: string; to: string }, period: ReportSelection): BalancePoint[] {
+  const spanDays = Math.round((new Date(`${range.to}T00:00:00`).getTime() - new Date(`${range.from}T00:00:00`).getTime()) / 86_400_000)
+  const groupByMonth = period === '年' || spanDays > 62
+  const groups = new Map<string, FinanceTransaction[]>()
+  for (const transaction of activeTransactions(transactions).filter((item) => item.occurredOn >= range.from && item.occurredOn <= range.to)) {
+    const key = groupByMonth ? transaction.occurredOn.slice(0, 7) : transaction.occurredOn
+    groups.set(key, [...(groups.get(key) ?? []), transaction])
+  }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, items]) => {
+    const totals = reportForRange(items, groupByMonth ? `${key}-01` : key, groupByMonth ? `${key}-31` : key)
+    return { key, label: groupByMonth ? `${Number(key.slice(5))} 月` : `${Number(key.slice(5, 7))} 月 ${Number(key.slice(8, 10))} 日`, income: totals.income, expense: totals.expense, balance: totals.balance }
+  })
+}
+
+function BalanceReport({ totals, series, descending, onToggleSort, onDate }: { totals: ReturnType<typeof reportForRange>; series: BalancePoint[]; descending: boolean; onToggleSort: () => void; onDate: (id: string) => void }) {
+  const displayed = descending ? [...series].reverse() : series
+  return <>
+    <section className="report-balance-summary"><span>支出 <b className="expense-text">-{money(totals.expense)}</b></span><span>收入 <b className="income-text">+{money(totals.income)}</b></span><strong>結餘 <b className={totals.balance < 0 ? 'expense-text' : 'income-text'}>{totals.balance > 0 ? '+' : ''}{money(totals.balance)}</b></strong></section>
+    <section className="report-chart-panel balance-chart-panel">{series.length ? <BalanceLineChart series={series} /> : <div className="simple-empty compact">這個期間沒有收支資料</div>}</section>
+    <section className="report-detail-card"><header><h2>日期明細</h2><button type="button" aria-label={descending ? '改為日期由舊到新' : '改為日期由新到舊'} onClick={onToggleSort}><ArrowUpDown /></button></header>{displayed.length ? displayed.map((item) => <button type="button" key={item.key} onClick={() => onDate(item.key)}><span>{item.label}</span><strong className={item.balance < 0 ? 'expense-text' : 'income-text'}>{item.balance > 0 ? '+' : ''}{money(item.balance)}</strong><ChevronRight /></button>) : <div className="simple-empty compact">沒有日期明細</div>}</section>
+  </>
+}
+
+function BalanceLineChart({ series }: { series: BalancePoint[] }) {
+  const width = 320
+  const height = 180
+  const chartTop = 14
+  const chartBottom = 142
+  const values = series.flatMap((item) => [item.income, item.expense, item.balance])
+  const highest = Math.max(0, ...values)
+  const lowest = Math.min(0, ...values)
+  const span = Math.max(1, highest - lowest)
+  const x = (index: number) => series.length === 1 ? width / 2 : 14 + index / (series.length - 1) * (width - 28)
+  const y = (value: number) => chartTop + (highest - value) / span * (chartBottom - chartTop)
+  const points = (key: 'income' | 'expense' | 'balance') => series.map((item, index) => `${x(index)},${y(item[key])}`).join(' ')
+  const labels = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])]
+  return <div className="balance-line-chart"><div className="balance-chart-legend"><span><i className="income" />收入</span><span><i className="expense" />支出</span><span><i className="balance" />結餘</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="收入、支出與結餘折線圖"><line className="zero-line" x1="14" x2={width - 14} y1={y(0)} y2={y(0)} />{(['income', 'expense', 'balance'] as const).map((key) => <g className={key} key={key}><polyline points={points(key)} />{series.map((item, index) => <circle cx={x(index)} cy={y(item[key])} r="3" key={`${key}-${item.key}`} />)}</g>)}{labels.map((index) => <text x={x(index)} y="169" textAnchor={index === 0 ? 'start' : index === series.length - 1 ? 'end' : 'middle'} key={series[index].key}>{series[index].label.replaceAll(' ', '')}</text>)}</svg></div>
+}
+
+function ReportCategoryPage({ store, reference, customRange, period, anchorMonth, onEditTransaction }: { store: Store; reference: string; customRange: ReportRange; period: ReportSelection; anchorMonth: string; onEditTransaction: (transaction: FinanceTransaction) => void }) {
+  const [rawDirection, categoryId] = reference.split(':')
+  const direction: Direction = rawDirection === 'income' ? 'income' : 'expense'
   const category = store.data.categories.find((item) => item.id === categoryId)
-  const range = period === '自訂' ? customRange : monthRange(period)
+  const range = selectionRange(period, anchorMonth, customRange)
   const accountFilter = period === '自訂' ? customRange.accountId : ''
   const projectFilter = period === '自訂' ? customRange.projectId : ''
-  const transactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.occurredOn >= range.from && transaction.occurredOn <= range.to && (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter) && transaction.reportLines.some((line) => line.direction === 'expense' && line.categoryId === categoryId))
-  const total = transactions.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'expense' && line.categoryId === categoryId)).reduce((sum, line) => sum + line.amountTwdMinor, 0)
+  const transactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.occurredOn >= range.from && transaction.occurredOn <= range.to && (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter) && transaction.reportLines.some((line) => line.direction === direction && line.categoryId === categoryId))
+  const total = transactions.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === direction && line.categoryId === categoryId)).reduce((sum, line) => sum + line.amountTwdMinor, 0)
   if (!category) return <main className="workspace-page"><div className="simple-empty">找不到分類</div></main>
-  return <main className="workspace-page"><section className="report-category-summary"><EntityIcon iconKey={category.iconKey} /><span><small>{period}支出</small><strong>{category.name}</strong></span><b>{money(total)}</b></section><TransactionRows transactions={transactions} data={store.data} onEdit={onEditTransaction} /></main>
+  return <main className="workspace-page"><section className="report-category-summary"><EntityIcon iconKey={category.iconKey} /><span><small>{period}{direction === 'income' ? '收入' : '支出'}</small><strong>{category.name}</strong></span><b className={direction === 'income' ? 'income-text' : 'expense-text'}>{money(total)}</b></section><TransactionRows transactions={transactions} data={store.data} onEdit={onEditTransaction} /></main>
 }
 
-function TrendBars({ series, mode }: { series: { label: string; value: number }[]; mode: 'income' | 'expense' | 'assets' }) {
-  const max = Math.max(...series.map((item) => Math.abs(item.value)), 1)
-  return <section className="report-card"><div className="chart-title-v2"><h2>{mode === 'income' ? '收入' : mode === 'expense' ? '支出' : '淨資產'}趨勢</h2><span>單位：萬元</span></div><div className={`trend-bars-v2 ${mode}`}>{series.map((item) => <div key={item.label}><i style={{ height: `${Math.max(4, Math.abs(item.value) / max * 100)}%` }} /><span>{item.label}</span></div>)}</div></section>
-}
-
-function buildReportSeries(data: FinanceData, from: string, to: string) {
-  let months = monthSequence(from, to)
-  if (months.length < 6) {
-    const [endYear, endMonth] = to.slice(0, 7).split('-').map(Number)
-    const start = new Date(endYear, endMonth - 6, 1)
-    months = monthSequence(`${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`, to)
-  }
-  return months.map((month) => {
-    const report = reportForMonth(data.transactions, month)
-    const transactionsToDate = data.transactions.filter((item) => item.occurredOn <= `${month}-31`)
-    const net = calculateNetWorth(data.accounts, calculateBalances(data.accounts, transactionsToDate))
-    return { month, income: report.income, expense: report.expense, netWorth: net.netWorth }
-  })
+function ReportDatePage({ store, dateKey, customRange, period, onEditTransaction }: { store: Store; dateKey: string; customRange: ReportRange; period: ReportSelection; onEditTransaction: (transaction: FinanceTransaction) => void }) {
+  const from = dateKey.length === 7 ? `${dateKey}-01` : dateKey
+  const to = dateKey.length === 7 ? `${dateKey}-31` : dateKey
+  const accountFilter = period === '自訂' ? customRange.accountId : ''
+  const projectFilter = period === '自訂' ? customRange.projectId : ''
+  const transactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.occurredOn >= from && transaction.occurredOn <= to && (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter) && transaction.reportLines.length)
+  const totals = reportForRange(transactions, from, to)
+  const label = dateKey.length === 7 ? `${Number(dateKey.slice(0, 4))} 年 ${Number(dateKey.slice(5, 7))} 月` : `${Number(dateKey.slice(5, 7))} 月 ${Number(dateKey.slice(8, 10))} 日`
+  return <main className="workspace-page"><section className="report-category-summary report-date-summary"><span><small>{label}</small><strong>結餘 {totals.balance > 0 ? '+' : ''}{money(totals.balance)}</strong></span><b>收入 {money(totals.income)}<small>支出 {money(totals.expense)}</small></b></section><TransactionRows transactions={transactions} data={store.data} onEdit={onEditTransaction} /></main>
 }
 
 function BudgetSummaryPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {

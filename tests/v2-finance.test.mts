@@ -10,6 +10,7 @@ import {
   monthlyBudgetRows,
   monthSequence,
   pendingRecurring,
+  reportRangeForPeriod,
   reportForMonth,
   toMinor,
   todayIso,
@@ -58,6 +59,12 @@ test('舊版已寫入代墊份額的結清金額時，不再顯示為未結清',
 test('報表月份序列不受台灣時區影響而多出前一個月', () => {
   assert.deepEqual(monthSequence('2026-08-01', '2026-08-31'), ['2026-08'])
   assert.deepEqual(monthSequence('2026-06-01', '2026-08-31'), ['2026-06', '2026-07', '2026-08'])
+})
+
+test('新版報表可依指定月份產生月、近 6 個月與年度區間', () => {
+  assert.deepEqual(reportRangeForPeriod('月', '2026-08'), { from: '2026-08-01', to: '2026-08-31' })
+  assert.deepEqual(reportRangeForPeriod('近6個月', '2026-08'), { from: '2026-03-01', to: '2026-08-31' })
+  assert.deepEqual(reportRangeForPeriod('年', '2026-08'), { from: '2026-01-01', to: '2026-12-31' })
 })
 
 test('外幣以最小單位儲存，淨資產依參考匯率換算台幣', () => {

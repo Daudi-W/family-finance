@@ -164,6 +164,19 @@ export function monthRange(period: '本月' | '近三個月' | '今年', now = t
   }
 }
 
+export type ReportPeriod = '月' | '近6個月' | '年'
+
+export function reportRangeForPeriod(period: ReportPeriod, anchorMonth = monthKey(todayIso())) {
+  const [year, month] = anchorMonth.split('-').map(Number)
+  if (period === '月') return { from: `${anchorMonth}-01`, to: `${anchorMonth}-31` }
+  if (period === '年') return { from: `${year}-01-01`, to: `${year}-12-31` }
+  const start = new Date(year, month - 6, 1)
+  return {
+    from: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`,
+    to: `${anchorMonth}-31`,
+  }
+}
+
 export function monthSequence(from: string, to: string) {
   const [startYear, startMonth] = from.slice(0, 7).split('-').map(Number)
   const [endYear, endMonth] = to.slice(0, 7).split('-').map(Number)
