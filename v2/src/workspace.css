@@ -663,6 +663,71 @@
   color: var(--expense);
 }
 
+.advance-person-name {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 6px 0;
+}
+
+.advance-name-choices {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.advance-name-choices::-webkit-scrollbar {
+  display: none;
+}
+
+.advance-share-row .advance-name-choices button {
+  min-width: max-content;
+  min-height: 30px;
+  padding: 0 10px;
+  color: var(--primary-dark);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advance-share-row .advance-name-choices button.selected {
+  color: #fff;
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.advance-people-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 18px;
+}
+
+.advance-people-preview span {
+  padding: 6px 10px;
+  color: var(--primary-dark);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.advance-person-add {
+  margin: 0 0 14px;
+}
+
+.advance-people-list > div {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+}
+
+.advance-people-list > div.simple-empty {
+  display: block;
+}
+
 .workspace-topbar h1,
 .month-picker strong,
 .home-summary strong,

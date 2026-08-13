@@ -153,7 +153,7 @@ export type FinanceData = {
   transactions: FinanceTransaction[]
   budgets: Budget[]
   recurringRules: RecurringRule[]
-  /** 舊版資料相容用途；新版 UI 不提供獨立的代墊對象管理。 */
+  /** 代墊常用姓名；交易仍內嵌姓名，封存名單後歷史明細不受影響。 */
   advancePeople: AdvancePerson[]
 }
 
