@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type TouchEvent } from 'react'
 import type { User } from 'firebase/auth'
 import {
   ArrowDownLeft,
@@ -7,8 +7,10 @@ import {
   CalendarDays,
   ChartPie,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   CircleDollarSign,
   Eye,
   EyeOff,
@@ -69,7 +71,7 @@ type RouteName =
   | 'home' | 'accounts' | 'entry' | 'reports' | 'more'
   | 'transactions' | 'budget' | 'budget-category' | 'budgets' | 'budget-form' | 'pending'
   | 'account-detail' | 'account-form' | 'account-adjust'
-  | 'transaction-filter' | 'report-filter'
+  | 'transaction-filter' | 'report-filter' | 'report-category'
   | 'categories' | 'category-form' | 'category-picker'
   | 'account-picker' | 'project-picker'
   | 'projects' | 'project-detail' | 'project-form'
@@ -125,14 +127,18 @@ const formatEntryDate = (date: string) => {
   const weekday = new Intl.DateTimeFormat('zh-TW', { weekday: 'short' }).format(value)
   return `${value.getFullYear()} 年 ${value.getMonth() + 1} 月 ${value.getDate()} 日 ${weekday}`
 }
-const relativeDate = (date: string) => {
-  const today = todayIso()
-  const yesterdayDate = new Date(`${today}T00:00:00`)
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-  const yesterday = `${yesterdayDate.getFullYear()}-${String(yesterdayDate.getMonth() + 1).padStart(2, '0')}-${String(yesterdayDate.getDate()).padStart(2, '0')}`
-  return date === today ? '今天' : date === yesterday ? '昨天' : formatDate(date)
-}
 const currentMonth = () => monthKey(todayIso())
+const displayAmount = (value: string) => Number(value.replaceAll(',', '')) || 0
+const formatDateHeading = (date: string) => {
+  const value = new Date(`${date}T00:00:00`)
+  const weekday = new Intl.DateTimeFormat('zh-TW', { weekday: 'short' }).format(value)
+  return `${value.getMonth() + 1}/${value.getDate()} ${weekday}`
+}
+const touchSortTarget = (event: TouchEvent) => {
+  const touch = event.touches[0] ?? event.changedTouches[0]
+  if (!touch) return ''
+  return document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-sort-id]')?.dataset.sortId ?? ''
+}
 
 function emptyEntry(kind: EntryKind = 'expense', accountId = '', categoryId = '', toAccountId = ''): EntryDraft {
   return { kind, date: todayIso(), amount: '', toAmount: '', categoryId, accountId, toAccountId, projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
@@ -253,8 +259,9 @@ export default function Workspace({ user }: { user: User }) {
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
       case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter} onChange={setTransactionFilter} onDone={back} />
-      case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} onCustom={() => push({ name: 'report-filter' })} />
+      case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} onCustom={() => push({ name: 'report-filter' })} onCategory={(id) => push({ name: 'report-category', id })} />
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
+      case 'report-category': return <ReportCategoryPage store={store} categoryId={route.id ?? ''} customRange={reportRange} period={reportPeriod} onEditTransaction={editTransaction} />
       case 'budget': return <BudgetSummaryPage store={store} onPush={push} />
       case 'budget-category': return <BudgetCategoryPage store={store} categoryId={route.id ?? ''} onEditTransaction={editTransaction} />
       case 'more': return <MorePage onPush={push} />
@@ -322,7 +329,7 @@ function routeTitle(route: Route, data: FinanceData) {
   const staticTitles: Partial<Record<RouteName, string>> = {
     home: '首頁', accounts: '帳戶', entry: route.id ? '編輯明細' : '記一筆', reports: '統計報表', more: '更多管理',
     transactions: '交易明細', budget: '本月收支與預算', 'budget-category': '分類預算明細', budgets: '預算設定', 'budget-form': route.id ? '編輯分類預算' : '新增分類預算', pending: '待確認',
-    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間',
+    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類支出明細',
     'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', settlement: '登記收款／還款',
@@ -391,19 +398,25 @@ function HomePage({ store, onPush, onEditTransaction, hideBalances }: { store: S
   </main>
 }
 
-function TransactionRows({ transactions, data, onEdit, hideBalances = false }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean }) {
+function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean }) {
   if (transactions.length === 0) return <div className="simple-empty">目前沒有交易</div>
-  return <div className="workspace-list">{transactions.map((transaction) => {
+  const sorted = [...transactions].sort((a, b) => b.occurredOn.localeCompare(a.occurredOn) || b.updatedAt.localeCompare(a.updatedAt))
+  const grouped = sorted.reduce<Record<string, FinanceTransaction[]>>((result, transaction) => {
+    result[transaction.occurredOn] = [...(result[transaction.occurredOn] ?? []), transaction]
+    return result
+  }, {})
+  const groups: [string, FinanceTransaction[]][] = showDateHeading ? Object.entries(grouped) : [['', sorted]]
+  return <div className="transaction-date-groups">{groups.map(([date, items]) => <section className="transaction-date-group" key={date || 'selected-day'}>{date ? <h3>{formatDateHeading(date)}</h3> : null}<div className="workspace-list">{items.map((transaction) => {
     const line = transaction.reportLines[0]
     const category = data.categories.find((item) => item.id === line?.categoryId)
     const account = data.accounts.find((item) => item.id === transaction.accountMoves[0]?.accountId)
     const amount = line ? line.amountTwdMinor * (line.direction === 'expense' ? -1 : 1) : transaction.transfer?.fromAmountMinor ? -transaction.transfer.fromAmountMinor : transaction.settlement?.amountMinor ?? 0
     return <button className="transaction-row-v2" type="button" key={transaction.id} onClick={() => onEdit(transaction)}>
       <EntityIcon iconKey={category?.iconKey ?? (transaction.kind === 'transfer' ? 'rotate-ccw' : transaction.kind === 'settlement' ? 'hand-coins' : 'receipt-text')} />
-      <span><strong>{transaction.note || category?.name || transactionLabels[transaction.kind]}</strong><small>{category?.name ?? transactionLabels[transaction.kind]}{account ? ` · ${account.name}` : ''} · {relativeDate(transaction.occurredOn)}</small></span>
+      <span><strong>{transaction.note || category?.name || transactionLabels[transaction.kind]}</strong><small>{category?.name ?? transactionLabels[transaction.kind]}{account ? ` · ${account.name}` : ''}</small></span>
       <b className={amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''}>{hideBalances ? '••••' : `${amount > 0 ? '+' : ''}${money(amount)}`}<small>明細 ›</small></b>
     </button>
-  })}</div>
+  })}</div></section>)}</div>
 }
 
 function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store; onPush: (route: Route) => void; hideBalances: boolean; managing: boolean }) {
@@ -418,6 +431,11 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
     const next = [...accounts]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved)
     await Promise.all(next.map((item, index) => store.save('accounts', { id: item.id, sortOrder: index })))
   }
+  const move = (items: Account[], id: string, delta: number) => {
+    const index = items.findIndex((item) => item.id === id)
+    const target = items[index + delta]
+    if (target) void reorder(id, target.id)
+  }
   const groups = [
     { key: 'cash', label: '現金', items: accounts.filter((item) => item.type === 'cash' && item.currency === 'TWD') },
     { key: 'bank', label: '銀行', items: accounts.filter((item) => item.type === 'bank' && item.currency === 'TWD') },
@@ -427,7 +445,7 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
   ].filter((group) => group.items.length)
   return <main className="workspace-page">
     <section className="net-worth-v2"><span>家庭淨資產</span><strong>{hideBalances ? '••••••' : money(netWorth.netWorth)}</strong><div><span>總資產 <b>{hideBalances ? '••••' : money(netWorth.assets)}</b></span><span>總負債 <b>{hideBalances ? '••••' : money(netWorth.liabilities)}</b></span></div></section>
-    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span>{hideBalances ? '••••' : group.key === 'credit_card' ? `待繳 ${money(group.items.reduce((sum, item) => sum + Math.max(0, balances[item.id] ?? 0), 0))}` : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account) => <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <button type="button" className="account-drag" aria-label={`拖曳${account.name}`}><GripVertical /></button> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={account.type === 'credit_card' ? 'expense-text' : ''}>{hideBalances ? '••••' : money((account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0), account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div>)}</div></section>)}
+    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span>{hideBalances ? '••••' : group.key === 'credit_card' ? `待繳 ${money(group.items.reduce((sum, item) => sum + Math.max(0, balances[item.id] ?? 0), 0))}` : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account, index) => <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} data-sort-id={account.id} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <div className="account-sort-controls"><button type="button" className="account-drag" aria-label={`拖曳${account.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(account.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(account.id, touchSortTarget(event)) }}><GripVertical /></button><span><button type="button" aria-label={`${account.name}上移`} disabled={index === 0} onClick={() => move(group.items, account.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${account.name}下移`} disabled={index === group.items.length - 1} onClick={() => move(group.items, account.id, 1)}><ChevronDown /></button></span></div> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={account.type === 'credit_card' ? 'expense-text' : ''}>{hideBalances ? '••••' : money((account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0), account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div>)}</div></section>)}
   </main>
 }
 
@@ -504,7 +522,7 @@ function EntryPage({ store, draft, setDraft, editingId, onPush, onBack, onDone, 
     <header className="entry-page-head">
       <IconButton label="返回上一頁" onClick={onBack}><ArrowLeft /></IconButton>
       <div className="entry-kind-tabs">{(['expense', 'income', 'transfer', 'advance'] as EntryKind[]).map((kind) => <button className={draft.kind === kind ? 'active' : ''} type="button" key={kind} onClick={() => changeKind(kind)}>{{ expense: '支出', income: '收入', transfer: '轉帳', advance: '代墊' }[kind]}</button>)}</div>
-      <span />
+      <button className="entry-head-save" type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '儲存中' : '儲存'}</button>
     </header>
     <div className="entry-page-content">
       <label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label>
@@ -585,23 +603,34 @@ function budgetHint(categoryId: string, data: FinanceData) {
 }
 
 function AdvanceShareFields({ draft, setDraft }: { draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void }) {
+  const syncTotal = (current: EntryDraft, shares: Record<string, string>, ownShare = current.ownShare) => {
+    if (current.advanceDirection !== 'receivable' || current.shareOrder.length < 2) return current.amount
+    const peopleTotal = current.shareOrder.reduce((sum, id) => sum + displayAmount(shares[id] ?? ''), 0)
+    return String(peopleTotal + displayAmount(ownShare))
+  }
   const addShare = () => {
     const id = crypto.randomUUID()
     setDraft((current) => {
       const firstId = current.shareOrder[0]
       const automaticallyCalculated = Math.max(0, Number(current.amount.replaceAll(',', '')) - Number((current.ownShare || '0').replaceAll(',', '')))
-      return { ...current, shares: { ...current.shares, ...(current.shareOrder.length === 1 && firstId ? { [firstId]: String(automaticallyCalculated || '') } : {}), [id]: '' }, shareNames: { ...current.shareNames, [id]: '' }, shareOrder: [...current.shareOrder, id] }
+      const shares = { ...current.shares, ...(current.shareOrder.length === 1 && firstId ? { [firstId]: String(automaticallyCalculated || '') } : {}), [id]: '' }
+      return { ...current, amount: String(automaticallyCalculated + displayAmount(current.ownShare)), shares, shareNames: { ...current.shareNames, [id]: '' }, shareOrder: [...current.shareOrder, id] }
     })
   }
-  const removeShare = (id: string) => setDraft((current) => ({ ...current, shareOrder: current.shareOrder.filter((item) => item !== id) }))
+  const removeShare = (id: string) => setDraft((current) => {
+    const shareOrder = current.shareOrder.filter((item) => item !== id)
+    const shares = { ...current.shares }; delete shares[id]
+    const amount = current.shareOrder.length > 1 ? String(shareOrder.reduce((sum, personId) => sum + displayAmount(shares[personId] ?? ''), 0) + displayAmount(current.ownShare)) : current.amount
+    return { ...current, amount, shares, shareOrder }
+  })
   const singleReceivable = draft.advanceDirection === 'receivable' && draft.shareOrder.length === 1
   const automaticallyCalculated = Math.max(0, Number(draft.amount.replaceAll(',', '')) - Number((draft.ownShare || '0').replaceAll(',', '')))
   return <div className="advance-shares">
     <p>{draft.advanceDirection === 'receivable' ? singleReceivable ? '填寫應還款的人，金額會自動計算' : '填寫每個人各自應還的金額' : '填寫這次代墊者'}</p>
-    {(draft.advanceDirection === 'payable' ? draft.shareOrder.slice(0, 1) : draft.shareOrder).map((id) => <div className={`advance-share-row ${draft.advanceDirection === 'payable' ? 'payable-person-row' : singleReceivable ? 'single-person-row' : ''}`} key={id}><input aria-label="姓名" placeholder={draft.advanceDirection === 'receivable' ? '姓名' : '代墊者'} value={draft.shareNames[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shareNames: { ...current.shareNames, [id]: event.target.value } }))} />{draft.advanceDirection === 'receivable' ? singleReceivable ? <span className="auto-share-amount">應還 {draft.amount ? new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(automaticallyCalculated) : '依總額計算'}</span> : <><input aria-label="應還金額" inputMode="decimal" placeholder="金額" value={draft.shares[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shares: { ...current.shares, [id]: event.target.value } }))} /><button type="button" aria-label="移除" onClick={() => removeShare(id)}><X /></button></> : null}</div>)}
+    {(draft.advanceDirection === 'payable' ? draft.shareOrder.slice(0, 1) : draft.shareOrder).map((id) => <div className={`advance-share-row ${draft.advanceDirection === 'payable' ? 'payable-person-row' : singleReceivable ? 'single-person-row' : ''}`} key={id}><input aria-label="姓名" placeholder={draft.advanceDirection === 'receivable' ? '姓名' : '代墊者'} value={draft.shareNames[id] ?? ''} onChange={(event) => setDraft((current) => ({ ...current, shareNames: { ...current.shareNames, [id]: event.target.value } }))} />{draft.advanceDirection === 'receivable' ? singleReceivable ? <span className="auto-share-amount">應還 {draft.amount ? new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 2 }).format(automaticallyCalculated) : '依總額計算'}</span> : <><input aria-label="應還金額" inputMode="decimal" placeholder="金額" value={draft.shares[id] ?? ''} onChange={(event) => setDraft((current) => { const shares = { ...current.shares, [id]: event.target.value }; return { ...current, amount: syncTotal(current, shares), shares } })} /><button type="button" aria-label="移除" onClick={() => removeShare(id)}><X /></button></> : null}</div>)}
     {draft.advanceDirection === 'receivable' ? <button className="add-share-button" type="button" onClick={addShare}><Plus />新增對象</button> : null}
-    {draft.advanceDirection === 'receivable' ? <label className="advance-own-toggle"><input type="checkbox" checked={draft.ownShare !== ''} onChange={(event) => setDraft((current) => ({ ...current, ownShare: event.target.checked ? '0' : '' }))} /><span>這筆也包含我的消費</span></label> : null}
-    {draft.advanceDirection === 'receivable' && draft.ownShare !== '' ? <label className="advance-own-row"><span>我自己負擔</span><input inputMode="decimal" value={draft.ownShare} onChange={(event) => setDraft((current) => ({ ...current, ownShare: event.target.value }))} /></label> : null}
+    {draft.advanceDirection === 'receivable' ? <label className="advance-own-toggle"><input type="checkbox" checked={draft.ownShare !== ''} onChange={(event) => setDraft((current) => { const ownShare = event.target.checked ? '0' : ''; return { ...current, amount: syncTotal(current, current.shares, ownShare), ownShare } })} /><span>這筆也包含我的消費</span></label> : null}
+    {draft.advanceDirection === 'receivable' && draft.ownShare !== '' ? <label className="advance-own-row"><span>我自己負擔</span><input inputMode="decimal" value={draft.ownShare} onChange={(event) => setDraft((current) => ({ ...current, amount: syncTotal(current, current.shares, event.target.value), ownShare: event.target.value }))} /></label> : null}
   </div>
 }
 
@@ -698,7 +727,7 @@ function TransactionCalendar({ store, onEdit }: { store: Store; onEdit: (transac
   const moveMonth = (delta: number) => { const date = new Date(yearNumber, monthNumber - 1 + delta, 1); const next = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; setMonth(next); setSelected(`${next}-01`) }
   const selectedItems = byDay[selected] ?? []
   const selectedReport = reportForRange(selectedItems, selected, selected)
-  return <><div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><strong>{yearNumber} 年 {monthNumber} 月</strong><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={selected === date ? 'selected' : ''} type="button" key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(selected)}</strong><span>{selectedItems.length ? `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} /></>
+  return <><div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><strong>{yearNumber} 年 {monthNumber} 月</strong><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={selected === date ? 'selected' : ''} type="button" key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(selected)}</strong><span>{selectedItems.length ? `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} showDateHeading={false} /></>
 }
 
 function TransactionFilterPage({ store, value, onChange, onDone }: { store: Store; value: TransactionFilter; onChange: (value: TransactionFilter) => void; onDone: () => void }) {
@@ -711,7 +740,7 @@ function ReportFilterPage({ store, value, onChange, onDone }: { store: Store; va
   return <main className="workspace-page"><form className="settings-form" onSubmit={(event) => { event.preventDefault(); onChange(draft); onDone() }}><div className="form-columns"><label><span>開始日期</span><input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label><label><span>結束日期</span><input type="date" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label></div><label><span>帳戶</span><select value={draft.accountId} onChange={(event) => setDraft({ ...draft, accountId: event.target.value })}><option value="">全部帳戶</option>{activeSorted(store.data.accounts).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><label><span>專案</span><select value={draft.projectId} onChange={(event) => setDraft({ ...draft, projectId: event.target.value })}><option value="">全部專案</option>{activeSorted(store.data.projects).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button className="primary-button" type="submit">套用報表區間</button></form></main>
 }
 
-function ReportsPage({ store, customRange, period, setPeriod, onCustom }: { store: Store; customRange: ReportRange; period: '本月' | '近三個月' | '今年' | '自訂'; setPeriod: (value: '本月' | '近三個月' | '今年' | '自訂') => void; onCustom: () => void }) {
+function ReportsPage({ store, customRange, period, setPeriod, onCustom, onCategory }: { store: Store; customRange: ReportRange; period: '本月' | '近三個月' | '今年' | '自訂'; setPeriod: (value: '本月' | '近三個月' | '今年' | '自訂') => void; onCustom: () => void; onCategory: (id: string) => void }) {
   const [mode, setMode] = useState<'income' | 'expense' | 'assets'>('expense')
   const range = period === '自訂' ? customRange : monthRange(period)
   const accountFilter = period === '自訂' ? customRange.accountId : ''
@@ -729,7 +758,18 @@ function ReportsPage({ store, customRange, period, setPeriod, onCustom }: { stor
   const donut = categories.length ? categories.map((item, index) => ({ ...item, color: colors[index % colors.length], percent: item.amount / Math.max(1, totals.expense) * 100 })) : []
   let stop = 0
   const gradient = donut.map((item) => { const start = stop; stop += item.percent; return `${item.color} ${start}% ${stop}%` }).join(', ')
-  return <main className="workspace-page"><div className="filter-chips report-period">{(['本月', '近三個月', '今年', '自訂'] as const).map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item) }} key={item}>{item}</button>)}</div><div className="report-mode-tabs"><button className={mode === 'income' ? 'active' : ''} type="button" onClick={() => setMode('income')}>收入趨勢</button><button className={mode === 'expense' ? 'active' : ''} type="button" onClick={() => setMode('expense')}>支出趨勢</button><button className={mode === 'assets' ? 'active' : ''} type="button" onClick={() => setMode('assets')}>淨資產趨勢</button></div><section className="report-summary"><article><span>{mode === 'income' ? '收入' : mode === 'expense' ? '支出' : '家庭淨資產'}</span><b className={mode === 'income' ? 'income-text' : mode === 'expense' ? 'expense-text' : ''}>{money(modeTotal)}</b></article>{mode === 'assets' ? <><article><span>總資產</span><b>{money(net.assets)}</b></article><article><span>總負債</span><b>{money(net.liabilities)}</b></article></> : <article><span>本期結餘</span><b>{money(totals.balance)}</b></article>}</section><TrendBars series={monthSeries.map((item, index) => ({ label: `${Number(item.month.slice(5))}月`, value: trendValues[index] ?? 0 }))} mode={mode} />{mode === 'expense' ? <section className="report-card"><h2>支出分類</h2><div className="donut-layout"><div className="donut-chart" style={{ background: gradient ? `conic-gradient(${gradient})` : '#e8edf0' }}><span>{money(totals.expense)}</span></div><div className="donut-legend">{donut.map((item) => <div key={item.category?.id ?? item.color}><i style={{ background: item.color }} /><span>{item.category?.name ?? '其他'}</span><b>{Math.round(item.percent)}%</b></div>)}</div></div></section> : null}</main>
+  return <main className="workspace-page"><div className="filter-chips report-period">{(['本月', '近三個月', '今年', '自訂'] as const).map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item) }} key={item}>{item}</button>)}</div><div className="report-mode-tabs"><button className={mode === 'income' ? 'active' : ''} type="button" onClick={() => setMode('income')}>收入趨勢</button><button className={mode === 'expense' ? 'active' : ''} type="button" onClick={() => setMode('expense')}>支出趨勢</button><button className={mode === 'assets' ? 'active' : ''} type="button" onClick={() => setMode('assets')}>淨資產趨勢</button></div><section className="report-summary"><article><span>{mode === 'income' ? '收入' : mode === 'expense' ? '支出' : '家庭淨資產'}</span><b className={mode === 'income' ? 'income-text' : mode === 'expense' ? 'expense-text' : ''}>{money(modeTotal)}</b></article>{mode === 'assets' ? <><article><span>總資產</span><b>{money(net.assets)}</b></article><article><span>總負債</span><b>{money(net.liabilities)}</b></article></> : <article><span>本期結餘</span><b>{money(totals.balance)}</b></article>}</section><TrendBars series={monthSeries.map((item, index) => ({ label: `${Number(item.month.slice(5))}月`, value: trendValues[index] ?? 0 }))} mode={mode} />{mode === 'expense' ? <section className="report-card"><h2>支出分類</h2><div className="donut-layout"><div className="donut-chart" style={{ background: gradient ? `conic-gradient(${gradient})` : '#e8edf0' }}><span>{money(totals.expense)}</span></div><div className="donut-legend">{donut.map((item) => item.category ? <button type="button" key={item.category.id} onClick={() => onCategory(item.category!.id)}><i style={{ background: item.color }} /><span>{item.category.name}</span><b>{Math.round(item.percent)}%</b><ChevronRight /></button> : <div key={item.color}><i style={{ background: item.color }} /><span>其他</span><b>{Math.round(item.percent)}%</b></div>)}</div></div></section> : null}</main>
+}
+
+function ReportCategoryPage({ store, categoryId, customRange, period, onEditTransaction }: { store: Store; categoryId: string; customRange: ReportRange; period: '本月' | '近三個月' | '今年' | '自訂'; onEditTransaction: (transaction: FinanceTransaction) => void }) {
+  const category = store.data.categories.find((item) => item.id === categoryId)
+  const range = period === '自訂' ? customRange : monthRange(period)
+  const accountFilter = period === '自訂' ? customRange.accountId : ''
+  const projectFilter = period === '自訂' ? customRange.projectId : ''
+  const transactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.occurredOn >= range.from && transaction.occurredOn <= range.to && (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter) && transaction.reportLines.some((line) => line.direction === 'expense' && line.categoryId === categoryId))
+  const total = transactions.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'expense' && line.categoryId === categoryId)).reduce((sum, line) => sum + line.amountTwdMinor, 0)
+  if (!category) return <main className="workspace-page"><div className="simple-empty">找不到分類</div></main>
+  return <main className="workspace-page"><section className="report-category-summary"><EntityIcon iconKey={category.iconKey} /><span><small>{period}支出</small><strong>{category.name}</strong></span><b>{money(total)}</b></section><TransactionRows transactions={transactions} data={store.data} onEdit={onEditTransaction} /></main>
 }
 
 function TrendBars({ series, mode }: { series: { label: string; value: number }[]; mode: 'income' | 'expense' | 'assets' }) {
@@ -791,7 +831,12 @@ function CategoryManager({ store, onPush }: { store: Store; onPush: (route: Rout
     const next = [...categories]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved)
     await Promise.all(next.map((item, index) => store.save('categories', { id: item.id, sortOrder: index })))
   }
-  return <main className="workspace-page"><div className="view-toggle-v2"><button className={direction === 'expense' ? 'active' : ''} type="button" onClick={() => setDirection('expense')}>支出類別</button><button className={direction === 'income' ? 'active' : ''} type="button" onClick={() => setDirection('income')}>收入類別</button></div><div className="category-manage-actions"><button type="button" onClick={() => setSorting((value) => !value)}>{sorting ? '完成排序' : '排序'}</button><button type="button" onClick={() => onPush({ name: 'category-form' })}>＋ 新增類別</button></div><div className="category-manager-grid">{categories.map((category) => <button className={`category-tile ${category.archivedAt ? 'archived' : ''}`} type="button" draggable={sorting} key={category.id} onDragStart={() => setDragging(category.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, category.id)} onClick={() => { if (!sorting) onPush({ name: 'category-form', id: category.id }) }}>{sorting ? <GripVertical /> : null}<EntityIcon iconKey={category.iconKey} /><b>{category.name}</b></button>)}</div></main>
+  const move = (id: string, delta: number) => {
+    const index = categories.findIndex((item) => item.id === id)
+    const target = categories[index + delta]
+    if (target) void reorder(id, target.id)
+  }
+  return <main className="workspace-page"><div className="view-toggle-v2"><button className={direction === 'expense' ? 'active' : ''} type="button" onClick={() => setDirection('expense')}>支出類別</button><button className={direction === 'income' ? 'active' : ''} type="button" onClick={() => setDirection('income')}>收入類別</button></div><div className="category-manage-actions"><button type="button" onClick={() => setSorting((value) => !value)}>{sorting ? '完成排序' : '排序'}</button><button type="button" onClick={() => onPush({ name: 'category-form' })}>＋ 新增類別</button></div>{sorting ? <p className="sort-help">拖曳圖示調整順序，或使用上移、下移。</p> : null}<div className="category-manager-grid">{categories.map((category, index) => <div className={`category-tile ${category.archivedAt ? 'archived' : ''} ${sorting ? 'is-sorting' : ''}`} data-sort-id={category.id} draggable={sorting} key={category.id} onDragStart={() => setDragging(category.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, category.id)}>{sorting ? <div className="category-main"><button type="button" className="category-drag" aria-label={`拖曳${category.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(category.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(category.id, touchSortTarget(event)) }}><GripVertical /></button><EntityIcon iconKey={category.iconKey} /><b>{category.name}</b></div> : <button className="category-main" type="button" onClick={() => onPush({ name: 'category-form', id: category.id })}><EntityIcon iconKey={category.iconKey} /><b>{category.name}</b></button>}{sorting ? <span className="category-sort-actions"><button type="button" aria-label={`${category.name}上移`} disabled={index === 0} onClick={() => move(category.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${category.name}下移`} disabled={index === categories.length - 1} onClick={() => move(category.id, 1)}><ChevronDown /></button></span> : null}</div>)}</div></main>
 }
 
 function CategoryForm({ store, categoryId, onDone }: { store: Store; categoryId?: string; onDone: () => void }) {
