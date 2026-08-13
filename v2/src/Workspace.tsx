@@ -105,7 +105,7 @@ type EntryDraft = {
 type TransactionFilter = { kind: 'all' | TransactionKind; categoryId: string; projectId: string; from: string; to: string }
 type ReportRange = { from: string; to: string; accountId: string; projectId: string }
 type ReportSelection = ReportPeriod | '自訂'
-type ReportMode = 'expense' | 'income' | 'balance'
+type ReportMode = 'expense' | 'income' | 'balance' | 'netWorth'
 
 type Store = ReturnType<typeof useFinanceStore>
 
@@ -127,7 +127,11 @@ const numberValue = (value: string) => Math.max(0, Math.round(Number(value.repla
 const inflowDelta = (account: Account, amount: number) => account.type === 'credit_card' ? -amount : amount
 const outflowDelta = (account: Account, amount: number) => account.type === 'credit_card' ? amount : -amount
 const toTwdMinor = (amountMinor: number, account: Account) => Math.round(fromMinor(amountMinor, account.currency) * (account.currency === 'TWD' ? 1 : account.referenceRateToTwd ?? 0))
-const formatDate = (date: string) => new Intl.DateTimeFormat('zh-TW', { month: 'numeric', day: 'numeric', weekday: 'short' }).format(new Date(`${date}T00:00:00`))
+const formatDate = (date: string) => {
+  const value = new Date(`${date}T00:00:00`)
+  const weekday = new Intl.DateTimeFormat('zh-TW', { weekday: 'short' }).format(value)
+  return `${value.getMonth() + 1} 月 ${value.getDate()} 日（${weekday}）`
+}
 const formatEntryDate = (date: string) => {
   const value = new Date(`${date}T00:00:00`)
   const weekday = new Intl.DateTimeFormat('zh-TW', { weekday: 'short' }).format(value)
@@ -218,6 +222,7 @@ export default function Workspace({ user }: { user: User }) {
   const [reportAnchorMonth, setReportAnchorMonth] = useState(currentMonth())
   const [reportMode, setReportMode] = useState<ReportMode>('expense')
   const [transactionView, setTransactionView] = useState<'calendar' | 'list'>('calendar')
+  const [transactionMonth, setTransactionMonth] = useState(currentMonth())
   const autoPosting = useRef(new Set<string>())
   const swipeStart = useRef<number | null>(null)
   const route = routes.at(-1) ?? { name: 'home' as const }
@@ -285,7 +290,7 @@ export default function Workspace({ user }: { user: User }) {
     if (!store.ready) return <LoadingPage />
     if (store.error) return <ErrorPage message={store.error} />
     switch (route.name) {
-      case 'home': return <HomePage store={store} onPush={push} onEditTransaction={editTransaction} hideBalances={hideBalances} />
+      case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} />
       case 'accounts': return <AccountsPage store={store} onPush={push} hideBalances={hideBalances} managing={manageAccounts} />
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEntry={openNewEntry} onEditTransaction={editTransaction} filter={transactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
@@ -294,7 +299,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={activeSorted(store.data.accounts).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
-      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} />
+      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} hideBalances={hideBalances} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter} onChange={setTransactionFilter} onDone={back} />
       case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} anchorMonth={reportAnchorMonth} setAnchorMonth={setReportAnchorMonth} mode={reportMode} onCustom={() => push({ name: 'report-filter' })} onCategory={(direction, id) => push({ name: 'report-category', id: `${direction}:${id}` })} onDate={(id) => push({ name: 'report-date', id })} />
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
@@ -316,7 +321,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'advances': return <AdvancesPage store={store} onPush={push} />
       case 'advance-detail': return <AdvanceDetailPage store={store} transactionId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} />
       case 'settlement': return <SettlementPage store={store} reference={route.id ?? ''} onDone={back} />
-      default: return <HomePage store={store} onPush={push} onEditTransaction={editTransaction} hideBalances={hideBalances} />
+      default: return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} />
     }
   })()
 
@@ -333,7 +338,11 @@ export default function Workspace({ user }: { user: User }) {
       <section className="workspace-main" onTouchStart={(event) => { swipeStart.current = event.touches[0]?.clientX ?? null }} onTouchEnd={(event) => { const start = swipeStart.current; const end = event.changedTouches[0]?.clientX ?? 0; swipeStart.current = null; if (showBack && start !== null && start < 45 && end - start > 80) back() }}>
         {!entryMode ? <header className={`workspace-topbar ${route.name === 'reports' ? 'reports-topbar' : ''}`}>
           <div>{showBack ? <IconButton label="上一頁" onClick={back}><ArrowLeft /></IconButton> : null}</div>
-          {route.name === 'reports' ? <ReportPrimaryTabs mode={reportMode} onChange={(value) => { setReportMode(value); if (value === 'balance' && reportPeriod === '近6個月') setReportPeriod('月') }} compact /> : <h1>{title}</h1>}
+          {route.name === 'reports'
+            ? <ReportPrimaryTabs mode={reportMode} onChange={(value) => { setReportMode(value); if ((value === 'balance' || value === 'netWorth') && !['月', '年'].includes(reportPeriod)) setReportPeriod('月') }} compact />
+            : route.name === 'home'
+              ? <TransactionViewSwitch view={transactionView} onChange={setTransactionView} />
+              : <h1>{title}</h1>}
           <div className="workspace-top-actions">
             {route.name === 'home' ? <>
               <BadgeButton label="待確認定期收支" count={pendingRules.length} onClick={() => push({ name: 'pending' })}><Repeat2 /></BadgeButton>
@@ -353,7 +362,7 @@ export default function Workspace({ user }: { user: User }) {
             {route.name === 'recurring' ? <IconButton label="新增定期項目" onClick={() => push({ name: 'recurring-form' })}><Plus /></IconButton> : null}
             {route.name === 'advances' ? <IconButton label="新增代墊" onClick={() => openNewEntry('advance')}><Plus /></IconButton> : null}
             {route.name === 'advance-detail' ? <IconButton label="編輯代墊明細" onClick={() => { const transaction = store.data.transactions.find((item) => item.id === route.id); if (transaction) editTransaction(transaction) }}><Pencil /></IconButton> : null}
-            {route.name === 'transactions' ? <div className="topbar-view-switch" role="group" aria-label="交易明細瀏覽模式"><button className={transactionView === 'calendar' ? 'active' : ''} type="button" aria-label="行事曆模式" aria-pressed={transactionView === 'calendar'} onClick={() => setTransactionView('calendar')}><CalendarDays /></button><button className={transactionView === 'list' ? 'active' : ''} type="button" aria-label="清單模式" aria-pressed={transactionView === 'list'} onClick={() => setTransactionView('list')}><List /></button></div> : null}
+            {route.name === 'transactions' ? <TransactionViewSwitch view={transactionView} onChange={setTransactionView} /> : null}
           </div>
         </header> : null}
         {usesFirebaseEmulators ? <div className="workspace-environment">本機測試資料</div> : null}
@@ -395,6 +404,10 @@ function BadgeButton({ label, count, children, onClick }: { label: string; count
   return <button className="workspace-badge-button" type="button" aria-label={`${count} 筆${label}`} onClick={onClick}>{children}{count > 0 ? <b>{count}</b> : null}</button>
 }
 
+function TransactionViewSwitch({ view, onChange }: { view: 'calendar' | 'list'; onChange: (value: 'calendar' | 'list') => void }) {
+  return <div className="topbar-view-switch" role="group" aria-label="交易明細瀏覽模式"><button className={view === 'calendar' ? 'active' : ''} type="button" aria-label="行事曆模式" aria-pressed={view === 'calendar'} onClick={() => onChange('calendar')}><CalendarDays /></button><button className={view === 'list' ? 'active' : ''} type="button" aria-label="清單模式" aria-pressed={view === 'list'} onClick={() => onChange('list')}><List /></button></div>
+}
+
 function LoadingPage() { return <main className="workspace-loading">正在同步測試帳本…</main> }
 function ErrorPage({ message }: { message: string }) { return <main className="workspace-loading error-text">資料載入失敗：{message}</main> }
 
@@ -408,23 +421,10 @@ function EmptyDataCard({ onSeed }: { onSeed: () => Promise<void> }) {
   return <section className="empty-data-card"><WalletCards /><h2>測試帳本目前是空的</h2><p>可先建立一組不含真實資料的示範分類、帳戶與交易，再逐頁測試。</p><button type="button" disabled={busy} onClick={() => { setBusy(true); void onSeed().finally(() => setBusy(false)) }}>{busy ? '建立中…' : '建立示範資料'}</button></section>
 }
 
-function HomePage({ store, onPush, onEditTransaction, hideBalances }: { store: Store; onPush: (route: Route) => void; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean }) {
-  const month = currentMonth()
-  const report = reportForMonth(store.data.transactions, month)
-  const recent = activeTransactions(store.data.transactions).sort((a, b) => `${b.occurredOn}${b.updatedAt}`.localeCompare(`${a.occurredOn}${a.updatedAt}`)).slice(0, 10)
+function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void }) {
   const empty = store.data.accounts.length === 0 && store.data.categories.length === 0
   if (empty) return <main className="workspace-page"><EmptyDataCard onSeed={store.seedDemo} /></main>
-  return <main className="workspace-page">
-    <section className="home-summary" aria-label="本月收支摘要">
-      <article><span>本月收入</span><strong>{hideBalances ? '••••' : money(report.income)}</strong></article>
-      <article><span>本月支出</span><strong>{hideBalances ? '••••' : money(report.expense)}</strong></article>
-      <article><span>本月結餘</span><strong>{hideBalances ? '••••' : money(report.balance)}</strong></article>
-    </section>
-    <section className="workspace-section home-transactions-section">
-      <div className="section-heading"><h2>交易明細</h2><button type="button" onClick={() => onPush({ name: 'transactions' })}>看全部</button></div>
-      <TransactionRows transactions={recent} data={store.data} onEdit={onEditTransaction} hideBalances={hideBalances} />
-    </section>
-  </main>
+  return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} hideBalances={hideBalances} />
 }
 
 function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean }) {
@@ -765,14 +765,19 @@ function AccountAdjustPage({ store, accountId, onDone }: { store: Store; account
   return <main className="workspace-page"><section className="adjust-card"><span>目前帳面餘額</span><strong>{money(current, account.currency)}</strong></section><form id="account-adjust-form" className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit() }}><label><span>實際餘額</span><input inputMode="numeric" value={actual} onChange={(event) => setActual(event.target.value)} /></label><div className="difference-row"><span>帳務調整</span><b className={difference < 0 ? 'expense-text' : 'income-text'}>{difference > 0 ? '+' : ''}{money(difference, account.currency)}</b></div><label><span>調整日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>原因</span><textarea value={note} onChange={(event) => setNote(event.target.value)} /></label></form></main>
 }
 
-function TransactionsPage({ store, onEdit, view }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list' }) {
-  const [filter, setFilter] = useState<'all' | TransactionKind>('all')
-  const transactions = activeTransactions(store.data.transactions).filter((item) => filter === 'all' || item.kind === filter).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
-  return <main className="workspace-page">{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} /> : <><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} /></>}</main>
+function MonthSwitch({ month, onChange }: { month: string; onChange: (value: string) => void }) {
+  const [yearNumber, monthNumber] = month.split('-').map(Number)
+  const moveMonth = (delta: number) => { const date = new Date(yearNumber, monthNumber - 1 + delta, 1); onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`) }
+  return <div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><label className="month-picker"><input type="month" aria-label="選擇年月" value={month} onChange={(event) => onChange(event.target.value)} /><strong>{yearNumber} 年 {monthNumber} 月</strong></label><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div>
 }
 
-function TransactionCalendar({ store, onEdit }: { store: Store; onEdit: (transaction: FinanceTransaction) => void }) {
-  const [month, setMonth] = useState(currentMonth())
+function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = false }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; hideBalances?: boolean }) {
+  const [filter, setFilter] = useState<'all' | TransactionKind>('all')
+  const transactions = activeTransactions(store.data.transactions).filter((item) => item.occurredOn.startsWith(month) && (filter === 'all' || item.kind === filter)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
+  return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} hideBalances={hideBalances} /> : <><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></>}</main>
+}
+
+function TransactionCalendar({ store, onEdit, month, hideBalances }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; month: string; hideBalances: boolean }) {
   const [selected, setSelected] = useState(todayIso().startsWith(currentMonth()) ? todayIso() : `${currentMonth()}-01`)
   const [yearNumber, monthNumber] = month.split('-').map(Number)
   const days = new Date(yearNumber, monthNumber, 0).getDate()
@@ -782,10 +787,10 @@ function TransactionCalendar({ store, onEdit }: { store: Store; onEdit: (transac
     const items = activeTransactions(store.data.transactions).filter((item) => item.occurredOn === date)
     return [date, items]
   })) as Record<string, FinanceTransaction[]>
-  const moveMonth = (delta: number) => { const date = new Date(yearNumber, monthNumber - 1 + delta, 1); const next = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; setMonth(next); setSelected(`${next}-01`) }
-  const selectedItems = byDay[selected] ?? []
-  const selectedReport = reportForRange(selectedItems, selected, selected)
-  return <><div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><strong>{yearNumber} 年 {monthNumber} 月</strong><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={selected === date ? 'selected' : ''} type="button" key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(selected)}</strong><span>{selectedItems.length ? `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} showDateHeading={false} /></>
+  const activeSelected = selected.startsWith(month) ? selected : `${month}-01`
+  const selectedItems = byDay[activeSelected] ?? []
+  const selectedReport = reportForRange(selectedItems, activeSelected, activeSelected)
+  return <><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={activeSelected === date ? 'selected' : ''} type="button" key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(activeSelected)}</strong><span>{selectedItems.length ? hideBalances ? '收支金額已隱藏' : `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} showDateHeading={false} hideBalances={hideBalances} /></>
 }
 
 function TransactionFilterPage({ store, value, onChange, onDone }: { store: Store; value: TransactionFilter; onChange: (value: TransactionFilter) => void; onDone: () => void }) {
@@ -824,15 +829,40 @@ function categoryReportRows(data: FinanceData, transactions: FinanceTransaction[
 
 function ReportPrimaryTabs({ mode, onChange, compact = false }: { mode: ReportMode; onChange: (value: ReportMode) => void; compact?: boolean }) {
   return <div className={`report-primary-tabs ${compact ? 'compact' : ''}`} role="group" aria-label="報表類型">
-    {([['expense', '支出'], ['income', '收入'], ['balance', '結餘']] as const).map(([value, label]) => <button className={mode === value ? 'active' : ''} type="button" aria-pressed={mode === value} onClick={() => onChange(value)} key={value}>{label}</button>)}
+    {([['expense', '支出'], ['income', '收入'], ['balance', '結餘'], ['netWorth', '淨資產']] as const).map(([value, label]) => <button className={mode === value ? 'active' : ''} type="button" aria-pressed={mode === value} onClick={() => onChange(value)} key={value}>{label}</button>)}
   </div>
+}
+
+function rollingTrendKeys(period: ReportSelection, anchorMonth: string) {
+  const [year, month] = anchorMonth.split('-').map(Number)
+  if (period === '年') return Array.from({ length: 6 }, (_, index) => String(year - 5 + index))
+  return Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(year, month - 1 - (5 - index), 1)
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  })
+}
+
+function rollingTrendRange(keys: string[]) {
+  const first = keys[0]
+  const last = keys.at(-1) ?? first
+  if (first.length === 4) return { from: `${first}-01-01`, to: `${last}-12-31` }
+  const [year, month] = last.split('-').map(Number)
+  return { from: `${first}-01`, to: `${last}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}` }
+}
+
+function rollingTrendLabel(period: ReportSelection, keys: string[]) {
+  if (period === '年') return `${keys[0]}－${keys.at(-1)} 年`
+  const short = (key: string) => `${Number(key.slice(0, 4))} 年 ${Number(key.slice(5, 7))} 月`
+  return `${short(keys[0])}－${short(keys.at(-1) ?? keys[0])}`
 }
 
 function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAnchorMonth, mode, onCustom, onCategory, onDate }: { store: Store; customRange: ReportRange; period: ReportSelection; setPeriod: (value: ReportSelection) => void; anchorMonth: string; setAnchorMonth: (value: string) => void; mode: ReportMode; onCustom: () => void; onCategory: (direction: Direction, id: string) => void; onDate: (id: string) => void }) {
   const [chartView, setChartView] = useState<'donut' | 'bar'>('donut')
   const [descending, setDescending] = useState(true)
   const [legendPage, setLegendPage] = useState(0)
-  const range = selectionRange(period, anchorMonth, customRange)
+  const trendMode = mode === 'balance' || mode === 'netWorth'
+  const trendKeys = rollingTrendKeys(period, anchorMonth)
+  const range = trendMode ? rollingTrendRange(trendKeys) : selectionRange(period, anchorMonth, customRange)
   const accountFilter = period === '自訂' ? customRange.accountId : ''
   const projectFilter = period === '自訂' ? customRange.projectId : ''
   const sourceTransactions = store.data.transactions.filter((transaction) => (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter))
@@ -848,25 +878,29 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
   const gradient = rows.map((item) => { const start = stop; stop += item.percent; return `${item.color} ${start}% ${stop}%` }).join(', ')
   const reportAccounts = accountFilter ? store.data.accounts.filter((item) => item.id === accountFilter) : store.data.accounts
   const worthTransactions = store.data.transactions.filter((transaction) => !accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter))
-  const balanceSeries = buildBalanceSeries(sourceTransactions, worthTransactions, reportAccounts, range, period)
-  const endingBalances = calculateBalances(reportAccounts, worthTransactions.filter((transaction) => transaction.occurredOn <= range.to))
-  const endingNetWorth = calculateNetWorth(reportAccounts, endingBalances).netWorth
-  const periodTabs: ReportSelection[] = mode === 'balance' ? ['月', '年', '自訂'] : ['月', '近6個月', '年', '自訂']
+  const balanceSeries = buildBalanceSeries(sourceTransactions, trendKeys)
+  const openingDate = new Date(`${range.from}T00:00:00`); openingDate.setDate(openingDate.getDate() - 1)
+  const openingIso = `${openingDate.getFullYear()}-${String(openingDate.getMonth() + 1).padStart(2, '0')}-${String(openingDate.getDate()).padStart(2, '0')}`
+  const openingAccounts = reportAccounts.filter((account) => account.openingDate <= openingIso)
+  const openingBalances = calculateBalances(openingAccounts, worthTransactions.filter((transaction) => transaction.occurredOn <= openingIso))
+  const openingNetWorth = calculateNetWorth(openingAccounts, openingBalances).netWorth
+  const netWorthSeries = buildNetWorthSeries(worthTransactions, reportAccounts, trendKeys, openingNetWorth)
+  const periodTabs: ReportSelection[] = trendMode ? ['月', '年'] : ['月', '近6個月', '年', '自訂']
   const movePeriod = (delta: number) => {
     const [year, month] = anchorMonth.split('-').map(Number)
     const next = new Date(year, month - 1 + delta * (period === '年' ? 12 : 1), 1)
     setAnchorMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
   }
   return <main className="workspace-page reports-v3">
-    <div className={`report-period-tabs ${mode === 'balance' ? 'three' : ''}`} role="group" aria-label="報表期間">
+    <div className={`report-period-tabs ${trendMode ? 'two' : ''}`} role="group" aria-label="報表期間">
       {periodTabs.map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item); setLegendPage(0) }} key={item}>{item}</button>)}
     </div>
     <div className="report-period-switch">
       {period !== '自訂' ? <button type="button" aria-label="上一個期間" onClick={() => movePeriod(-1)}><ChevronLeft /></button> : <span />}
-      <strong>{reportPeriodLabel(period, anchorMonth, range)}</strong>
+      <strong>{trendMode ? rollingTrendLabel(period, trendKeys) : reportPeriodLabel(period, anchorMonth, range)}</strong>
       {period !== '自訂' ? <button type="button" aria-label="下一個期間" onClick={() => movePeriod(1)}><ChevronRight /></button> : <span />}
     </div>
-    {mode === 'balance' ? <BalanceReport totals={totals} series={balanceSeries} endingNetWorth={endingNetWorth} descending={descending} onToggleSort={() => setDescending((value) => !value)} onDate={onDate} /> : <>
+    {mode === 'balance' ? <BalanceReport totals={totals} series={balanceSeries} descending={descending} onToggleSort={() => setDescending((value) => !value)} onDate={onDate} /> : mode === 'netWorth' ? <NetWorthReport series={netWorthSeries} openingNetWorth={openingNetWorth} descending={descending} onToggleSort={() => setDescending((value) => !value)} /> : <>
       <section className="report-chart-panel">
         <button className="report-chart-toggle" type="button" aria-label={chartView === 'donut' ? '切換成柱狀圖' : '切換成圓環圖'} onClick={() => setChartView((value) => value === 'donut' ? 'bar' : 'donut')}>{chartView === 'donut' ? <ChartColumn /> : <ChartPie />}</button>
         {rows.length ? chartView === 'donut' ? <div className="report-donut" style={{ background: `conic-gradient(${gradient})` }}><div><span>總{mode === 'income' ? '收入' : '支出'}</span><strong>{money(total)}</strong></div></div> : <CategoryBarChart rows={rows} /> : <div className="simple-empty compact">這個期間沒有{mode === 'income' ? '收入' : '支出'}資料</div>}
@@ -889,56 +923,86 @@ function CategoryBarChart({ rows }: { rows: { id: string; amount: number; catego
   return <div className="report-category-columns">{visible.map((item) => <div key={item.id}><span>{money(item.amount)}</span><i style={{ height: `${Math.max(8, item.amount / max * 100)}%`, background: item.color }} /><b>{item.category.name}</b></div>)}</div>
 }
 
-type BalancePoint = { key: string; label: string; income: number; expense: number; balance: number; netWorth: number }
+type BalancePoint = { key: string; label: string; income: number; expense: number; balance: number }
+type NetWorthPoint = { key: string; label: string; netWorth: number; change: number }
 
-function buildBalanceSeries(flowTransactions: FinanceTransaction[], worthTransactions: FinanceTransaction[], accounts: Account[], range: { from: string; to: string }, period: ReportSelection): BalancePoint[] {
-  const spanDays = Math.round((new Date(`${range.to}T00:00:00`).getTime() - new Date(`${range.from}T00:00:00`).getTime()) / 86_400_000)
-  const groupByMonth = period === '年' || spanDays > 62
-  const groups = new Map<string, FinanceTransaction[]>()
-  for (const transaction of activeTransactions(flowTransactions).filter((item) => item.occurredOn >= range.from && item.occurredOn <= range.to)) {
-    const key = groupByMonth ? transaction.occurredOn.slice(0, 7) : transaction.occurredOn
-    groups.set(key, [...(groups.get(key) ?? []), transaction])
-  }
-  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, items]) => {
-    const totals = reportForRange(items, groupByMonth ? `${key}-01` : key, groupByMonth ? `${key}-31` : key)
-    const pointEnd = groupByMonth ? `${key}-31` : key
-    const balances = calculateBalances(accounts, worthTransactions.filter((item) => item.occurredOn <= pointEnd))
-    const netWorth = calculateNetWorth(accounts, balances).netWorth
-    return { key, label: groupByMonth ? `${Number(key.slice(5))} 月` : formatDateHeading(key), income: totals.income, expense: totals.expense, balance: totals.balance, netWorth }
+function trendPointRange(key: string) {
+  if (key.length === 4) return { from: `${key}-01-01`, to: `${key}-12-31`, label: `${key} 年` }
+  const [year, month] = key.split('-').map(Number)
+  return { from: `${key}-01`, to: `${key}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`, label: `${Number(key.slice(5))} 月` }
+}
+
+function buildBalanceSeries(transactions: FinanceTransaction[], keys: string[]): BalancePoint[] {
+  return keys.map((key) => {
+    const point = trendPointRange(key)
+    const totals = reportForRange(transactions, point.from, point.to)
+    return { key, label: point.label, income: totals.income, expense: totals.expense, balance: totals.balance }
   })
 }
 
-function BalanceReport({ totals, series, endingNetWorth, descending, onToggleSort, onDate }: { totals: ReturnType<typeof reportForRange>; series: BalancePoint[]; endingNetWorth: number; descending: boolean; onToggleSort: () => void; onDate: (id: string) => void }) {
+function buildNetWorthSeries(transactions: FinanceTransaction[], accounts: Account[], keys: string[], openingNetWorth: number): NetWorthPoint[] {
+  let previous = openingNetWorth
+  return keys.map((key) => {
+    const point = trendPointRange(key)
+    const activeAccountsAtPoint = accounts.filter((account) => account.openingDate <= point.to)
+    const balances = calculateBalances(activeAccountsAtPoint, transactions.filter((item) => item.occurredOn <= point.to))
+    const netWorth = calculateNetWorth(activeAccountsAtPoint, balances).netWorth
+    const change = netWorth - previous
+    previous = netWorth
+    return { key, label: point.label, netWorth, change }
+  })
+}
+
+function BalanceReport({ totals, series, descending, onToggleSort, onDate }: { totals: ReturnType<typeof reportForRange>; series: BalancePoint[]; descending: boolean; onToggleSort: () => void; onDate: (id: string) => void }) {
   const displayed = descending ? [...series].reverse() : series
+  const latest = series.at(-1) ?? { income: 0, expense: 0, balance: 0 }
   return <>
-    <section className="report-trend-summary"><article><span>收入</span><b className="income-text">{money(totals.income)}</b></article><article><span>支出</span><b className="expense-text">{money(totals.expense)}</b></article><article><span>本期結餘</span><b className={totals.balance < 0 ? 'expense-text' : 'income-text'}>{totals.balance > 0 ? '+' : ''}{money(totals.balance)}</b></article><article><span>期末淨資產</span><b>{money(endingNetWorth)}</b></article></section>
-    <section className="report-chart-panel balance-chart-panel">{series.length ? <BalanceLineChart series={series} /> : <div className="simple-empty compact">這個期間沒有收支資料</div>}</section>
-    <section className="report-detail-card trend-detail-card"><header><h2>趨勢明細</h2><button type="button" aria-label={descending ? '改為日期由舊到新' : '改為日期由新到舊'} onClick={onToggleSort}><ArrowUpDown /></button></header>{displayed.length ? displayed.map((item) => <button type="button" key={item.key} onClick={() => onDate(item.key)}><span>{item.label}</span><span className="trend-row-values"><small>收入 {money(item.income)}・支出 {money(item.expense)}</small><strong className={item.balance < 0 ? 'expense-text' : 'income-text'}>結餘 {item.balance > 0 ? '+' : ''}{money(item.balance)}</strong><small>淨資產 {money(item.netWorth)}</small></span><ChevronRight /></button>) : <div className="simple-empty compact">沒有趨勢明細</div>}</section>
+    <section className="report-trend-summary"><article><span>最新一期收入</span><b className="income-text">{money(latest.income)}</b></article><article><span>最新一期支出</span><b className="expense-text">{money(latest.expense)}</b></article><article><span>最新一期結餘</span><b className={latest.balance < 0 ? 'expense-text' : 'income-text'}>{latest.balance > 0 ? '+' : ''}{money(latest.balance)}</b></article><article><span>區間結餘</span><b className={totals.balance < 0 ? 'expense-text' : 'income-text'}>{totals.balance > 0 ? '+' : ''}{money(totals.balance)}</b></article></section>
+    <section className="report-chart-panel balance-chart-panel"><BalanceDualScaleChart series={series} /></section>
+    <section className="report-detail-card trend-detail-card"><header><h2>結餘趨勢明細</h2><button type="button" aria-label={descending ? '改為期間由舊到新' : '改為期間由新到舊'} onClick={onToggleSort}><ArrowUpDown /></button></header>{displayed.map((item) => <button type="button" key={item.key} onClick={() => onDate(item.key)}><span>{item.label}</span><span className="trend-row-values"><small>收入 {money(item.income)}・支出 {money(item.expense)}</small><strong className={item.balance < 0 ? 'expense-text' : 'income-text'}>結餘 {item.balance > 0 ? '+' : ''}{money(item.balance)}</strong></span><ChevronRight /></button>)}</section>
   </>
 }
 
-function BalanceLineChart({ series }: { series: BalancePoint[] }) {
-  const width = 320
-  const height = 180
-  const chartTop = 14
-  const chartBottom = 142
-  const values = series.flatMap((item) => [item.income, item.expense, item.balance])
-  const highest = Math.max(0, ...values)
-  const lowest = Math.min(0, ...values)
-  const span = Math.max(1, highest - lowest)
-  const x = (index: number) => series.length === 1 ? width / 2 : 14 + index / (series.length - 1) * (width - 28)
-  const y = (value: number) => chartTop + (highest - value) / span * (chartBottom - chartTop)
-  const rawWorthLow = Math.min(...series.map((item) => item.netWorth))
-  const rawWorthHigh = Math.max(...series.map((item) => item.netWorth))
-  const worthPadding = Math.max(1, (rawWorthHigh - rawWorthLow) * .12)
-  const worthLow = rawWorthLow - worthPadding
-  const worthHigh = rawWorthHigh + worthPadding
-  const worthY = (value: number) => chartTop + (worthHigh - value) / (worthHigh - worthLow) * (chartBottom - chartTop)
-  const balancePoints = series.map((item, index) => `${x(index)},${y(item.balance)}`).join(' ')
-  const worthPoints = series.map((item, index) => `${x(index)},${worthY(item.netWorth)}`).join(' ')
-  const labels = [...new Set([0, Math.floor((series.length - 1) / 2), series.length - 1])]
-  const barWidth = Math.max(3, Math.min(10, 42 / Math.max(1, series.length)))
-  return <div className="balance-line-chart"><div className="balance-chart-legend"><span><i className="income" />收入</span><span><i className="expense" />支出</span><span><i className="balance" />結餘</span><span><i className="net-worth" />淨資產</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="收入、支出、結餘與淨資產趨勢圖"><line className="zero-line" x1="14" x2={width - 14} y1={y(0)} y2={y(0)} />{series.map((item, index) => <g key={item.key}><rect className="income-bar" x={x(index) - barWidth - 1} y={y(item.income)} width={barWidth} height={Math.max(1, y(0) - y(item.income))} /><rect className="expense-bar" x={x(index) + 1} y={y(item.expense)} width={barWidth} height={Math.max(1, y(0) - y(item.expense))} /></g>)}<g className="balance"><polyline points={balancePoints} />{series.map((item, index) => <circle cx={x(index)} cy={y(item.balance)} r="3" key={`balance-${item.key}`} />)}</g><g className="net-worth"><polyline points={worthPoints} />{series.map((item, index) => <circle cx={x(index)} cy={worthY(item.netWorth)} r="3" key={`worth-${item.key}`} />)}</g>{labels.map((index) => <text x={x(index)} y="169" textAnchor={index === 0 ? 'start' : index === series.length - 1 ? 'end' : 'middle'} key={series[index].key}>{series[index].label.replaceAll(' ', '').replaceAll('（', '(').replaceAll('）', ')')}</text>)}</svg></div>
+function NetWorthReport({ series, openingNetWorth, descending, onToggleSort }: { series: NetWorthPoint[]; openingNetWorth: number; descending: boolean; onToggleSort: () => void }) {
+  const displayed = descending ? [...series].reverse() : series
+  const endingNetWorth = series.at(-1)?.netWorth ?? openingNetWorth
+  const totalChange = endingNetWorth - openingNetWorth
+  return <>
+    <section className="report-trend-summary net-worth-summary"><article><span>期初淨資產</span><b>{money(openingNetWorth)}</b></article><article><span>期末淨資產</span><b>{money(endingNetWorth)}</b></article><article><span>區間增減</span><b className={totalChange < 0 ? 'expense-text' : 'income-text'}>{totalChange > 0 ? '+' : ''}{money(totalChange)}</b></article></section>
+    <section className="report-chart-panel balance-chart-panel"><NetWorthLineChart series={series} /></section>
+    <section className="report-detail-card net-worth-detail-card"><header><h2>淨資產趨勢明細</h2><button type="button" aria-label={descending ? '改為期間由舊到新' : '改為期間由新到舊'} onClick={onToggleSort}><ArrowUpDown /></button></header>{displayed.map((item) => <div className="net-worth-detail-row" key={item.key}><span>{item.label}</span><span><strong>{money(item.netWorth)}</strong><small className={item.change < 0 ? 'expense-text' : 'income-text'}>{item.change > 0 ? '+' : ''}{money(item.change)}</small></span></div>)}</section>
+  </>
+}
+
+function compactAxisMoney(value: number) {
+  const sign = value < 0 ? '-' : ''
+  const absolute = Math.abs(value)
+  if (absolute >= 1_000_000) return `${sign}${(absolute / 1_000_000).toFixed(absolute >= 10_000_000 ? 0 : 1)}m`
+  if (absolute >= 1_000) return `${sign}${Math.round(absolute / 1_000)}k`
+  return `${Math.round(value)}`
+}
+
+function BalanceDualScaleChart({ series }: { series: BalancePoint[] }) {
+  const width = 360; const height = 210; const left = 42; const right = 318; const top = 24; const bottom = 166
+  const leftMax = Math.max(1, ...series.flatMap((item) => [item.income, item.expense]))
+  const rightLow = Math.min(0, ...series.map((item) => item.balance)); const rightHigh = Math.max(0, ...series.map((item) => item.balance)); const rightSpan = Math.max(1, rightHigh - rightLow)
+  const x = (index: number) => left + (index + .5) / series.length * (right - left)
+  const leftY = (value: number) => bottom - value / leftMax * (bottom - top)
+  const rightY = (value: number) => top + (rightHigh - value) / rightSpan * (bottom - top)
+  const points = series.map((item, index) => `${x(index)},${rightY(item.balance)}`).join(' ')
+  const barWidth = Math.min(12, 86 / series.length)
+  const ticks = [0, .5, 1]
+  return <div className="balance-line-chart dual-scale-chart"><div className="balance-chart-legend"><span><i className="income" />收入</span><span><i className="expense" />支出</span><span><i className="balance" />結餘</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="收入、支出與結餘雙比例趨勢圖">{ticks.map((ratio) => { const y = top + ratio * (bottom - top); return <g key={ratio}><line className="chart-grid-line" x1={left} x2={right} y1={y} y2={y} /><text className="axis-left" x={left - 5} y={y + 4} textAnchor="end">{compactAxisMoney(leftMax * (1 - ratio))}</text><text className="axis-right" x={right + 5} y={y + 4}>{compactAxisMoney(rightHigh - rightSpan * ratio)}</text></g> })}{series.map((item, index) => <g key={item.key}><rect className="income-bar" x={x(index) - barWidth - 1} y={leftY(item.income)} width={barWidth} height={bottom - leftY(item.income)} /><rect className="expense-bar" x={x(index) + 1} y={leftY(item.expense)} width={barWidth} height={bottom - leftY(item.expense)} /></g>)}<g className="balance"><polyline points={points} />{series.map((item, index) => <circle cx={x(index)} cy={rightY(item.balance)} r="3.5" key={item.key} />)}</g>{series.map((item, index) => <text className="chart-x-label" x={x(index)} y="191" textAnchor="middle" key={item.key}>{item.label.replace(' ', '')}</text>)}</svg></div>
+}
+
+function NetWorthLineChart({ series }: { series: NetWorthPoint[] }) {
+  const width = 360; const height = 202; const left = 48; const right = 328; const top = 20; const bottom = 158
+  const rawLow = Math.min(...series.map((item) => item.netWorth)); const rawHigh = Math.max(...series.map((item) => item.netWorth)); const padding = Math.max(1, (rawHigh - rawLow) * .12); const low = rawLow === 0 ? 0 : rawLow - padding; const high = rawHigh + padding
+  const x = (index: number) => left + index / Math.max(1, series.length - 1) * (right - left)
+  const y = (value: number) => top + (high - value) / Math.max(1, high - low) * (bottom - top)
+  const points = series.map((item, index) => `${x(index)},${y(item.netWorth)}`).join(' ')
+  const ticks = [0, .5, 1]
+  return <div className="balance-line-chart net-worth-line-chart"><div className="balance-chart-legend"><span><i className="net-worth" />淨資產</span></div><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="淨資產趨勢圖">{ticks.map((ratio) => { const gridY = top + ratio * (bottom - top); return <g key={ratio}><line className="chart-grid-line" x1={left} x2={right} y1={gridY} y2={gridY} /><text x={left - 5} y={gridY + 4} textAnchor="end">{compactAxisMoney(high - (high - low) * ratio)}</text></g> })}<g className="net-worth"><polyline points={points} />{series.map((item, index) => <circle cx={x(index)} cy={y(item.netWorth)} r="3.5" key={item.key} />)}</g>{series.map((item, index) => <text className="chart-x-label" x={x(index)} y="184" textAnchor="middle" key={item.key}>{item.label.replace(' ', '')}</text>)}</svg></div>
 }
 
 function ReportCategoryPage({ store, reference, customRange, period, anchorMonth, onEditTransaction }: { store: Store; reference: string; customRange: ReportRange; period: ReportSelection; anchorMonth: string; onEditTransaction: (transaction: FinanceTransaction) => void }) {
@@ -955,13 +1019,13 @@ function ReportCategoryPage({ store, reference, customRange, period, anchorMonth
 }
 
 function ReportDatePage({ store, dateKey, customRange, period, onEditTransaction }: { store: Store; dateKey: string; customRange: ReportRange; period: ReportSelection; onEditTransaction: (transaction: FinanceTransaction) => void }) {
-  const from = dateKey.length === 7 ? `${dateKey}-01` : dateKey
-  const to = dateKey.length === 7 ? `${dateKey}-31` : dateKey
+  const from = dateKey.length === 4 ? `${dateKey}-01-01` : dateKey.length === 7 ? `${dateKey}-01` : dateKey
+  const to = dateKey.length === 4 ? `${dateKey}-12-31` : dateKey.length === 7 ? `${dateKey}-31` : dateKey
   const accountFilter = period === '自訂' ? customRange.accountId : ''
   const projectFilter = period === '自訂' ? customRange.projectId : ''
   const transactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.occurredOn >= from && transaction.occurredOn <= to && (!accountFilter || transaction.accountMoves.some((move) => move.accountId === accountFilter)) && (!projectFilter || transaction.projectId === projectFilter) && transaction.reportLines.length)
   const totals = reportForRange(transactions, from, to)
-  const label = dateKey.length === 7 ? `${Number(dateKey.slice(0, 4))} 年 ${Number(dateKey.slice(5, 7))} 月` : `${Number(dateKey.slice(5, 7))} 月 ${Number(dateKey.slice(8, 10))} 日`
+  const label = dateKey.length === 4 ? `${dateKey} 年` : dateKey.length === 7 ? `${Number(dateKey.slice(0, 4))} 年 ${Number(dateKey.slice(5, 7))} 月` : `${Number(dateKey.slice(5, 7))} 月 ${Number(dateKey.slice(8, 10))} 日`
   return <main className="workspace-page"><section className="report-category-summary report-date-summary"><span><small>{label}</small><strong>結餘 {totals.balance > 0 ? '+' : ''}{money(totals.balance)}</strong></span><b>收入 {money(totals.income)}<small>支出 {money(totals.expense)}</small></b></section><TransactionRows transactions={transactions} data={store.data} onEdit={onEditTransaction} /></main>
 }
 

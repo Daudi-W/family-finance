@@ -223,6 +223,10 @@
 .transaction-type-filters { margin-bottom: 12px; }
 .calendar-switch { display: grid; grid-template-columns: 42px 1fr 42px; align-items: center; text-align: center; }
 .calendar-switch button { height: 42px; color: var(--primary); }
+.month-picker { min-width: 0; position: relative; display: grid; place-items: center; cursor: pointer; }
+.month-picker input { width: 100%; height: 42px; position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.month-picker strong { pointer-events: none; }
+.transactions-home > .calendar-switch { margin-bottom: 8px; }
 .calendar-week,.calendar-grid-v2 { display: grid; grid-template-columns: repeat(7,1fr); }
 .calendar-week { margin-top: 10px; color: var(--muted); text-align: center; font-size: 12px; }
 .calendar-grid-v2 { margin-top: 4px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
@@ -265,13 +269,14 @@
 .report-category-summary strong { margin-top: 3px; }
 .report-category-summary > b { color: var(--expense); font-variant-numeric: tabular-nums; }
 .reports-v3 { display: grid; gap: 14px; }
-.report-primary-tabs { width: min(100%,360px); display: grid; grid-template-columns: repeat(3,1fr); justify-self: center; padding: 3px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; }
+.report-primary-tabs { width: min(100%,400px); display: grid; grid-template-columns: repeat(4,1fr); justify-self: center; padding: 3px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; }
 .report-primary-tabs button { min-height: 42px; color: var(--muted); border-radius: 9px; font-size: 16px; }
 .report-primary-tabs button.active { color: var(--text); background: var(--primary-soft); font-weight: 700; }
 .report-primary-tabs.compact { width: 100%; padding: 2px; }
 .report-primary-tabs.compact button { min-height: 38px; font-size: 15px; }
 .report-period-tabs { display: grid; grid-template-columns: repeat(4,1fr); overflow: hidden; border-block: 1px solid var(--line-strong); background: #fff; }
 .report-period-tabs.three { grid-template-columns: repeat(3,1fr); }
+.report-period-tabs.two { grid-template-columns: repeat(2,1fr); }
 .report-period-tabs button { min-height: 48px; color: var(--text); font-size: 15px; }
 .report-period-tabs button.active { color: var(--primary-dark); background: var(--primary-soft); font-weight: 700; }
 .report-period-switch { display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; text-align: center; }
@@ -325,6 +330,7 @@
 .report-trend-summary span,.report-trend-summary b { display: block; }
 .report-trend-summary span { color: var(--muted); font-size: 13px; }
 .report-trend-summary b { margin-top: 4px; overflow: hidden; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.report-trend-summary.net-worth-summary article:last-child { grid-column: 1 / -1; }
 .balance-chart-panel { min-height: 284px; display: block; padding-top: 18px; }
 .balance-line-chart { width: 100%; }
 .balance-chart-legend { display: flex; justify-content: center; gap: 16px; color: var(--muted); font-size: 13px; }
@@ -346,7 +352,16 @@
 .balance-line-chart .income-bar { fill: var(--income); opacity: .88; }
 .balance-line-chart .expense-bar { fill: #ffbd2e; opacity: .9; }
 .balance-line-chart .zero-line { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 4; }
+.balance-line-chart .chart-grid-line { stroke: var(--line); stroke-width: 1; }
 .balance-line-chart text { fill: var(--muted); font-size: 12px; }
+.balance-line-chart .chart-x-label { font-size: 10px; }
+.dual-scale-chart .axis-left { fill: var(--muted); }
+.dual-scale-chart .axis-right { fill: #c43c64; }
+.net-worth-detail-row { min-height: 68px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; }
+.net-worth-detail-row + .net-worth-detail-row { border-top: 1px solid var(--line); }
+.net-worth-detail-row > span:last-child { display: grid; justify-items: end; }
+.net-worth-detail-row strong,.net-worth-detail-row small { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.net-worth-detail-row small { margin-top: 3px; }
 .report-date-summary { grid-template-columns: minmax(0,1fr) auto; }
 .report-date-summary > span { grid-column: 1; }
 .report-date-summary > b { grid-column: 2; color: var(--income); text-align: right; }
