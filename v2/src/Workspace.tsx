@@ -223,6 +223,7 @@ export default function Workspace({ user }: { user: User }) {
   const [reportMode, setReportMode] = useState<ReportMode>('expense')
   const [transactionView, setTransactionView] = useState<'calendar' | 'list'>('calendar')
   const [transactionMonth, setTransactionMonth] = useState(currentMonth())
+  const [transactionTodaySignal, setTransactionTodaySignal] = useState(0)
   const autoPosting = useRef(new Set<string>())
   const swipeStart = useRef<number | null>(null)
   const route = routes.at(-1) ?? { name: 'home' as const }
@@ -290,7 +291,7 @@ export default function Workspace({ user }: { user: User }) {
     if (!store.ready) return <LoadingPage />
     if (store.error) return <ErrorPage message={store.error} />
     switch (route.name) {
-      case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} />
+      case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
       case 'accounts': return <AccountsPage store={store} onPush={push} hideBalances={hideBalances} managing={manageAccounts} />
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEntry={openNewEntry} onEditTransaction={editTransaction} filter={transactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
@@ -299,7 +300,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={activeSorted(store.data.accounts).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
-      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} hideBalances={hideBalances} />
+      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} hideBalances={hideBalances} todaySignal={transactionTodaySignal} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter} onChange={setTransactionFilter} onDone={back} />
       case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} anchorMonth={reportAnchorMonth} setAnchorMonth={setReportAnchorMonth} mode={reportMode} onCustom={() => push({ name: 'report-filter' })} onCategory={(direction, id) => push({ name: 'report-category', id: `${direction}:${id}` })} onDate={(id) => push({ name: 'report-date', id })} />
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
@@ -321,7 +322,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'advances': return <AdvancesPage store={store} onPush={push} />
       case 'advance-detail': return <AdvanceDetailPage store={store} transactionId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} />
       case 'settlement': return <SettlementPage store={store} reference={route.id ?? ''} onDone={back} />
-      default: return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} />
+      default: return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
     }
   })()
 
@@ -337,7 +338,7 @@ export default function Workspace({ user }: { user: User }) {
       </aside>
       <section className="workspace-main" onTouchStart={(event) => { swipeStart.current = event.touches[0]?.clientX ?? null }} onTouchEnd={(event) => { const start = swipeStart.current; const end = event.changedTouches[0]?.clientX ?? 0; swipeStart.current = null; if (showBack && start !== null && start < 45 && end - start > 80) back() }}>
         {!entryMode ? <header className={`workspace-topbar ${route.name === 'reports' ? 'reports-topbar' : ''}`}>
-          <div>{showBack ? <IconButton label="上一頁" onClick={back}><ArrowLeft /></IconButton> : null}</div>
+          <div>{showBack ? <IconButton label="上一頁" onClick={back}><ArrowLeft /></IconButton> : route.name === 'home' ? <button className="topbar-text-action" type="button" onClick={() => { setTransactionMonth(currentMonth()); setTransactionTodaySignal((value) => value + 1) }}>今天</button> : null}</div>
           {route.name === 'reports'
             ? <ReportPrimaryTabs mode={reportMode} onChange={(value) => { setReportMode(value); if ((value === 'balance' || value === 'netWorth') && !['月', '年'].includes(reportPeriod)) setReportPeriod('月') }} compact />
             : route.name === 'home'
@@ -421,10 +422,10 @@ function EmptyDataCard({ onSeed }: { onSeed: () => Promise<void> }) {
   return <section className="empty-data-card"><WalletCards /><h2>測試帳本目前是空的</h2><p>可先建立一組不含真實資料的示範分類、帳戶與交易，再逐頁測試。</p><button type="button" disabled={busy} onClick={() => { setBusy(true); void onSeed().finally(() => setBusy(false)) }}>{busy ? '建立中…' : '建立示範資料'}</button></section>
 }
 
-function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void }) {
+function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth, todaySignal }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; todaySignal: number }) {
   const empty = store.data.accounts.length === 0 && store.data.categories.length === 0
   if (empty) return <main className="workspace-page"><EmptyDataCard onSeed={store.seedDemo} /></main>
-  return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} hideBalances={hideBalances} />
+  return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} hideBalances={hideBalances} todaySignal={todaySignal} />
 }
 
 function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean }) {
@@ -771,14 +772,17 @@ function MonthSwitch({ month, onChange }: { month: string; onChange: (value: str
   return <div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><label className="month-picker"><input type="month" aria-label="選擇年月" value={month} onChange={(event) => onChange(event.target.value)} /><strong>{yearNumber} 年 {monthNumber} 月</strong></label><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div>
 }
 
-function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = false }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; hideBalances?: boolean }) {
+function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = false, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; hideBalances?: boolean; todaySignal: number }) {
   const [filter, setFilter] = useState<'all' | TransactionKind>('all')
   const transactions = activeTransactions(store.data.transactions).filter((item) => item.occurredOn.startsWith(month) && (filter === 'all' || item.kind === filter)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
-  return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} hideBalances={hideBalances} /> : <><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></>}</main>
+  const monthReport = reportForMonth(store.data.transactions, month)
+  const monthLabel = month === currentMonth() ? '本月' : `${Number(month.slice(5))} 月`
+  return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} hideBalances={hideBalances} todaySignal={todaySignal} /> : <><section className="home-summary transaction-list-summary" aria-label={`${monthLabel}收支摘要`}><article><span>{monthLabel}支出</span><strong>{hideBalances ? '••••' : money(monthReport.expense)}</strong></article><article><span>{monthLabel}收入</span><strong>{hideBalances ? '••••' : money(monthReport.income)}</strong></article><article><span>{monthLabel}結餘</span><strong>{hideBalances ? '••••' : money(monthReport.balance)}</strong></article></section><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></>}</main>
 }
 
-function TransactionCalendar({ store, onEdit, month, hideBalances }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; month: string; hideBalances: boolean }) {
+function TransactionCalendar({ store, onEdit, month, hideBalances, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; month: string; hideBalances: boolean; todaySignal: number }) {
   const [selected, setSelected] = useState(todayIso().startsWith(currentMonth()) ? todayIso() : `${currentMonth()}-01`)
+  useEffect(() => { if (todaySignal) setSelected(todayIso()) }, [todaySignal])
   const [yearNumber, monthNumber] = month.split('-').map(Number)
   const days = new Date(yearNumber, monthNumber, 0).getDate()
   const start = (new Date(yearNumber, monthNumber - 1, 1).getDay() + 6) % 7
@@ -790,7 +794,7 @@ function TransactionCalendar({ store, onEdit, month, hideBalances }: { store: St
   const activeSelected = selected.startsWith(month) ? selected : `${month}-01`
   const selectedItems = byDay[activeSelected] ?? []
   const selectedReport = reportForRange(selectedItems, activeSelected, activeSelected)
-  return <><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={activeSelected === date ? 'selected' : ''} type="button" key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(activeSelected)}</strong><span>{selectedItems.length ? hideBalances ? '收支金額已隱藏' : `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} showDateHeading={false} hideBalances={hideBalances} /></>
+  return <><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); return <button className={`${activeSelected === date ? 'selected' : ''} ${date === todayIso() ? 'today' : ''}`} type="button" aria-current={date === todayIso() ? 'date' : undefined} key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}</i></button> })}</div><div className="day-summary-v2"><strong>{formatDate(activeSelected)}</strong><span>{selectedItems.length ? hideBalances ? '收支金額已隱藏' : `${selectedReport.income ? `收入 ${money(selectedReport.income)}` : ''}${selectedReport.income && selectedReport.expense ? '・' : ''}${selectedReport.expense ? `支出 ${money(selectedReport.expense)}` : ''}` : '沒有收支'}</span></div><TransactionRows transactions={selectedItems} data={store.data} onEdit={onEdit} showDateHeading={false} hideBalances={hideBalances} /></>
 }
 
 function TransactionFilterPage({ store, value, onChange, onDone }: { store: Store; value: TransactionFilter; onChange: (value: TransactionFilter) => void; onDone: () => void }) {

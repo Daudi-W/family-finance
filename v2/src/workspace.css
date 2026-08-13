@@ -227,12 +227,15 @@
 .month-picker input { width: 100%; height: 42px; position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .month-picker strong { pointer-events: none; }
 .transactions-home > .calendar-switch { margin-bottom: 8px; }
+.transaction-list-summary { margin: 2px 0 12px; }
 .calendar-week,.calendar-grid-v2 { display: grid; grid-template-columns: repeat(7,1fr); }
 .calendar-week { margin-top: 10px; color: var(--muted); text-align: center; font-size: 12px; }
-.calendar-grid-v2 { margin-top: 4px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
+.calendar-grid-v2 { margin-top: 4px; overflow: hidden; padding: 4px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
 .calendar-grid-v2 > span,.calendar-grid-v2 button { aspect-ratio: 1; }
 .calendar-grid-v2 button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; border-radius: 11px; }
 .calendar-grid-v2 button.selected { color: #fff; background: var(--primary); }
+.calendar-grid-v2 button.today:not(.selected) b { color: var(--primary-dark); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.calendar-grid-v2 button.today.selected { box-shadow: inset 0 0 0 2px rgba(255,255,255,.78); }
 .calendar-grid-v2 i { display: flex; gap: 3px; }
 .calendar-grid-v2 em { width: 5px; height: 5px; border-radius: 50%; }
 .income-dot { background: var(--income); }
