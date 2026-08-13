@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildDemoData } from '../v2/src/demo-data.ts'
+import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
   advanceRows,
   advancePeopleRows,
@@ -65,6 +66,14 @@ test('新版報表可依指定月份產生月、近 6 個月與年度區間', ()
   assert.deepEqual(reportRangeForPeriod('月', '2026-08'), { from: '2026-08-01', to: '2026-08-31' })
   assert.deepEqual(reportRangeForPeriod('近6個月', '2026-08'), { from: '2026-03-01', to: '2026-08-31' })
   assert.deepEqual(reportRangeForPeriod('年', '2026-08'), { from: '2026-01-01', to: '2026-12-31' })
+})
+
+test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {
+  assert.equal(
+    canonicalAuthUrl('https://family-finance-v2-dev-260811.web.app/reports?period=month#chart', 'family-finance-v2-dev-260811.firebaseapp.com'),
+    'https://family-finance-v2-dev-260811.firebaseapp.com/reports?period=month#chart',
+  )
+  assert.equal(canonicalAuthUrl('https://family-finance-v2-dev-260811.firebaseapp.com/', 'family-finance-v2-dev-260811.firebaseapp.com'), '')
 })
 
 test('外幣以最小單位儲存，淨資產依參考匯率換算台幣', () => {

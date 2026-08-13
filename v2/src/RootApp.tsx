@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, googleProvider, householdId, usesFirebaseEmulators } from './firebase.ts'
+import { canonicalAuthUrl } from './auth-url.ts'
 import Workspace from './Workspace.tsx'
 import './App.css'
 
@@ -25,7 +26,11 @@ function LoginPage({ redirectError = '' }: { redirectError?: string }) {
       if (usesFirebaseEmulators) {
         const email = 'pei.test@example.local'; const password = 'local-test-only'
         try { await signInWithEmailAndPassword(auth, email, password) } catch { await createUserWithEmailAndPassword(auth, email, password) }
-      } else await signInWithRedirect(auth, googleProvider)
+      } else {
+        const canonical = canonicalAuthUrl(window.location.href, import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '')
+        if (canonical) { window.location.assign(canonical); return }
+        await signInWithRedirect(auth, googleProvider)
+      }
     } catch (loginError) { setError(loginError instanceof Error ? loginError.message : '登入失敗，請稍後再試。') } finally { setBusy(false) }
   }
   return <main className="login-page"><section className="login-card"><div className="login-logo"><WalletCards /></div><p className="eyebrow">Family Finance v2</p><h1>家庭記帳</h1><p>新的測試版本與舊帳本完全分開，現在不會讀寫正式財務資料。</p><button className="login-button" type="button" disabled={busy} onClick={() => void login()}><LogIn />{busy ? '登入中…' : usesFirebaseEmulators ? '進入本機測試帳本' : '使用 Google 登入'}</button>{error || redirectError ? <p className="login-error" role="alert">{error || redirectError}</p> : null}<small>{usesFirebaseEmulators ? '需先啟動 Firebase Emulator；帳號只存在本機。' : '僅限已加入家庭帳本的 Google 帳號。'}</small></section></main>
