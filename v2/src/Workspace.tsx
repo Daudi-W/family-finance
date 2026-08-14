@@ -63,6 +63,7 @@ import {
 } from './finance.ts'
 import { iconFor, selectableIcons } from './icons.tsx'
 import { CalculatorInput } from './CalculatorInput.tsx'
+import { fetchTwdReferenceRates } from './exchange-rates.ts'
 import type {
   Account,
   AccountType,
@@ -78,7 +79,7 @@ import './workspace.css'
 type RouteName =
   | 'home' | 'accounts' | 'entry' | 'reports' | 'more'
   | 'transactions' | 'budget' | 'budget-category' | 'budgets' | 'budget-form' | 'pending'
-  | 'account-detail' | 'account-form' | 'account-adjust'
+  | 'account-detail' | 'account-form' | 'account-adjust' | 'account-manager'
   | 'transaction-filter' | 'report-filter' | 'report-category' | 'report-date'
   | 'categories' | 'category-form' | 'category-picker'
   | 'account-picker' | 'project-picker'
@@ -170,6 +171,35 @@ function newEntryDraft(kind: EntryKind, data: FinanceData, preferredAccountId = 
   return emptyEntry(kind, accountId, categoryId, toAccountId)
 }
 
+function useAutomaticReferenceRates(store: Store) {
+  const updating = useRef(false)
+  const autoAccounts = store.data.accounts.filter((account) => !account.archivedAt && account.currency !== 'TWD' && (account.referenceRateMode ?? 'auto') === 'auto')
+  const currenciesKey = [...new Set(autoAccounts.map((account) => account.currency.toUpperCase()))].sort().join(',')
+  useEffect(() => {
+    if (!store.ready || !currenciesKey || updating.current || typeof navigator === 'undefined' || !navigator.onLine) return
+    const checkedKey = `family-finance:fx-check:${todayIso()}:${currenciesKey}`
+    if (localStorage.getItem(checkedKey)) return
+    updating.current = true
+    void fetchTwdReferenceRates(currenciesKey.split(','))
+      .then(async (quotes) => {
+        for (const account of autoAccounts) {
+          const quote = quotes[account.currency.toUpperCase()]
+          if (!quote || (account.referenceRateToTwd === quote.rate && account.referenceRateDate === quote.date && account.referenceRateSource === quote.source)) continue
+          await store.save('accounts', {
+            id: account.id,
+            referenceRateToTwd: quote.rate,
+            referenceRateMode: 'auto',
+            referenceRateDate: quote.date,
+            referenceRateSource: quote.source,
+          })
+        }
+        localStorage.setItem(checkedKey, new Date().toISOString())
+      })
+      .catch((error) => console.warn('外幣參考匯率暫時無法更新', error))
+      .finally(() => { updating.current = false })
+  }, [autoAccounts, currenciesKey, store])
+}
+
 function draftFromTransaction(transaction: FinanceTransaction, data: FinanceData): EntryDraft {
   const firstMove = transaction.accountMoves[0]
   const transfer = transaction.transfer
@@ -217,6 +247,7 @@ function IconButton({ label, children, onClick }: { label: string; children: Rea
 
 export default function Workspace({ user }: { user: User }) {
   const store = useFinanceStore(user)
+  useAutomaticReferenceRates(store)
   const [routes, setRoutes] = useState<Route[]>([{ name: 'home' }])
   const [entryDraft, setEntryDraft] = useState<EntryDraft>(() => emptyEntry())
   const [editingTransactionId, setEditingTransactionId] = useState('')
@@ -303,6 +334,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} filter={transactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
+      case 'account-manager': return <AccountManagerPage store={store} onPush={push} />
       case 'entry': return <EntryPage store={store} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={activeSorted(store.data.accounts).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
@@ -389,7 +421,7 @@ function routeTitle(route: Route, data: FinanceData) {
     home: '首頁', accounts: '帳戶', entry: route.id ? '編輯明細' : '記一筆', reports: '統計報表', more: '更多管理',
     transactions: '交易明細', budget: '本月收支與預算', 'budget-category': '分類預算明細', budgets: '預算設定', 'budget-form': route.id ? '編輯分類預算' : '新增分類預算', pending: '待確認',
     'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類明細', 'report-date': '日期明細',
-    'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額',
+    'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額', 'account-manager': '帳戶管理',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', 'advance-people': '常用代墊名單', settlement: '登記收款／還款',
   }
@@ -727,6 +759,7 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
   const [include, setInclude] = useState(existing?.includeInNetWorth ?? true)
   const [iconKey, setIconKey] = useState(existing?.iconKey ?? 'landmark')
   const [rate, setRate] = useState(String(existing?.referenceRateToTwd ?? ''))
+  const [rateMode, setRateMode] = useState<'auto' | 'manual'>(existing?.referenceRateMode ?? 'auto')
   const [closingDay, setClosingDay] = useState(String(existing?.creditCard?.closingDay ?? 12))
   const [paymentDay, setPaymentDay] = useState(String(existing?.creditCard?.paymentDay ?? 28))
   const [paymentAccountId, setPaymentAccountId] = useState(existing?.creditCard?.defaultPaymentAccountId ?? '')
@@ -736,11 +769,17 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!name.trim()) return setError('請輸入帳戶名稱')
+    if (currency.toUpperCase() !== 'TWD' && rateMode === 'manual' && !(Number(rate) > 0)) return setError('請輸入有效的台幣參考匯率')
+    const isTwd = currency.toUpperCase() === 'TWD'
+    const manualRateChanged = rateMode === 'manual' && (Number(rate) !== existing?.referenceRateToTwd || existing?.referenceRateMode !== 'manual')
     await store.save('accounts', {
       id: existing?.id, name: name.trim(), type, currency: currency.toUpperCase(), iconKey,
       sortOrder: Math.max(0, numberValue(position) - 1), includeInNetWorth: include,
       openingBalanceMinor: toMinor(openingBalance || 0, currency.toUpperCase()), openingDate: existing?.openingDate ?? todayIso(),
-      referenceRateToTwd: currency.toUpperCase() === 'TWD' ? undefined : Number(rate) || 0,
+      referenceRateToTwd: isTwd ? undefined : Number(rate) || existing?.referenceRateToTwd || 0,
+      referenceRateMode: isTwd ? undefined : rateMode,
+      referenceRateDate: isTwd ? undefined : manualRateChanged ? todayIso() : existing?.referenceRateDate,
+      referenceRateSource: isTwd ? undefined : rateMode === 'manual' ? 'manual' : existing?.referenceRateSource,
       creditCard: type === 'credit_card' ? { closingDay: numberValue(closingDay), paymentDay: numberValue(paymentDay), defaultPaymentAccountId: paymentAccountId || undefined } : undefined,
       note: note || undefined,
     })
@@ -751,7 +790,7 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
     <label><span>帳戶類型</span><select value={type} onChange={(event) => { const next = event.target.value as AccountType; setType(next); setIconKey({ cash: 'wallet-cards', bank: 'landmark', credit_card: 'credit-card', investment: 'chart-no-axes-combined', receivable: 'hand-coins' }[next]) }}>{Object.entries(accountTypeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label><span>幣別</span><input value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value)} /></label>
     <label><span>初始餘額</span><CalculatorInput value={openingBalance} onValueChange={setOpeningBalance} disabled={Boolean(existing)} /><small>{existing ? '建立後請使用「調整餘額」，保留帳務紀錄。' : '信用卡請填目前未繳負債。'}</small></label>
-    {currency.toUpperCase() !== 'TWD' ? <label><span>台幣參考匯率</span><CalculatorInput value={rate} onValueChange={setRate} /></label> : null}
+    {currency.toUpperCase() !== 'TWD' ? <><label><span>匯率更新方式</span><select value={rateMode} onChange={(event) => setRateMode(event.target.value as 'auto' | 'manual')}><option value="auto">每日自動更新</option><option value="manual">手動設定</option></select></label><label><span>1 {currency.toUpperCase()} 約等於多少 TWD</span><CalculatorInput value={rate} onValueChange={setRate} disabled={rateMode === 'auto'} /><small>{rateMode === 'auto' ? `由公開匯率每日更新${existing?.referenceRateDate ? `・資料日期 ${existing.referenceRateDate}` : ''}` : '手動匯率會保留，直到你改回自動更新。'}</small></label></> : null}
     {type === 'credit_card' ? <><div className="form-columns"><label><span>結帳日</span><input inputMode="numeric" value={closingDay} onChange={(event) => setClosingDay(event.target.value)} /></label><label><span>繳款日</span><input inputMode="numeric" value={paymentDay} onChange={(event) => setPaymentDay(event.target.value)} /></label></div><label><span>預設扣款帳戶</span><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)}><option value="">不指定</option>{activeSorted(store.data.accounts).filter((item) => item.type !== 'credit_card' && item.id !== existing?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></> : null}
     <ToggleRow label="計入淨資產" checked={include} onChange={setInclude} />
     <label><span>顯示位置</span><select value={position} onChange={(event) => setPosition(event.target.value)}>{Array.from({ length: Math.max(1, store.data.accounts.length + (existing ? 0 : 1)) }, (_, index) => <option key={index + 1} value={index + 1}>第 {index + 1} 位</option>)}</select></label>
@@ -1073,6 +1112,7 @@ function BudgetCategoryPage({ store, categoryId, onEditTransaction }: { store: S
 
 function MorePage({ onPush }: { onPush: (route: Route) => void }) {
   const items = [
+    { route: 'account-manager' as const, label: '帳戶管理', description: '設定、封存與恢復帳戶', icon: Landmark },
     { route: 'projects' as const, label: '專案記帳', description: '旅行、活動等獨立收支', icon: ReceiptText },
     { route: 'budgets' as const, label: '預算設定', description: '每月與年度分類預算', icon: CircleDollarSign },
     { route: 'recurring' as const, label: '定期項目', description: '待確認與自動入帳規則', icon: CalendarDays },
@@ -1080,6 +1120,22 @@ function MorePage({ onPush }: { onPush: (route: Route) => void }) {
     { route: 'categories' as const, label: '分類與圖示', description: '收入、支出分類與排序', icon: Settings },
   ]
   return <main className="workspace-page"><div className="settings-menu-v2">{items.map((item) => { const Icon = item.icon; return <button type="button" key={item.route} onClick={() => onPush({ name: item.route })}><span className="entity-icon"><Icon /></span><span><b>{item.label}</b><small>{item.description}</small></span><ChevronRight /></button> })}</div></main>
+}
+
+function AccountManagerPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {
+  const [view, setView] = useState<'active' | 'archived'>('active')
+  const accounts = [...store.data.accounts]
+    .filter((account) => view === 'archived' ? Boolean(account.archivedAt) : !account.archivedAt)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, 'zh-TW'))
+  return <main className="workspace-page">
+    <div className="view-toggle-v2"><button className={view === 'active' ? 'active' : ''} type="button" onClick={() => setView('active')}>使用中</button><button className={view === 'archived' ? 'active' : ''} type="button" onClick={() => setView('archived')}>已封存</button></div>
+    <p className="page-intro">封存只會把帳戶從日常記帳與帳戶首頁隱藏，不會刪除歷史交易；之後可以隨時恢復。</p>
+    <div className="manager-list account-manager-list">{accounts.map((account) => <div className={account.archivedAt ? 'archived' : ''} key={account.id}>
+      <EntityIcon iconKey={account.iconKey} />
+      <span><strong>{account.name}</strong><small>{accountTypeLabels[account.type]}・{account.currency}</small></span>
+      <span className="account-manager-actions"><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}>設定</button><button type="button" onClick={() => void store.archive('accounts', account.id, !account.archivedAt)}>{account.archivedAt ? '恢復使用' : '封存'}</button></span>
+    </div>)}{accounts.length === 0 ? <div className="simple-empty">目前沒有{view === 'archived' ? '已封存' : '使用中'}的帳戶</div> : null}</div>
+  </main>
 }
 
 function CategoryManager({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {

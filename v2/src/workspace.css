@@ -220,6 +220,11 @@
 .manager-list > div.archived,.category-manager-grid > div.archived { opacity: .55; }
 .manager-list small { display: block; margin-top: 3px; color: var(--muted); }
 .manager-list button { padding: 8px; color: var(--primary); font-weight: 700; }
+.account-manager-list > div { grid-template-columns: 42px minmax(0,1fr) auto; }
+.account-manager-list > div.archived { opacity: 1; background: #f8f7f1; }
+.account-manager-actions { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.account-manager-actions button:last-child { color: var(--expense); }
+.account-manager-list > div.archived .account-manager-actions button:last-child { color: var(--primary); }
 .page-intro { margin: 0 0 14px; color: var(--muted); line-height: 1.6; }
 .adjust-card { padding: 18px; text-align: center; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
 .adjust-card span { color: var(--muted); }

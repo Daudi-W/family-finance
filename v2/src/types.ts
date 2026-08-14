@@ -31,6 +31,9 @@ export type Account = BaseDocument & {
   openingBalanceMinor: number
   openingDate: string
   referenceRateToTwd?: number
+  referenceRateMode?: 'auto' | 'manual'
+  referenceRateDate?: string
+  referenceRateSource?: 'frankfurter' | 'manual'
   note?: string
   creditCard?: {
     closingDay: number
