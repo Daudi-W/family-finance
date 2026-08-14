@@ -4,7 +4,12 @@ import {
   getAuth,
   GoogleAuthProvider,
 } from 'firebase/auth'
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
+import {
+  connectFirestoreEmulator,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 
 const cloudConfigIsComplete = Boolean(
   import.meta.env.VITE_FIREBASE_API_KEY &&
@@ -34,7 +39,14 @@ const firebaseConfig = cloudConfigIsComplete
 const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+/**
+ * 本機持久化快取：帳本資料存進瀏覽器 IndexedDB。
+ * 重新整理與離線時直接由本機讀取，只有變動過的文件才向雲端補抓，
+ * 大幅降低 Firestore 讀取次數；多分頁模式讓兩個分頁共用同一份快取。
+ */
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+})
 export const googleProvider = new GoogleAuthProvider()
 export const householdId = import.meta.env.VITE_FIREBASE_HOUSEHOLD_ID || 'family-home'
 

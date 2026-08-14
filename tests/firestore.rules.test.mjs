@@ -6,7 +6,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore'
 
 const projectId = 'demo-family-finance-v2'
 const householdId = 'pei-household'
@@ -109,6 +109,23 @@ test('只有受邀 Email 可為自己的 UID 建立一般成員，且不能冒�
   await assertFails(setDoc(doc(stranger, 'households', householdId, 'members', 'stranger-user'), { ...memberData, id: 'stranger-user', createdBy: 'stranger-user', updatedBy: 'stranger-user' }))
   await assertFails(setDoc(doc(invited, 'households', householdId, 'members', 'another-user'), { ...memberData, id: 'another-user' }))
   await assertFails(setDoc(doc(invited, 'households', householdId, 'members', 'invited-owner'), { ...memberData, id: 'invited-owner', role: 'owner' }))
+})
+
+test('月打包交易只有家庭成員能讀寫，且不能整份刪除', async () => {
+  const member = testEnvironment.authenticatedContext('pei').firestore()
+  const stranger = testEnvironment.authenticatedContext('stranger').firestore()
+  const monthDocument = { id: '2026-08', month: '2026-08', schemaVersion: 1, items: { a: { id: 'a', occurredOn: '2026-08-14' } }, updatedAt: '2026-08-14T00:00:00.000Z', updatedBy: 'pei' }
+  await assertSucceeds(setDoc(doc(member, 'households', householdId, 'txMonths', '2026-08'), monthDocument))
+  await assertSucceeds(getDoc(doc(member, 'households', householdId, 'txMonths', '2026-08')))
+  await assertFails(getDoc(doc(stranger, 'households', householdId, 'txMonths', '2026-08')))
+  await assertFails(setDoc(doc(stranger, 'households', householdId, 'txMonths', '2026-09'), monthDocument))
+  await assertFails(deleteDoc(doc(member, 'households', householdId, 'txMonths', '2026-08')))
+})
+
+test('單份月文件塞超過上限會被規則擋下來', async () => {
+  const member = testEnvironment.authenticatedContext('pei').firestore()
+  const items = Object.fromEntries(Array.from({ length: 1001 }, (_, position) => [`t${position}`, { id: `t${position}` }]))
+  await assertFails(setDoc(doc(member, 'households', householdId, 'txMonths', '2026-08'), { id: '2026-08', month: '2026-08', schemaVersion: 1, items, updatedAt: '2026-08-14T00:00:00.000Z', updatedBy: 'pei' }))
 })
 
 test('未列入資料模型的集合預設拒絕存取', async () => {

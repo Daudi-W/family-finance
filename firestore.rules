@@ -76,6 +76,16 @@ service cloud.firestore {
         allow read, write: if isHouseholdMember(householdId);
       }
 
+      // 月打包交易：一份文件裝一個月的交易，items 為「交易編號 → 交易內容」。
+      // 上限比前端的分片門檻寬鬆，讓自動拆檔先發生，規則只作最後防線。
+      match /txMonths/{documentId} {
+        allow read: if isHouseholdMember(householdId);
+        allow create, update: if isHouseholdMember(householdId)
+          && request.resource.data.items is map
+          && request.resource.data.items.size() <= 1000;
+        allow delete: if false;
+      }
+
       match /advancePeople/{documentId} {
         allow read, write: if isHouseholdMember(householdId);
       }
