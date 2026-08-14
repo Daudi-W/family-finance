@@ -53,9 +53,10 @@ export function accountTransferDisplayAmount(account: Account, transaction: Fina
   return (account.type === 'credit_card' ? -1 : 1) * movement
 }
 
-export type AccountPeriod = 'month' | 'sixMonths' | 'year'
+export type AccountPeriod = 'month' | 'sixMonths' | 'year' | 'all'
 
 export function accountPeriodRange(period: AccountPeriod, asOf = todayIso()) {
+  if (period === 'all') return { from: '0001-01-01', to: asOf }
   const monthStart = new Date(`${asOf.slice(0, 7)}-01T00:00:00Z`)
   monthStart.setUTCMonth(monthStart.getUTCMonth() - (period === 'sixMonths' ? 5 : period === 'year' ? 11 : 0))
   return { from: monthStart.toISOString().slice(0, 10), to: asOf }

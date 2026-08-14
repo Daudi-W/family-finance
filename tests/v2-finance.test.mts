@@ -87,10 +87,11 @@ test('帳戶摘要分開顯示本期收支與淨轉帳，信用卡付款方向�
   assert.equal(accountTransferDisplayAmount(card, transfer), 5_000)
 })
 
-test('帳戶快速期間以本月起點往前涵蓋 6 個月或 12 個月', () => {
+test('帳戶快速期間可查看本月、近 6 個月、近 1 年或全部', () => {
   assert.deepEqual(accountPeriodRange('month', '2026-08-14'), { from: '2026-08-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('sixMonths', '2026-08-14'), { from: '2026-03-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('year', '2026-08-14'), { from: '2025-09-01', to: '2026-08-14' })
+  assert.deepEqual(accountPeriodRange('all', '2026-08-14'), { from: '0001-01-01', to: '2026-08-14' })
 })
 
 test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {
