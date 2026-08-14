@@ -10,7 +10,7 @@
     "build:v2": "npm run build --workspace @family-finance/v2-app",
     "lint:v2": "npm run lint --workspace @family-finance/v2-app",
     "deploy:dev:v2": "npm run build:v2 && firebase deploy --only hosting --project dev",
-    "test:domain": "node --test tests/backend_security.test.js && node --experimental-strip-types --test tests/calculator.test.mts tests/finance-core.test.mts tests/legacy-import.test.mts tests/v2-finance.test.mts",
+    "test:domain": "node --test tests/backend_security.test.js && node --experimental-strip-types --test tests/calculator.test.mts tests/finance-core.test.mts tests/firestore-rest.test.mts tests/legacy-import.test.mts tests/v2-finance.test.mts",
     "test:core": "node --experimental-strip-types --test tests/finance-core.test.mts",
     "test:firebase": "firebase emulators:exec --project demo-family-finance-v2 --only auth,firestore \"node --test tests/auth-emulator.test.mjs tests/firestore.rules.test.mjs\"",
     "test": "npm run test:domain && npm run test:firebase && npm run lint:v2 && npm run build:v2"

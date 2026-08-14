@@ -1,6 +1,7 @@
 {
   "projects": {
     "default": "demo-family-finance-v2",
-    "dev": "family-finance-v2-dev-260811"
+    "dev": "family-finance-v2-dev-260811",
+    "prod": "family-finance-home-260814"
   }
 }

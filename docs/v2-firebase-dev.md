@@ -53,8 +53,9 @@ firebase deploy --only firestore:rules,firestore:indexes --project dev
 ## 尚未進行
 
 - 尚未匯入舊版 GAS／Sheets／天天記帳資料
-- 尚未建立正式 production Firebase 專案或切換正式入口
 - 尚未開啟 Render 推播；目前提醒只在開啟 App 後處理
 - 尚未進行 PWA 安裝、離線操作與前端程式碼分割最佳化
 
 下一步先由 Pei Ching 使用示範資料完整走一次日常情境，記錄操作不順或欄位缺漏；確認後才建立一次性匯入預覽，不直接寫入正式資料。
+
+> 以上「尚未進行」保留為 dev 環境的歷史說明。production 已於 2026-08-14 建立並完成正式匯入，現況見 `docs/v2-firebase-production.md`。

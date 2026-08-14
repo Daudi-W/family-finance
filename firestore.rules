@@ -17,7 +17,23 @@ service cloud.firestore {
 
       match /members/{userId} {
         allow read: if isHouseholdMember(householdId);
-        allow write: if false;
+        allow create: if signedIn()
+          && userId == request.auth.uid
+          && request.auth.token.email is string
+          && exists(/databases/$(database)/documents/households/$(householdId)/invites/$(request.auth.token.email))
+          && request.resource.data.keys().hasOnly(['id', 'role', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'revision'])
+          && request.resource.data.id == userId
+          && request.resource.data.role == 'member'
+          && request.resource.data.schemaVersion == 1
+          && request.resource.data.createdBy == userId
+          && request.resource.data.updatedBy == userId
+          && request.resource.data.revision == 1;
+        allow update, delete: if false;
+      }
+
+      match /invites/{email} {
+        allow get: if signedIn() && request.auth.token.email == email;
+        allow list, write: if false;
       }
 
       match /accounts/{documentId} {

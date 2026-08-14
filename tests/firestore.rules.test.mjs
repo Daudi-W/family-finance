@@ -79,6 +79,22 @@ test('前端不能自行建立家庭帳本或竄改成員名單', async () => {
   await assertFails(setDoc(doc(db, 'households', householdId, 'members', 'stranger'), { role: 'owner' }))
 })
 
+test('只有受邀 Email 可為自己的 UID 建立一般成員，且不能冒充 owner', async () => {
+  const invitedEmail = 'jessie@example.test'
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'households', householdId, 'invites', invitedEmail), { role: 'member' })
+  })
+  const invited = testEnvironment.authenticatedContext('invited-user', { email: invitedEmail }).firestore()
+  const stranger = testEnvironment.authenticatedContext('stranger-user', { email: 'stranger@example.test' }).firestore()
+  const memberData = { id: 'invited-user', role: 'member', schemaVersion: 1, createdAt: '2026-08-14T00:00:00.000Z', updatedAt: '2026-08-14T00:00:00.000Z', createdBy: 'invited-user', updatedBy: 'invited-user', revision: 1 }
+  await assertSucceeds(getDoc(doc(invited, 'households', householdId, 'invites', invitedEmail)))
+  await assertFails(getDoc(doc(stranger, 'households', householdId, 'invites', invitedEmail)))
+  await assertSucceeds(setDoc(doc(invited, 'households', householdId, 'members', 'invited-user'), memberData))
+  await assertFails(setDoc(doc(stranger, 'households', householdId, 'members', 'stranger-user'), { ...memberData, id: 'stranger-user', createdBy: 'stranger-user', updatedBy: 'stranger-user' }))
+  await assertFails(setDoc(doc(invited, 'households', householdId, 'members', 'another-user'), { ...memberData, id: 'another-user' }))
+  await assertFails(setDoc(doc(invited, 'households', householdId, 'members', 'invited-owner'), { ...memberData, id: 'invited-owner', role: 'owner' }))
+})
+
 test('未列入資料模型的集合預設拒絕存取', async () => {
   const db = testEnvironment.authenticatedContext('pei').firestore()
   await assertFails(setDoc(doc(db, 'households', householdId, 'unknown', 'document'), { unsafe: true }))

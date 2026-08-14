@@ -418,7 +418,7 @@ function TransactionViewSwitch({ view, onChange }: { view: 'calendar' | 'list'; 
   return <div className="topbar-view-switch" role="group" aria-label="交易明細瀏覽模式"><button className={view === 'calendar' ? 'active' : ''} type="button" aria-label="行事曆模式" aria-pressed={view === 'calendar'} onClick={() => onChange('calendar')}><CalendarDays /></button><button className={view === 'list' ? 'active' : ''} type="button" aria-label="清單模式" aria-pressed={view === 'list'} onClick={() => onChange('list')}><List /></button></div>
 }
 
-function LoadingPage() { return <main className="workspace-loading">正在同步測試帳本…</main> }
+function LoadingPage() { return <main className="workspace-loading">正在同步家庭帳本…</main> }
 function ErrorPage({ message }: { message: string }) { return <main className="workspace-loading error-text">資料載入失敗：{message}</main> }
 
 function EntityIcon({ iconKey }: { iconKey: string }) {
@@ -428,7 +428,8 @@ function EntityIcon({ iconKey }: { iconKey: string }) {
 
 function EmptyDataCard({ onSeed }: { onSeed: () => Promise<void> }) {
   const [busy, setBusy] = useState(false)
-  return <section className="empty-data-card"><WalletCards /><h2>測試帳本目前是空的</h2><p>可先建立一組不含真實資料的示範分類、帳戶與交易，再逐頁測試。</p><button type="button" disabled={busy} onClick={() => { setBusy(true); void onSeed().finally(() => setBusy(false)) }}>{busy ? '建立中…' : '建立示範資料'}</button></section>
+  if (!usesFirebaseEmulators) return <section className="empty-data-card"><WalletCards /><h2>家庭帳本目前是空的</h2><p>請先建立帳戶與分類，再開始記錄第一筆交易。</p></section>
+  return <section className="empty-data-card"><WalletCards /><h2>本機測試帳本目前是空的</h2><p>可先建立一組不含真實資料的示範分類、帳戶與交易，再逐頁測試。</p><button type="button" disabled={busy} onClick={() => { setBusy(true); void onSeed().finally(() => setBusy(false)) }}>{busy ? '建立中…' : '建立示範資料'}</button></section>
 }
 
 function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth, todaySignal }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; todaySignal: number }) {
