@@ -68,6 +68,22 @@ test('成員可以管理 v2 的分類、帳戶、預算、專案、定期與代�
   }
 })
 
+test('每位成員只能讀寫自己的帳戶偏好', async () => {
+  await testEnvironment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'households', householdId, 'members', 'jessie'), { role: 'member' })
+  })
+  const pei = testEnvironment.authenticatedContext('pei').firestore()
+  const jessie = testEnvironment.authenticatedContext('jessie').firestore()
+  const createdAt = '2026-08-14T00:00:00.000Z'
+  const preference = { uid: 'pei', accountOrder: ['cash'], defaultAccountId: 'cash', schemaVersion: 1, createdAt, updatedAt: createdAt, createdBy: 'pei', updatedBy: 'pei', revision: 1 }
+  const reference = doc(pei, 'households', householdId, 'userPreferences', 'pei')
+  await assertSucceeds(setDoc(reference, preference))
+  await assertSucceeds(getDoc(reference))
+  await assertSucceeds(setDoc(reference, { ...preference, accountOrder: ['bank', 'cash'], updatedAt: '2026-08-14T00:01:00.000Z', revision: 2 }))
+  await assertFails(getDoc(doc(jessie, 'households', householdId, 'userPreferences', 'pei')))
+  await assertFails(setDoc(doc(jessie, 'households', householdId, 'userPreferences', 'pei'), { ...preference, updatedBy: 'jessie' }))
+})
+
 test('成員仍不能讀取其他家庭帳本', async () => {
   const db = testEnvironment.authenticatedContext('pei').firestore()
   await assertFails(getDoc(doc(db, 'households', 'other-household')))

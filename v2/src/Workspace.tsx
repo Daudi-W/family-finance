@@ -31,6 +31,7 @@ import {
   Save,
   Settings,
   SlidersHorizontal,
+  Star,
   Trash2,
   WalletCards,
   X,
@@ -64,6 +65,8 @@ import {
 import { iconFor, selectableIcons } from './icons.tsx'
 import { CalculatorInput } from './CalculatorInput.tsx'
 import { fetchTwdReferenceRates } from './exchange-rates.ts'
+import { preferredAccountId, sortAccountsForUser, type AccountPreferences } from './account-preferences.ts'
+import { useUserPreferences } from './user-preferences.ts'
 import type {
   Account,
   AccountType,
@@ -122,6 +125,15 @@ const accountTypeLabels: Record<AccountType, string> = {
   investment: '投資理財',
   receivable: '應收／借出',
 }
+const currencyOptions = [
+  ['TWD', '新台幣（TWD）'],
+  ['JPY', '日圓（JPY）'],
+  ['USD', '美元（USD）'],
+  ['EUR', '歐元（EUR）'],
+  ['CNY', '人民幣（CNY）'],
+  ['HKD', '港幣（HKD）'],
+  ['KRW', '韓元（KRW）'],
+] as const
 const transactionLabels: Record<TransactionKind, string> = {
   income: '收入', expense: '支出', transfer: '轉帳', advance: '代墊', settlement: '收／還款', balance_adjustment: '帳務調整',
 }
@@ -163,9 +175,9 @@ function emptyEntry(kind: EntryKind = 'expense', accountId = '', categoryId = ''
   return { kind, date: todayIso(), amount: '', toAmount: '', categoryId, accountId, toAccountId, projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
 }
 
-function newEntryDraft(kind: EntryKind, data: FinanceData, preferredAccountId = '') {
-  const accounts = activeSorted(data.accounts)
-  const accountId = preferredAccountId || accounts[0]?.id || ''
+function newEntryDraft(kind: EntryKind, data: FinanceData, preferences: AccountPreferences, requestedAccountId = '') {
+  const accounts = sortAccountsForUser(data.accounts, preferences.accountOrder)
+  const accountId = preferredAccountId(accounts, preferences, requestedAccountId)
   const toAccountId = kind === 'transfer' ? accounts.find((item) => item.id !== accountId)?.id ?? '' : ''
   const direction: Direction = kind === 'income' ? 'income' : 'expense'
   const categoryId = activeSorted(data.categories.filter((item) => item.direction === direction))[0]?.id ?? ''
@@ -248,6 +260,7 @@ function IconButton({ label, children, onClick }: { label: string; children: Rea
 
 export default function Workspace({ user }: { user: User }) {
   const store = useFinanceStore(user)
+  const preferences = useUserPreferences(user)
   useAutomaticReferenceRates(store)
   const [routes, setRoutes] = useState<Route[]>([{ name: 'home' }])
   const [entryDraft, setEntryDraft] = useState<EntryDraft>(() => emptyEntry())
@@ -275,19 +288,19 @@ export default function Workspace({ user }: { user: User }) {
     setRoutes([{ name }])
     if (name !== 'accounts') setManageAccounts(false)
     if (name === 'entry') {
-      setEntryDraft(newEntryDraft('expense', store.data))
+      setEntryDraft(newEntryDraft('expense', store.data, preferences.value))
       setEditingTransactionId('')
       setPendingRuleId('')
     }
   }
   const openNewEntry = (kind: EntryKind = 'expense', accountId = '') => {
-    setEntryDraft(newEntryDraft(kind, store.data, accountId))
+    setEntryDraft(newEntryDraft(kind, store.data, preferences.value, accountId))
     setEditingTransactionId('')
     setPendingRuleId('')
     push({ name: 'entry' })
   }
   const continueEntry = (kind: EntryKind) => {
-    setEntryDraft(newEntryDraft(kind, store.data))
+    setEntryDraft(newEntryDraft(kind, store.data, preferences.value))
     setEditingTransactionId('')
     setPendingRuleId('')
   }
@@ -327,18 +340,18 @@ export default function Workspace({ user }: { user: User }) {
   }, [store, pendingRules])
 
   const page = (() => {
-    if (!store.ready) return <LoadingPage />
-    if (store.error) return <ErrorPage message={store.error} />
+    if (!store.ready || !preferences.ready) return <LoadingPage />
+    if (store.error || preferences.error) return <ErrorPage message={store.error || preferences.error} />
     switch (route.name) {
       case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
-      case 'accounts': return <AccountsPage store={store} onPush={push} hideBalances={hideBalances} managing={manageAccounts} />
+      case 'accounts': return <AccountsPage store={store} preferences={preferences.value} savePreferences={preferences.save} onPush={push} hideBalances={hideBalances} managing={manageAccounts} />
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} filter={transactionFilter.accountId === route.id ? transactionFilter : emptyTransactionFilter(route.id)} onFilterChange={setTransactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
       case 'account-manager': return <AccountManagerPage store={store} onPush={push} />
-      case 'entry': return <EntryPage store={store} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
+      case 'entry': return <EntryPage store={store} preferences={preferences.value} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
-      case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={activeSorted(store.data.accounts).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
+      case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={sortAccountsForUser(store.data.accounts, preferences.value.accountOrder).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
       case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} hideBalances={hideBalances} todaySignal={transactionTodaySignal} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter.accountId === route.id ? transactionFilter : emptyTransactionFilter(route.id)} onChange={(value) => setTransactionFilter({ ...value, accountId: route.id ?? '' })} onDone={back} />
@@ -516,8 +529,8 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
   })}</div></section>)}</div>
 }
 
-function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store; onPush: (route: Route) => void; hideBalances: boolean; managing: boolean }) {
-  const accounts = activeSorted(store.data.accounts)
+function AccountsPage({ store, preferences, savePreferences, onPush, hideBalances, managing }: { store: Store; preferences: AccountPreferences; savePreferences: (patch: Partial<AccountPreferences>) => Promise<void>; onPush: (route: Route) => void; hideBalances: boolean; managing: boolean }) {
+  const accounts = sortAccountsForUser(store.data.accounts, preferences.accountOrder)
   const balances = calculateBalances(accounts, store.data.transactions)
   const netWorth = calculateNetWorth(accounts, balances)
   const [dragging, setDragging] = useState('')
@@ -526,7 +539,7 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
     const to = accounts.findIndex((item) => item.id === toId)
     if (from < 0 || to < 0 || from === to) return
     const next = [...accounts]; const [moved] = next.splice(from, 1); next.splice(to, 0, moved)
-    await Promise.all(next.map((item, index) => store.save('accounts', { id: item.id, sortOrder: index })))
+    await savePreferences({ accountOrder: next.map((item) => item.id) })
   }
   const move = (items: Account[], id: string, delta: number) => {
     const index = items.findIndex((item) => item.id === id)
@@ -543,7 +556,8 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
   ].filter((group) => group.items.length)
   return <main className="workspace-page">
     <section className="net-worth-v2"><span>家庭淨資產</span><strong className={moneyTone(netWorth.netWorth)}>{hideBalances ? '••••••' : money(netWorth.netWorth)}</strong><div><span>總資產 <b className="income-text">{hideBalances ? '••••' : money(netWorth.assets)}</b></span><span>總負債 <b className="expense-text">{hideBalances ? '••••' : money(netWorth.liabilities)}</b></span></div></section>
-    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span className={group.key === 'credit_card' ? 'expense-text' : 'income-text'}>{hideBalances ? '••••' : group.key === 'credit_card' ? `待繳 ${money(group.items.reduce((sum, item) => sum + Math.max(0, balances[item.id] ?? 0), 0))}` : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account, index) => { const displayBalance = (account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0); return <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} data-sort-id={account.id} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <div className="account-sort-controls"><button type="button" className="account-drag" aria-label={`拖曳${account.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(account.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(account.id, touchSortTarget(event)) }}><GripVertical /></button><span><button type="button" aria-label={`${account.name}上移`} disabled={index === 0} onClick={() => move(group.items, account.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${account.name}下移`} disabled={index === group.items.length - 1} onClick={() => move(group.items, account.id, 1)}><ChevronDown /></button></span></div> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={moneyTone(displayBalance)}>{hideBalances ? '••••' : money(displayBalance, account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div> })}</div></section>)}
+    {managing ? <p className="account-personalization-note">排序與預設帳戶只套用目前登入的帳號，不會更改帳戶名稱或家庭帳務。</p> : null}
+    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span className={group.key === 'credit_card' ? 'expense-text' : 'income-text'}>{hideBalances ? '••••' : group.key === 'credit_card' ? `待繳 ${money(group.items.reduce((sum, item) => sum + Math.max(0, balances[item.id] ?? 0), 0))}` : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account, index) => { const displayBalance = (account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0); const isDefault = preferences.defaultAccountId === account.id; return <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} data-sort-id={account.id} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <div className="account-sort-controls"><button type="button" className="account-drag" aria-label={`拖曳${account.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(account.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(account.id, touchSortTarget(event)) }}><GripVertical /></button><span><button type="button" aria-label={`${account.name}上移`} disabled={index === 0} onClick={() => move(group.items, account.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${account.name}下移`} disabled={index === group.items.length - 1} onClick={() => move(group.items, account.id, 1)}><ChevronDown /></button></span></div> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{isDefault ? `我的預設帳戶・${accountTypeLabels[account.type]}` : account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={moneyTone(displayBalance)}>{hideBalances ? '••••' : money(displayBalance, account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={isDefault ? `${account.name}目前是我的預設帳戶` : `設${account.name}為我的預設帳戶`} onClick={() => void savePreferences({ defaultAccountId: account.id })}><Star fill={isDefault ? 'currentColor' : 'none'} /></IconButton><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div> })}</div></section>)}
   </main>
 }
 
@@ -579,7 +593,7 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
   </main>
 }
 
-function EntryPage({ store, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue }: { store: Store; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void }) {
+function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue }: { store: Store; preferences: AccountPreferences; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const accounts = activeSorted(store.data.accounts)
@@ -598,7 +612,7 @@ function EntryPage({ store, draft, setDraft, editingId, recurringRule, onPush, o
   if (existingTransaction?.kind === 'settlement') return <SettlementTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
   if (existingTransaction?.kind === 'balance_adjustment') return <AdjustmentTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
 
-  const changeKind = (kind: EntryKind) => setDraft((current) => ({ ...newEntryDraft(kind, store.data), date: current.date }))
+  const changeKind = (kind: EntryKind) => setDraft((current) => ({ ...newEntryDraft(kind, store.data, preferences), date: current.date }))
   const save = async (continueAfterSave = false) => {
     setError('')
     if (recurringOccurrenceId && store.data.transactions.some((item) => item.recurringOccurrenceId === recurringOccurrenceId)) return setError('這筆定期項目已經入帳')
@@ -759,6 +773,7 @@ function PickerPage<T extends { id: string; name: string; iconKey: string }>({ t
 
 function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId?: string; onDone: () => void }) {
   const existing = store.data.accounts.find((item) => item.id === accountId)
+  const currencyLocked = Boolean(existing && store.data.transactions.some((transaction) => transaction.accountMoves.some((move) => move.accountId === existing.id)))
   const [name, setName] = useState(existing?.name ?? '')
   const [type, setType] = useState<AccountType>(existing?.type ?? 'bank')
   const [currency, setCurrency] = useState(existing?.currency ?? 'TWD')
@@ -771,7 +786,6 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
   const [paymentDay, setPaymentDay] = useState(String(existing?.creditCard?.paymentDay ?? 28))
   const [paymentAccountId, setPaymentAccountId] = useState(existing?.creditCard?.defaultPaymentAccountId ?? '')
   const [note, setNote] = useState(existing?.note ?? '')
-  const [position, setPosition] = useState(String((existing?.sortOrder ?? store.data.accounts.length) + 1))
   const [error, setError] = useState('')
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -781,7 +795,7 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
     const manualRateChanged = rateMode === 'manual' && (Number(rate) !== existing?.referenceRateToTwd || existing?.referenceRateMode !== 'manual')
     await store.save('accounts', {
       id: existing?.id, name: name.trim(), type, currency: currency.toUpperCase(), iconKey,
-      sortOrder: Math.max(0, numberValue(position) - 1), includeInNetWorth: include,
+      sortOrder: existing?.sortOrder ?? store.data.accounts.length, includeInNetWorth: include,
       openingBalanceMinor: toMinor(openingBalance || 0, currency.toUpperCase()), openingDate: existing?.openingDate ?? todayIso(),
       referenceRateToTwd: isTwd ? undefined : Number(rate) || existing?.referenceRateToTwd || 0,
       referenceRateMode: isTwd ? undefined : rateMode,
@@ -795,12 +809,11 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
   return <main className="entry-page-v2"><header className="entry-page-head editor-page-head"><IconButton label="返回帳戶" onClick={onDone}><ArrowLeft /></IconButton><h1>{existing ? '帳戶設定' : '新增帳戶'}</h1><button className="entry-head-save" type="submit" form="account-form-v2">儲存</button></header><form id="account-form-v2" className="settings-form standalone-editor-content" onSubmit={(event) => void submit(event)}>
     <label><span>帳戶名稱</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：中信帳戶" /></label>
     <label><span>帳戶類型</span><select value={type} onChange={(event) => { const next = event.target.value as AccountType; setType(next); setIconKey({ cash: 'wallet-cards', bank: 'landmark', credit_card: 'credit-card', investment: 'chart-no-axes-combined', receivable: 'hand-coins' }[next]) }}>{Object.entries(accountTypeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-    <label><span>幣別</span><input value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value)} /></label>
+    <label><span>幣別</span><select value={currency} disabled={currencyLocked} onChange={(event) => setCurrency(event.target.value)}>{!currencyOptions.some(([value]) => value === currency) ? <option value={currency}>{currency}</option> : null}{currencyOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>{currencyLocked ? <small>已有交易紀錄，為避免改寫歷史金額，幣別不可變更。</small> : null}</label>
     <label><span>初始餘額</span><CalculatorInput value={openingBalance} onValueChange={setOpeningBalance} disabled={Boolean(existing)} /><small>{existing ? '建立後請使用「調整餘額」，保留帳務紀錄。' : '信用卡請填目前未繳負債。'}</small></label>
     {currency.toUpperCase() !== 'TWD' ? <><label><span>匯率更新方式</span><select value={rateMode} onChange={(event) => setRateMode(event.target.value as 'auto' | 'manual')}><option value="auto">每日自動更新</option><option value="manual">手動設定</option></select></label><label><span>1 {currency.toUpperCase()} 約等於多少 TWD</span><CalculatorInput value={rate} onValueChange={setRate} disabled={rateMode === 'auto'} /><small>{rateMode === 'auto' ? `由公開匯率每日更新${existing?.referenceRateDate ? `・資料日期 ${existing.referenceRateDate}` : ''}` : '手動匯率會保留，直到你改回自動更新。'}</small></label></> : null}
     {type === 'credit_card' ? <><div className="form-columns"><label><span>結帳日</span><input inputMode="numeric" value={closingDay} onChange={(event) => setClosingDay(event.target.value)} /></label><label><span>繳款日</span><input inputMode="numeric" value={paymentDay} onChange={(event) => setPaymentDay(event.target.value)} /></label></div><label><span>預設扣款帳戶</span><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)}><option value="">不指定</option>{activeSorted(store.data.accounts).filter((item) => item.type !== 'credit_card' && item.id !== existing?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></> : null}
     <ToggleRow label="計入淨資產" checked={include} onChange={setInclude} />
-    <label><span>顯示位置</span><select value={position} onChange={(event) => setPosition(event.target.value)}>{Array.from({ length: Math.max(1, store.data.accounts.length + (existing ? 0 : 1)) }, (_, index) => <option key={index + 1} value={index + 1}>第 {index + 1} 位</option>)}</select></label>
     <IconChooser value={iconKey} onChange={setIconKey} />
     <label><span>備註</span><textarea placeholder="可留空" value={note} onChange={(event) => setNote(event.target.value)} /></label>
     {error ? <p className="form-error">{error}</p> : null}
