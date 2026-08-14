@@ -3,6 +3,7 @@ import test from 'node:test'
 import { buildDemoData } from '../v2/src/demo-data.ts'
 import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
+  accountPeriodSummary,
   advanceRows,
   advancePeopleRows,
   calculateBalances,
@@ -66,6 +67,20 @@ test('新版報表可依指定月份產生月、近 6 個月與年度區間', ()
   assert.deepEqual(reportRangeForPeriod('月', '2026-08'), { from: '2026-08-01', to: '2026-08-31' })
   assert.deepEqual(reportRangeForPeriod('近6個月', '2026-08'), { from: '2026-03-01', to: '2026-08-31' })
   assert.deepEqual(reportRangeForPeriod('年', '2026-08'), { from: '2026-01-01', to: '2026-12-31' })
+})
+
+test('帳戶摘要分開顯示本期收支與淨轉帳，信用卡付款方向符合負債直覺', () => {
+  const data = buildDemoData()
+  const bank = data.accounts.find((account) => account.id === 'bank')!
+  const card = data.accounts.find((account) => account.id === 'card')!
+  const transfer = {
+    ...data.transactions[0], id: 'payment', kind: 'transfer' as const, occurredOn: todayIso(), reportLines: [],
+    accountMoves: [{ accountId: 'bank', deltaMinor: -5_000, currency: 'TWD' }, { accountId: 'card', deltaMinor: -5_000, currency: 'TWD' }],
+    transfer: { fromAccountId: 'bank', toAccountId: 'card', fromAmountMinor: 5_000, toAmountMinor: 5_000, feeMinor: 0 },
+  }
+  const month = monthKey(todayIso())
+  assert.deepEqual(accountPeriodSummary(bank, [...data.transactions, transfer], month), { income: 62_000, expense: 0, netTransfer: -5_000 })
+  assert.deepEqual(accountPeriodSummary(card, [...data.transactions, transfer], month), { income: 0, expense: 14_280, netTransfer: 5_000 })
 })
 
 test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {

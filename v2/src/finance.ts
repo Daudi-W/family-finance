@@ -40,6 +40,14 @@ export function calculateBalances(accounts: Account[], transactions: FinanceTran
   return balances
 }
 
+export function accountPeriodSummary(account: Account, transactions: FinanceTransaction[], month: string) {
+  const related = activeTransactions(transactions).filter((transaction) => monthKey(transaction.occurredOn) === month && transaction.accountMoves.some((move) => move.accountId === account.id))
+  const income = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'income')).reduce((sum, line) => sum + line.amountMinor, 0)
+  const expense = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'expense')).reduce((sum, line) => sum + line.amountMinor, 0)
+  const rawNetTransfer = related.filter((transaction) => transaction.kind === 'transfer').flatMap((transaction) => transaction.accountMoves.filter((move) => move.accountId === account.id)).reduce((sum, move) => sum + move.deltaMinor, 0)
+  return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer }
+}
+
 export function calculateNetWorth(accounts: Account[], balances: Record<string, number>) {
   let assets = 0
   let liabilities = 0

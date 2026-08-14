@@ -1,5 +1,5 @@
 export type Direction = 'income' | 'expense'
-export type AccountType = 'cash' | 'bank' | 'credit_card' | 'investment'
+export type AccountType = 'cash' | 'bank' | 'credit_card' | 'investment' | 'receivable'
 export type TransactionKind = 'income' | 'expense' | 'transfer' | 'advance' | 'settlement' | 'balance_adjustment'
 
 export type BaseDocument = {

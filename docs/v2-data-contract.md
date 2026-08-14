@@ -53,7 +53,7 @@ households/{householdId}
 ```ts
 type Account = {
   name: string
-  type: 'cash' | 'bank' | 'credit_card' | 'investment'
+  type: 'cash' | 'bank' | 'credit_card' | 'investment' | 'receivable'
   currency: 'TWD' | 'JPY' | 'USD' | string
   iconKey: string
   sortOrder: number
@@ -70,7 +70,8 @@ type Account = {
 }
 ```
 
-- 現金、銀行、投資屬於資產帳戶；信用卡屬於負債帳戶。
+- 現金、銀行、投資與應收／借出屬於資產帳戶；信用卡屬於負債帳戶。
+- 應收／借出用來承接舊帳本無法還原為個別代墊明細的借貸餘額；新建立的代墊仍使用代墊交易，不以此帳戶取代。
 - 投資帳戶餘額代表**累計投入本金**，不串即時市值。
 - 外幣帳戶保存手動更新的台幣參考匯率；淨資產換算使用該帳戶目前參考匯率。
 - `cachedBalanceMinor` 只用來加快首頁；真正來源仍是期初餘額加所有正式帳戶異動，必須能重新計算核對。

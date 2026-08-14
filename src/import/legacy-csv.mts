@@ -29,6 +29,12 @@ export type LegacyTransfer = {
   sourceId: string
 }
 
+export type LegacyAccountMapping = {
+  sourceName: string
+  accountId: string
+  type: 'cash' | 'bank' | 'credit_card' | 'investment' | 'receivable'
+}
+
 const ENTRY_HEADER = ['日期', '類別', '大類別', '金額', '幣別', '成員', '帳戶', '標籤', '備註', '收支區分', '上次更新', 'UUID']
 const TRANSFER_HEADER = ['日期', '從帳戶', '轉出金額', '幣別', '到帳戶', '轉入金額', '幣別', '標籤', '備註', '上次更新', 'UUID']
 
@@ -209,4 +215,55 @@ export function buildLegacyPreview(entries: LegacyEntry[], transfers: LegacyTran
       '帳戶名稱仍需與舊系統目前帳戶設定核對後才能正式匯入。',
     ],
   }
+}
+
+const minorAmount = (value: number, currency: string) => Math.round(value * (['TWD', 'JPY'].includes(currency) ? 1 : 100))
+
+export function buildLegacyImportDryRun(entries: LegacyEntry[], transfers: LegacyTransfer[], mappings: LegacyAccountMapping[], asOf: string) {
+  const accountMap = new Map(mappings.map((item) => [item.sourceName, item]))
+  const categories = buildLegacyPreview(entries, transfers, asOf).categories.map((item, index) => ({
+    id: `legacy-category-${item.direction}-${index + 1}`,
+    name: item.name,
+    direction: item.direction,
+    sortOrder: index,
+    systemKey: item.systemKey,
+    archived: !item.activeForNewEntry,
+  }))
+  const categoryMap = new Map(categories.map((item) => [`${item.direction}:${item.name}`, item.id]))
+  const transactions: Record<string, unknown>[] = []
+  const held: Array<{ sourceId: string; reason: string; accounts: string[] }> = []
+
+  for (const row of entries) {
+    if (row.occurredOn > asOf) { held.push({ sourceId: row.sourceId, reason: 'future_date', accounts: [row.account] }); continue }
+    const account = accountMap.get(row.account)
+    if (!account) { held.push({ sourceId: row.sourceId, reason: 'unmapped_account', accounts: [row.account] }); continue }
+    const value = minorAmount(Math.abs(row.amount), row.currency)
+    const assetDelta = row.direction === 'income' ? value : -value
+    transactions.push({
+      id: `legacy-${row.sourceId}`, kind: row.category === '餘額調整' ? 'balance_adjustment' : row.direction,
+      occurredOn: row.occurredOn, note: row.note || undefined,
+      accountMoves: [{ accountId: account.accountId, deltaMinor: account.type === 'credit_card' ? -assetDelta : assetDelta, currency: row.currency }],
+      reportLines: [{ direction: row.direction, categoryId: categoryMap.get(`${row.direction}:${row.category}`), amountMinor: value, currency: row.currency, amountTwdMinor: row.currency === 'TWD' ? value : null, countsTowardBudget: row.category !== '餘額調整' }],
+      source: { provider: '天天記帳', sourceId: row.sourceId, updatedAt: row.sourceUpdatedAt, member: row.member, tags: row.tags },
+    })
+  }
+  for (const row of transfers) {
+    if (row.occurredOn > asOf) { held.push({ sourceId: row.sourceId, reason: 'future_date', accounts: [row.fromAccount, row.toAccount] }); continue }
+    const from = accountMap.get(row.fromAccount)
+    const to = accountMap.get(row.toAccount)
+    if (!from || !to) { held.push({ sourceId: row.sourceId, reason: 'unmapped_account', accounts: [row.fromAccount, row.toAccount].filter((name) => !accountMap.has(name)) }); continue }
+    const fromAmount = minorAmount(Math.abs(row.fromAmount), row.fromCurrency)
+    const toAmount = minorAmount(Math.abs(row.toAmount), row.toCurrency)
+    transactions.push({
+      id: `legacy-${row.sourceId}`, kind: 'transfer', occurredOn: row.occurredOn, note: row.note || undefined,
+      accountMoves: [
+        { accountId: from.accountId, deltaMinor: from.type === 'credit_card' ? fromAmount : -fromAmount, currency: row.fromCurrency },
+        { accountId: to.accountId, deltaMinor: to.type === 'credit_card' ? -toAmount : toAmount, currency: row.toCurrency },
+      ], reportLines: [],
+      transfer: { fromAccountId: from.accountId, toAccountId: to.accountId, fromAmountMinor: fromAmount, toAmountMinor: toAmount, feeMinor: 0 },
+      source: { provider: '天天記帳', sourceId: row.sourceId, updatedAt: row.sourceUpdatedAt, tags: row.tags },
+    })
+  }
+  const heldByReason = held.reduce<Record<string, number>>((result, item) => ({ ...result, [item.reason]: (result[item.reason] ?? 0) + 1 }), {})
+  return { asOf, mappedAccounts: mappings.length, categories, transactions, held, heldByReason }
 }

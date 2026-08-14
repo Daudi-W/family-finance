@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode, type TouchEvent } from 'react'
 import type { User } from 'firebase/auth'
 import {
-  ArrowDownLeft,
   ArrowLeft,
   ArrowUpDown,
-  ArrowUpRight,
   ChartColumn,
   CalendarDays,
   ChartPie,
@@ -14,6 +12,7 @@ import {
   ChevronRight,
   ChevronUp,
   CircleDollarSign,
+  CirclePlus,
   Eye,
   EyeOff,
   GripVertical,
@@ -41,6 +40,7 @@ import { auth, usesFirebaseEmulators } from './firebase.ts'
 import { useFinanceStore } from './finance-store.ts'
 import {
   activeTransactions,
+  accountPeriodSummary,
   addRecurringPeriod,
   advancePeopleRows,
   advanceRows,
@@ -116,6 +116,7 @@ const accountTypeLabels: Record<AccountType, string> = {
   bank: '銀行',
   credit_card: '信用卡',
   investment: '投資理財',
+  receivable: '應收／借出',
 }
 const transactionLabels: Record<TransactionKind, string> = {
   income: '收入', expense: '支出', transfer: '轉帳', advance: '代墊', settlement: '收／還款', balance_adjustment: '帳務調整',
@@ -296,7 +297,7 @@ export default function Workspace({ user }: { user: User }) {
     switch (route.name) {
       case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
       case 'accounts': return <AccountsPage store={store} onPush={push} hideBalances={hideBalances} managing={manageAccounts} />
-      case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEntry={openNewEntry} onEditTransaction={editTransaction} filter={transactionFilter} />
+      case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} filter={transactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
       case 'entry': return <EntryPage store={store} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
@@ -359,7 +360,7 @@ export default function Workspace({ user }: { user: User }) {
               <IconButton label="新增帳戶" onClick={() => push({ name: 'account-form' })}><Plus /></IconButton>
               <IconButton label={manageAccounts ? '完成帳戶編輯' : '編輯帳戶'} onClick={() => setManageAccounts((value) => !value)}>{manageAccounts ? <Check /> : <Menu />}</IconButton>
             </> : null}
-            {route.name === 'account-detail' ? <><IconButton label="帳戶設定" onClick={() => push({ name: 'account-form', id: route.id })}><SlidersHorizontal /></IconButton><IconButton label="調整餘額" onClick={() => push({ name: 'account-adjust', id: route.id })}><Scale /></IconButton></> : null}
+            {route.name === 'account-detail' ? <IconButton label="用此帳戶記一筆" onClick={() => openNewEntry('expense', route.id ?? '')}><CirclePlus /></IconButton> : null}
             {route.name === 'account-adjust' ? <button className="topbar-text-action" type="submit" form="account-adjust-form">儲存</button> : null}
             {route.name === 'projects' ? <IconButton label="新增專案" onClick={() => push({ name: 'project-form' })}><Plus /></IconButton> : null}
             {route.name === 'project-detail' ? <IconButton label="編輯專案" onClick={() => push({ name: 'project-form', id: route.id })}><Pencil /></IconButton> : null}
@@ -499,6 +500,7 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
     { key: 'foreign', label: '外幣', items: accounts.filter((item) => item.currency !== 'TWD') },
     { key: 'credit_card', label: '信用卡', items: accounts.filter((item) => item.type === 'credit_card') },
     { key: 'investment', label: '投資', items: accounts.filter((item) => item.type === 'investment' && item.currency === 'TWD') },
+    { key: 'receivable', label: '應收／借出', items: accounts.filter((item) => item.type === 'receivable') },
   ].filter((group) => group.items.length)
   return <main className="workspace-page">
     <section className="net-worth-v2"><span>家庭淨資產</span><strong className={moneyTone(netWorth.netWorth)}>{hideBalances ? '••••••' : money(netWorth.netWorth)}</strong><div><span>總資產 <b className="income-text">{hideBalances ? '••••' : money(netWorth.assets)}</b></span><span>總負債 <b className="expense-text">{hideBalances ? '••••' : money(netWorth.liabilities)}</b></span></div></section>
@@ -506,20 +508,26 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
   </main>
 }
 
-function AccountDetailPage({ store, accountId, onPush, onEntry, onEditTransaction, filter }: { store: Store; accountId: string; onPush: (route: Route) => void; onEntry: (kind: EntryKind, accountId: string) => void; onEditTransaction: (transaction: FinanceTransaction) => void; filter: TransactionFilter }) {
+function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter }: { store: Store; accountId: string; onPush: (route: Route) => void; onEditTransaction: (transaction: FinanceTransaction) => void; filter: TransactionFilter }) {
   const account = store.data.accounts.find((item) => item.id === accountId)
   if (!account) return <main className="workspace-page"><div className="simple-empty">找不到帳戶</div></main>
   const balance = calculateBalances(store.data.accounts, store.data.transactions)[account.id] ?? 0
   const allRelated = activeTransactions(store.data.transactions).filter((transaction) => transaction.accountMoves.some((move) => move.accountId === account.id)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
   const related = allRelated.filter((transaction) => (filter.kind === 'all' || transaction.kind === filter.kind) && (!filter.categoryId || transaction.reportLines.some((line) => line.categoryId === filter.categoryId)) && (!filter.projectId || transaction.projectId === filter.projectId) && (!filter.from || transaction.occurredOn >= filter.from) && (!filter.to || transaction.occurredOn <= filter.to))
-  const thisMonth = allRelated.filter((item) => monthKey(item.occurredOn) === currentMonth())
-  const income = thisMonth.flatMap((item) => item.reportLines.filter((line) => line.direction === 'income')).reduce((sum, line) => sum + line.amountMinor, 0)
-  const expense = thisMonth.flatMap((item) => item.reportLines.filter((line) => line.direction === 'expense')).reduce((sum, line) => sum + line.amountMinor, 0)
-  const transfers = thisMonth.filter((item) => item.kind === 'transfer').flatMap((item) => item.accountMoves.filter((move) => move.accountId === account.id)).reduce((sum, move) => sum + move.deltaMinor, 0)
+  const { income, expense, netTransfer } = accountPeriodSummary(account, allRelated, currentMonth())
+  const displaySign = account.type === 'credit_card' ? -1 : 1
+  const displayBalance = displaySign * balance
   return <main className="workspace-page">
-    <section className="account-balance-compact"><EntityIcon iconKey={account.iconKey} /><span>帳面餘額</span><strong className={moneyTone((account.type === 'credit_card' ? -1 : 1) * balance)}>{money((account.type === 'credit_card' ? -1 : 1) * balance, account.currency)}</strong></section>
-    <section className="account-flow-summary"><span>本月收入 <b className="income-text">{money(income, account.currency)}</b></span><span>本月支出 <b className="expense-text">{money(expense, account.currency)}</b></span><span>本月轉帳 <b>{transfers > 0 ? '+' : ''}{money(transfers, account.currency)}</b></span></section>
-    <div className="account-action-grid"><button type="button" onClick={() => onEntry('expense', account.id)}><ArrowUpRight />記支出</button><button type="button" onClick={() => onEntry('income', account.id)}><ArrowDownLeft />記收入</button><button type="button" onClick={() => onEntry('transfer', account.id)}><Repeat2 />轉帳</button></div>
+    <section className="account-overview-v2">
+      <header><span>{account.currency}</span><b>本月</b></header>
+      <div className="account-overview-balance"><EntityIcon iconKey={account.iconKey} /><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
+      <div className="account-overview-flows">
+        <span><b className="income-text">+{money(income, account.currency)}</b><small>收入</small></span>
+        <span><b className="expense-text">-{money(expense, account.currency)}</b><small>支出</small></span>
+        <span><b className={moneyTone(netTransfer)}>{netTransfer > 0 ? '+' : ''}{money(netTransfer, account.currency)}</b><small>淨轉帳</small></span>
+      </div>
+      <footer><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
+    </section>
     <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2><button type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}>篩選</button></div><TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} /></section>
   </main>
 }
@@ -732,7 +740,7 @@ function AccountFormPage({ store, accountId, onDone }: { store: Store; accountId
   }
   return <main className="entry-page-v2"><header className="entry-page-head editor-page-head"><IconButton label="返回帳戶" onClick={onDone}><ArrowLeft /></IconButton><h1>{existing ? '帳戶設定' : '新增帳戶'}</h1><button className="entry-head-save" type="submit" form="account-form-v2">儲存</button></header><form id="account-form-v2" className="settings-form standalone-editor-content" onSubmit={(event) => void submit(event)}>
     <label><span>帳戶名稱</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：中信帳戶" /></label>
-    <label><span>帳戶類型</span><select value={type} onChange={(event) => { const next = event.target.value as AccountType; setType(next); setIconKey({ cash: 'wallet-cards', bank: 'landmark', credit_card: 'credit-card', investment: 'chart-no-axes-combined' }[next]) }}>{Object.entries(accountTypeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+    <label><span>帳戶類型</span><select value={type} onChange={(event) => { const next = event.target.value as AccountType; setType(next); setIconKey({ cash: 'wallet-cards', bank: 'landmark', credit_card: 'credit-card', investment: 'chart-no-axes-combined', receivable: 'hand-coins' }[next]) }}>{Object.entries(accountTypeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label><span>幣別</span><input value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value)} /></label>
     <label><span>初始餘額</span><CalculatorInput value={openingBalance} onValueChange={setOpeningBalance} disabled={Boolean(existing)} /><small>{existing ? '建立後請使用「調整餘額」，保留帳務紀錄。' : '信用卡請填目前未繳負債。'}</small></label>
     {currency.toUpperCase() !== 'TWD' ? <label><span>台幣參考匯率</span><CalculatorInput value={rate} onValueChange={setRate} /></label> : null}

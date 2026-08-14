@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildLegacyPreview, parseCsv, parseLegacyEntries, parseLegacyTransfers } from '../src/import/legacy-csv.mts'
+import { buildLegacyImportDryRun, buildLegacyPreview, parseCsv, parseLegacyEntries, parseLegacyTransfers } from '../src/import/legacy-csv.mts'
 
 test('CSV parser preserves commas, escaped quotes, and line breaks inside quoted cells', () => {
   assert.deepEqual(parseCsv('a,b\r\n1,"two, three"\r\n2,"say ""hi""\nnext"\r\n'), [
@@ -30,4 +30,18 @@ test('最近六個月類別保持可選，歷史類別封存，未來交易暫�
   assert.equal(preview.categories.find((item) => item.name === '舊分類')?.activeForNewEntry, false)
   assert.equal(preview.categories.find((item) => item.name === '餘額調整')?.systemKey, 'balance_adjustment_income')
   assert.equal(preview.categories.find((item) => item.name === '餘額調整')?.countsTowardBudget, false)
+})
+
+test('正式匯入乾跑只轉換已對應帳戶，並保留來源 UUID 防重', () => {
+  const base = { parentCategory: '', amount: 100, currency: 'TWD', member: '', tags: '', note: '', sourceUpdatedAt: '' }
+  const result = buildLegacyImportDryRun([
+    { ...base, occurredOn: '2026-08-01', category: '薪水', direction: 'income', account: '銀行', sourceId: 'entry-1' },
+    { ...base, occurredOn: '2026-08-02', category: '飲食', direction: 'expense', account: '舊帳戶', sourceId: 'entry-2' },
+  ], [{ occurredOn: '2026-08-03', fromAccount: '銀行', fromAmount: 50, fromCurrency: 'TWD', toAccount: '信用卡', toAmount: 50, toCurrency: 'TWD', tags: '', note: '', sourceUpdatedAt: '', sourceId: 'transfer-1' }], [
+    { sourceName: '銀行', accountId: 'bank', type: 'bank' }, { sourceName: '信用卡', accountId: 'card', type: 'credit_card' },
+  ], '2026-08-14')
+  assert.equal(result.transactions.length, 2)
+  assert.equal(result.heldByReason.unmapped_account, 1)
+  assert.equal(result.transactions[0].id, 'legacy-entry-1')
+  assert.deepEqual((result.transactions[1].accountMoves as Array<{ deltaMinor: number }>).map((move) => move.deltaMinor), [-50, -50])
 })
