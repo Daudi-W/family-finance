@@ -40,6 +40,7 @@ import { auth, usesFirebaseEmulators } from './firebase.ts'
 import { useFinanceStore } from './finance-store.ts'
 import {
   activeTransactions,
+  accountPeriodRange,
   accountPeriodSummary,
   addRecurringPeriod,
   advancePeopleRows,
@@ -54,6 +55,7 @@ import {
   reportForMonth,
   reportForRange,
   reportRangeForPeriod,
+  type AccountPeriod,
   type ReportPeriod,
   todayIso,
   toMinor,
@@ -348,7 +350,9 @@ export default function Workspace({ user }: { user: User }) {
             ? <ReportPrimaryTabs mode={reportMode} onChange={(value) => { setReportMode(value); if ((value === 'balance' || value === 'netWorth') && !['月', '年'].includes(reportPeriod)) setReportPeriod('月') }} compact />
             : route.name === 'home'
               ? <TransactionViewSwitch view={transactionView} onChange={setTransactionView} />
-              : <h1>{title}</h1>}
+              : route.name === 'account-detail'
+                ? <h1 className="account-topbar-title">{store.data.accounts.find((item) => item.id === route.id) ? <EntityIcon iconKey={store.data.accounts.find((item) => item.id === route.id)!.iconKey} /> : null}<span>{title}</span></h1>
+                : <h1>{title}</h1>}
           <div className="workspace-top-actions">
             {route.name === 'home' ? <>
               <BadgeButton label="待確認定期收支" count={pendingRules.length} onClick={() => push({ name: 'pending' })}><Repeat2 /></BadgeButton>
@@ -509,18 +513,20 @@ function AccountsPage({ store, onPush, hideBalances, managing }: { store: Store;
 }
 
 function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter }: { store: Store; accountId: string; onPush: (route: Route) => void; onEditTransaction: (transaction: FinanceTransaction) => void; filter: TransactionFilter }) {
+  const [period, setPeriod] = useState<AccountPeriod>('month')
   const account = store.data.accounts.find((item) => item.id === accountId)
   if (!account) return <main className="workspace-page"><div className="simple-empty">找不到帳戶</div></main>
   const balance = calculateBalances(store.data.accounts, store.data.transactions)[account.id] ?? 0
   const allRelated = activeTransactions(store.data.transactions).filter((transaction) => transaction.accountMoves.some((move) => move.accountId === account.id)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
-  const related = allRelated.filter((transaction) => (filter.kind === 'all' || transaction.kind === filter.kind) && (!filter.categoryId || transaction.reportLines.some((line) => line.categoryId === filter.categoryId)) && (!filter.projectId || transaction.projectId === filter.projectId) && (!filter.from || transaction.occurredOn >= filter.from) && (!filter.to || transaction.occurredOn <= filter.to))
-  const { income, expense, netTransfer } = accountPeriodSummary(account, allRelated, currentMonth())
+  const periodRange = accountPeriodRange(period)
+  const related = allRelated.filter((transaction) => transaction.occurredOn >= periodRange.from && transaction.occurredOn <= periodRange.to && (filter.kind === 'all' || transaction.kind === filter.kind) && (!filter.categoryId || transaction.reportLines.some((line) => line.categoryId === filter.categoryId)) && (!filter.projectId || transaction.projectId === filter.projectId) && (!filter.from || transaction.occurredOn >= filter.from) && (!filter.to || transaction.occurredOn <= filter.to))
+  const { income, expense, netTransfer } = accountPeriodSummary(account, allRelated, periodRange.from, periodRange.to)
   const displaySign = account.type === 'credit_card' ? -1 : 1
   const displayBalance = displaySign * balance
   return <main className="workspace-page">
     <section className="account-overview-v2">
-      <header><span>{account.currency}</span><b>本月</b></header>
-      <div className="account-overview-balance"><EntityIcon iconKey={account.iconKey} /><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
+      <header><span>{account.currency}</span><div className="account-period-tabs" role="group" aria-label="帳戶統計期間"><button className={period === 'month' ? 'active' : ''} type="button" onClick={() => setPeriod('month')}>本月</button><button className={period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => setPeriod('sixMonths')}>近 6 個月</button><button className={period === 'year' ? 'active' : ''} type="button" onClick={() => setPeriod('year')}>近 1 年</button></div></header>
+      <div className="account-overview-balance"><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
       <div className="account-overview-flows">
         <span><b className="income-text">+{money(income, account.currency)}</b><small>收入</small></span>
         <span><b className="expense-text">-{money(expense, account.currency)}</b><small>支出</small></span>

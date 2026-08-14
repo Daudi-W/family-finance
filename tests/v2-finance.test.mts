@@ -3,6 +3,7 @@ import test from 'node:test'
 import { buildDemoData } from '../v2/src/demo-data.ts'
 import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
+  accountPeriodRange,
   accountPeriodSummary,
   advanceRows,
   advancePeopleRows,
@@ -78,9 +79,15 @@ test('帳戶摘要分開顯示本期收支與淨轉帳，信用卡付款方向�
     accountMoves: [{ accountId: 'bank', deltaMinor: -5_000, currency: 'TWD' }, { accountId: 'card', deltaMinor: -5_000, currency: 'TWD' }],
     transfer: { fromAccountId: 'bank', toAccountId: 'card', fromAmountMinor: 5_000, toAmountMinor: 5_000, feeMinor: 0 },
   }
-  const month = monthKey(todayIso())
-  assert.deepEqual(accountPeriodSummary(bank, [...data.transactions, transfer], month), { income: 62_000, expense: 0, netTransfer: -5_000 })
-  assert.deepEqual(accountPeriodSummary(card, [...data.transactions, transfer], month), { income: 0, expense: 14_280, netTransfer: 5_000 })
+  const range = accountPeriodRange('month')
+  assert.deepEqual(accountPeriodSummary(bank, [...data.transactions, transfer], range.from, range.to), { income: 62_000, expense: 0, netTransfer: -5_000 })
+  assert.deepEqual(accountPeriodSummary(card, [...data.transactions, transfer], range.from, range.to), { income: 0, expense: 14_280, netTransfer: 5_000 })
+})
+
+test('帳戶快速期間以本月起點往前涵蓋 6 個月或 12 個月', () => {
+  assert.deepEqual(accountPeriodRange('month', '2026-08-14'), { from: '2026-08-01', to: '2026-08-14' })
+  assert.deepEqual(accountPeriodRange('sixMonths', '2026-08-14'), { from: '2026-03-01', to: '2026-08-14' })
+  assert.deepEqual(accountPeriodRange('year', '2026-08-14'), { from: '2025-09-01', to: '2026-08-14' })
 })
 
 test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {

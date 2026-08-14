@@ -40,12 +40,20 @@ export function calculateBalances(accounts: Account[], transactions: FinanceTran
   return balances
 }
 
-export function accountPeriodSummary(account: Account, transactions: FinanceTransaction[], month: string) {
-  const related = activeTransactions(transactions).filter((transaction) => monthKey(transaction.occurredOn) === month && transaction.accountMoves.some((move) => move.accountId === account.id))
+export function accountPeriodSummary(account: Account, transactions: FinanceTransaction[], from: string, to: string) {
+  const related = activeTransactions(transactions).filter((transaction) => transaction.occurredOn >= from && transaction.occurredOn <= to && transaction.accountMoves.some((move) => move.accountId === account.id))
   const income = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'income')).reduce((sum, line) => sum + line.amountMinor, 0)
   const expense = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'expense')).reduce((sum, line) => sum + line.amountMinor, 0)
   const rawNetTransfer = related.filter((transaction) => transaction.kind === 'transfer').flatMap((transaction) => transaction.accountMoves.filter((move) => move.accountId === account.id)).reduce((sum, move) => sum + move.deltaMinor, 0)
   return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer }
+}
+
+export type AccountPeriod = 'month' | 'sixMonths' | 'year'
+
+export function accountPeriodRange(period: AccountPeriod, asOf = todayIso()) {
+  const monthStart = new Date(`${asOf.slice(0, 7)}-01T00:00:00Z`)
+  monthStart.setUTCMonth(monthStart.getUTCMonth() - (period === 'sixMonths' ? 5 : period === 'year' ? 11 : 0))
+  return { from: monthStart.toISOString().slice(0, 10), to: asOf }
 }
 
 export function calculateNetWorth(accounts: Account[], balances: Record<string, number>) {
