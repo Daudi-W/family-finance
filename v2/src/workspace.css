@@ -92,6 +92,7 @@
 .account-manage-row.is-managing { padding-left: 3px; }
 .account-manage-row.is-managing .account-row-main { grid-template-columns: 40px minmax(0,1fr) auto; padding-inline: 5px; }
 .account-manage-row.is-managing > .workspace-icon-button { width: 34px; height: 44px; }
+.account-manage-row.is-managing > .workspace-icon-button:nth-last-child(3) { display: none; }
 .account-manage-row.is-managing > .workspace-icon-button svg,.account-drag svg { width: 17px; }
 .account-drag { width: 30px; height: 52px; display: grid; place-items: center; color: var(--muted); cursor: grab; }
 .account-sort-controls { width: 58px; display: grid; grid-template-columns: 30px 28px; align-items: center; }
