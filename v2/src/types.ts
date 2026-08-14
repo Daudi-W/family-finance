@@ -24,6 +24,8 @@ export type Category = BaseDocument & {
 export type Account = BaseDocument & {
   name: string
   type: AccountType
+  /** 帳戶歸屬的家庭成員 uid；留空代表共用。登入者自己的帳戶會排在最前面。 */
+  ownerUid?: string
   currency: string
   iconKey: string
   sortOrder: number
