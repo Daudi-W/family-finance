@@ -62,6 +62,11 @@ export function accountPeriodRange(period: AccountPeriod, asOf = todayIso()) {
   return { from: monthStart.toISOString().slice(0, 10), to: asOf }
 }
 
+export function accountEffectiveRange(period: AccountPeriod, customFrom = '', customTo = '', asOf = todayIso()) {
+  if (customFrom || customTo) return { from: customFrom || '0001-01-01', to: customTo || asOf }
+  return accountPeriodRange(period, asOf)
+}
+
 export function calculateNetWorth(accounts: Account[], balances: Record<string, number>) {
   let assets = 0
   let liabilities = 0

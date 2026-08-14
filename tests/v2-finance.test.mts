@@ -3,6 +3,7 @@ import test from 'node:test'
 import { buildDemoData } from '../v2/src/demo-data.ts'
 import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
+  accountEffectiveRange,
   accountPeriodRange,
   accountPeriodSummary,
   accountTransferDisplayAmount,
@@ -92,6 +93,8 @@ test('帳戶快速期間可查看本月、近 6 個月、近 1 年或全部', ()
   assert.deepEqual(accountPeriodRange('sixMonths', '2026-08-14'), { from: '2026-03-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('year', '2026-08-14'), { from: '2025-09-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('all', '2026-08-14'), { from: '0001-01-01', to: '2026-08-14' })
+  assert.deepEqual(accountEffectiveRange('month', '2024-12-22', '2025-01-31', '2026-08-14'), { from: '2024-12-22', to: '2025-01-31' })
+  assert.deepEqual(accountEffectiveRange('year', '2024-12-22', '', '2026-08-14'), { from: '2024-12-22', to: '2026-08-14' })
 })
 
 test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {

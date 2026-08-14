@@ -40,7 +40,7 @@ import { auth, usesFirebaseEmulators } from './firebase.ts'
 import { useFinanceStore } from './finance-store.ts'
 import {
   activeTransactions,
-  accountPeriodRange,
+  accountEffectiveRange,
   accountPeriodSummary,
   accountTransferDisplayAmount,
   addRecurringPeriod,
@@ -554,8 +554,7 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
   const balance = calculateBalances(store.data.accounts, store.data.transactions)[account.id] ?? 0
   const allRelated = activeTransactions(store.data.transactions).filter((transaction) => transaction.accountMoves.some((move) => move.accountId === account.id)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
   const hasCustomDates = Boolean(filter.from || filter.to)
-  const presetRange = accountPeriodRange(period)
-  const periodRange = hasCustomDates ? { from: filter.from || '0001-01-01', to: filter.to || todayIso() } : presetRange
+  const periodRange = accountEffectiveRange(period, filter.from, filter.to)
   const related = allRelated.filter((transaction) => transaction.occurredOn >= periodRange.from && transaction.occurredOn <= periodRange.to && (filter.kind === 'all' || transaction.kind === filter.kind) && (!filter.categoryId || transaction.reportLines.some((line) => line.categoryId === filter.categoryId)) && (!filter.projectId || transaction.projectId === filter.projectId) && (!filter.from || transaction.occurredOn >= filter.from) && (!filter.to || transaction.occurredOn <= filter.to))
   const { income, expense, netTransfer } = accountPeriodSummary(account, related, periodRange.from, periodRange.to)
   const displaySign = account.type === 'credit_card' ? -1 : 1
