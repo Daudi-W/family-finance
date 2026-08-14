@@ -75,7 +75,7 @@ test('每位成員只能讀寫自己的帳戶偏好', async () => {
   const pei = testEnvironment.authenticatedContext('pei').firestore()
   const jessie = testEnvironment.authenticatedContext('jessie').firestore()
   const createdAt = '2026-08-14T00:00:00.000Z'
-  const preference = { uid: 'pei', accountOrder: ['cash'], defaultAccountId: 'cash', schemaVersion: 1, createdAt, updatedAt: createdAt, createdBy: 'pei', updatedBy: 'pei', revision: 1 }
+  const preference = { uid: 'pei', accountOrder: ['cash'], schemaVersion: 1, createdAt, updatedAt: createdAt, createdBy: 'pei', updatedBy: 'pei', revision: 1 }
   const reference = doc(pei, 'households', householdId, 'userPreferences', 'pei')
   await assertSucceeds(setDoc(reference, preference))
   await assertSucceeds(getDoc(reference))

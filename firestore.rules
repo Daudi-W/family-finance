@@ -40,20 +40,18 @@ service cloud.firestore {
         allow read: if isHouseholdMember(householdId) && userId == request.auth.uid;
         allow create: if isHouseholdMember(householdId)
           && userId == request.auth.uid
-          && request.resource.data.keys().hasOnly(['uid', 'accountOrder', 'defaultAccountId', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'revision'])
+          && request.resource.data.keys().hasOnly(['uid', 'accountOrder', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'revision'])
           && request.resource.data.uid == userId
           && request.resource.data.accountOrder is list
-          && (!request.resource.data.keys().hasAny(['defaultAccountId']) || request.resource.data.defaultAccountId is string)
           && request.resource.data.schemaVersion == 1
           && request.resource.data.createdBy == userId
           && request.resource.data.updatedBy == userId
           && request.resource.data.revision == 1;
         allow update: if isHouseholdMember(householdId)
           && userId == request.auth.uid
-          && request.resource.data.keys().hasOnly(['uid', 'accountOrder', 'defaultAccountId', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'revision'])
+          && request.resource.data.keys().hasOnly(['uid', 'accountOrder', 'schemaVersion', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'revision'])
           && request.resource.data.uid == userId
           && request.resource.data.accountOrder is list
-          && (!request.resource.data.keys().hasAny(['defaultAccountId']) || request.resource.data.defaultAccountId is string)
           && request.resource.data.schemaVersion == 1
           && request.resource.data.createdAt == resource.data.createdAt
           && request.resource.data.createdBy == resource.data.createdBy

@@ -28,10 +28,10 @@ test('個人排序不改帳戶資料，未排的新帳戶接在後面', () => {
   assert.deepEqual(accounts.map((item) => item.sortOrder), [0, 1, 2, 3])
 })
 
-test('記帳優先使用指定帳戶，其次個人預設，失效時退回排序第一個', () => {
+test('記帳優先使用指定帳戶，否則使用個人排序第一個', () => {
   const accounts = [account('a', 0), account('b', 1), account('archived', 2, '2026-08-14')]
-  const preferences = { accountOrder: ['b', 'a'], defaultAccountId: 'a' }
+  const preferences = { accountOrder: ['b', 'a'] }
   assert.equal(preferredAccountId(accounts, preferences, 'b'), 'b')
-  assert.equal(preferredAccountId(accounts, preferences), 'a')
-  assert.equal(preferredAccountId(accounts, { accountOrder: ['b'], defaultAccountId: 'archived' }), 'b')
+  assert.equal(preferredAccountId(accounts, preferences), 'b')
+  assert.equal(preferredAccountId(accounts, { accountOrder: ['archived', 'a'] }), 'a')
 })

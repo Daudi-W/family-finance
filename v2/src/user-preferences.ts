@@ -27,7 +27,7 @@ export function useUserPreferences(user: User) {
     reference,
     (snapshot) => {
       const data = snapshot.data() as PreferenceDocument | undefined
-      setValue(data ? { accountOrder: data.accountOrder ?? [], defaultAccountId: data.defaultAccountId } : emptyAccountPreferences)
+      setValue(data ? { accountOrder: data.accountOrder ?? [] } : emptyAccountPreferences)
       setRevision(data?.revision ?? 0)
       setReady(true)
     },

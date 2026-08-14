@@ -2,7 +2,6 @@ import type { Account } from './types.ts'
 
 export type AccountPreferences = {
   accountOrder: string[]
-  defaultAccountId?: string
 }
 
 export const emptyAccountPreferences: AccountPreferences = { accountOrder: [] }
@@ -25,6 +24,5 @@ export function sortAccountsForUser(accounts: Account[], accountOrder: string[])
 export function preferredAccountId(accounts: Account[], preferences: AccountPreferences, requestedId = '') {
   const sorted = sortAccountsForUser(accounts, preferences.accountOrder)
   if (requestedId && sorted.some((account) => account.id === requestedId)) return requestedId
-  if (preferences.defaultAccountId && sorted.some((account) => account.id === preferences.defaultAccountId)) return preferences.defaultAccountId
   return sorted[0]?.id ?? ''
 }
