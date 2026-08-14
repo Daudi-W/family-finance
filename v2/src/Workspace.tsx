@@ -275,6 +275,9 @@ export default function Workspace({ user }: { user: User }) {
   const [transactionView, setTransactionView] = useState<'calendar' | 'list'>('calendar')
   const [transactionMonth, setTransactionMonth] = useState(currentMonth())
   const [transactionTodaySignal, setTransactionTodaySignal] = useState(0)
+  // 一次性旗標：只有「開始新的一筆」與「再記一筆」會設為 true，記帳頁用掉後立刻清掉，
+  // 所以中途去選帳戶或分類再回到記帳頁不會重複彈出計算機
+  const [pendingAmountFocus, setPendingAmountFocus] = useState(false)
   const autoPosting = useRef(new Set<string>())
   const swipeStart = useRef<number | null>(null)
   const route = routes.at(-1) ?? { name: 'home' as const }
@@ -290,18 +293,21 @@ export default function Workspace({ user }: { user: User }) {
       setEntryDraft(newEntryDraft('expense', store.data, preferences.value))
       setEditingTransactionId('')
       setPendingRuleId('')
+      setPendingAmountFocus(true)
     }
   }
   const openNewEntry = (kind: EntryKind = 'expense', accountId = '') => {
     setEntryDraft(newEntryDraft(kind, store.data, preferences.value, accountId))
     setEditingTransactionId('')
     setPendingRuleId('')
+    setPendingAmountFocus(true)
     push({ name: 'entry' })
   }
   const continueEntry = (kind: EntryKind) => {
     setEntryDraft(newEntryDraft(kind, store.data, preferences.value))
     setEditingTransactionId('')
     setPendingRuleId('')
+    setPendingAmountFocus(true)
   }
   const editTransaction = (transaction: FinanceTransaction) => {
     setEntryDraft(draftFromTransaction(transaction, store.data))
@@ -348,7 +354,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
       case 'account-manager': return <AccountManagerPage store={store} onPush={push} />
-      case 'entry': return <EntryPage store={store} preferences={preferences.value} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} />
+      case 'entry': return <EntryPage store={store} preferences={preferences.value} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} autoFocusAmount={pendingAmountFocus && !editingTransactionId} onAmountFocused={() => setPendingAmountFocus(false)} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={sortAccountsForUser(store.data.accounts, preferences.value.accountOrder).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
@@ -592,10 +598,15 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
   </main>
 }
 
-function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue }: { store: Store; preferences: AccountPreferences; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void }) {
+function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue, autoFocusAmount, onAmountFocused }: { store: Store; preferences: AccountPreferences; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void; autoFocusAmount: boolean; onAmountFocused: () => void }) {
   const [saving, setSaving] = useState(false)
-  // 新增時直接進入金額輸入；編輯既有明細則不自動彈出，避免擋住要改的其他欄位
-  const [amountFocusSignal, setAmountFocusSignal] = useState(() => editingId ? 0 : 1)
+  const [amountFocusSignal, setAmountFocusSignal] = useState(0)
+  useEffect(() => {
+    if (!autoFocusAmount) return
+    setAmountFocusSignal((value) => value + 1)
+    onAmountFocused()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFocusAmount])
   const [error, setError] = useState('')
   const accounts = activeSorted(store.data.accounts)
   const categories = activeSorted(store.data.categories.filter((item) => item.direction === (draft.kind === 'income' ? 'income' : 'expense')))
@@ -647,7 +658,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
     try {
       await store.save('transactions', { ...transaction, updatedAt: now })
       if (recurringRule) await store.save('recurringRules', { id: recurringRule.id, nextScheduledOn: addRecurringPeriod(recurringRule.nextScheduledOn, recurringRule.frequency) })
-      if (continueAfterSave && !recurringRule) { onContinue(draft.kind); setAmountFocusSignal((value) => value + 1) }
+      if (continueAfterSave && !recurringRule) onContinue(draft.kind)
       else onDone()
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
   }
