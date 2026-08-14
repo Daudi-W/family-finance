@@ -523,10 +523,10 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
   const { income, expense, netTransfer } = accountPeriodSummary(account, allRelated, periodRange.from, periodRange.to)
   const displaySign = account.type === 'credit_card' ? -1 : 1
   const displayBalance = displaySign * balance
+  const hasActiveFilter = filter.kind !== 'all' || Boolean(filter.categoryId || filter.projectId || filter.from || filter.to)
   return <main className="workspace-page">
     <section className="account-overview-v2">
-      <header><span>{account.currency}</span><div className="account-period-tabs" role="group" aria-label="帳戶統計期間"><button className={period === 'month' ? 'active' : ''} type="button" onClick={() => setPeriod('month')}>本月</button><button className={period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => setPeriod('sixMonths')}>近 6 個月</button><button className={period === 'year' ? 'active' : ''} type="button" onClick={() => setPeriod('year')}>近 1 年</button></div></header>
-      <div className="account-overview-balance"><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
+      <div className="account-overview-balance"><span className="account-balance-currency">{account.currency}</span><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
       <div className="account-overview-flows">
         <span><b className="income-text">+{money(income, account.currency)}</b><small>收入</small></span>
         <span><b className="expense-text">-{money(expense, account.currency)}</b><small>支出</small></span>
@@ -534,7 +534,7 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
       </div>
       <footer><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
     </section>
-    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2><button type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}>篩選</button></div><TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} /></section>
+    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間與篩選"><button className={period === 'month' ? 'active' : ''} type="button" onClick={() => setPeriod('month')}>本月</button><button className={period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => setPeriod('sixMonths')}>近 6 個月</button><button className={period === 'year' ? 'active' : ''} type="button" onClick={() => setPeriod('year')}>近 1 年</button><button className={hasActiveFilter ? 'active' : ''} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}>篩選</button></div><TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} /></section>
   </main>
 }
 

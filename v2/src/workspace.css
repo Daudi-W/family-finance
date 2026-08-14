@@ -100,24 +100,21 @@
 .account-sort-controls > span svg { width: 16px; }
 .account-drag { touch-action: none; }
 .account-overview-v2 { overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
-.account-overview-v2 > header { min-height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 10px; color: var(--muted); border-bottom: 1px solid var(--line); }
-.account-overview-v2 > header span { padding: 3px 7px; border: 1px solid var(--line-strong); font-size: 13px; font-weight: 700; letter-spacing: .04em; }
-.account-period-tabs { min-width: 0; display: grid; grid-template-columns: repeat(3,auto); border: 1px solid var(--line); }
-.account-period-tabs button { min-height: 32px; padding: 0 9px; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.account-period-tabs button + button { border-left: 1px solid var(--line); }
-.account-period-tabs button.active { color: #fff; background: var(--primary); font-weight: 700; }
 .account-overview-balance { min-height: 96px; display: grid; justify-content: center; align-content: center; gap: 2px; padding: 14px 16px 16px; text-align: center; }
 .account-overview-balance strong { font-size: clamp(27px,6vw,34px); font-variant-numeric: tabular-nums; }
 .account-overview-balance > span { color: var(--muted); font-size: 13px; }
+.account-overview-balance > .account-balance-currency { justify-self: center; padding: 2px 6px; border: 1px solid var(--line-strong); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
 .account-overview-flows { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .account-overview-flows > span { min-width: 0; padding: 17px 8px; text-align: center; }
 .account-overview-flows > span + span { border-left: 1px solid var(--line); }
 .account-overview-flows b,.account-overview-flows small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-overview-flows b { font-size: 17px; font-variant-numeric: tabular-nums; }
-.account-overview-flows small { margin-top: 5px; color: var(--muted); }
+.account-overview-flows b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.account-overview-flows small { margin-top: 5px; color: var(--muted); font-size: 14px; }
 .account-overview-v2 > footer { min-height: 48px; display: flex; justify-content: flex-end; gap: 18px; padding: 0 14px; }
 .account-overview-v2 > footer button { display: flex; align-items: center; gap: 5px; color: var(--primary-dark); font-size: 13px; font-weight: 700; }
 .account-overview-v2 > footer svg { width: 16px; }
+.account-period-tabs.filter-chips { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); overflow: visible; }
+.account-period-tabs.filter-chips button { min-width: 0; padding-inline: 3px; white-space: nowrap; }
 .entry-page-v2 { min-height: 100vh; background: #fff; }
 .entry-page-head { position: sticky; z-index: 45; top: 0; display: grid; grid-template-columns: 44px minmax(0,1fr) 58px; align-items: center; gap: 7px; min-height: 60px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.98); }
 .entry-page-head .workspace-icon-button { width: 44px; height: 44px; }
@@ -894,10 +891,9 @@ input[readonly][inputmode="none"] {
 
 @media (max-width: 420px) {
   .workspace-page { padding-inline: 12px; }
-  .account-period-tabs button { padding-inline: 7px; font-size: 11px; }
   .account-overview-balance { min-height: 88px; }
-  .account-overview-flows b { font-size: 14px; }
-  .account-overview-flows small { font-size: 12px; }
+  .account-overview-flows b { font-size: 17px; }
+  .account-overview-flows small { font-size: 13px; }
   .budget-editor-list > div { grid-template-columns: 38px minmax(80px,1fr) 86px 30px; }
   .icon-chooser > div { grid-template-columns: repeat(5,1fr); }
   .donut-layout { grid-template-columns: 112px minmax(0,1fr); gap: 10px; }
