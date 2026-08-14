@@ -42,6 +42,7 @@ import {
   activeTransactions,
   accountPeriodRange,
   accountPeriodSummary,
+  accountTransferDisplayAmount,
   addRecurringPeriod,
   advancePeopleRows,
   advanceRows,
@@ -438,7 +439,7 @@ function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth
   return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} hideBalances={hideBalances} todaySignal={todaySignal} />
 }
 
-function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean }) {
+function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true, accountContext }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean; accountContext?: Account }) {
   if (transactions.length === 0) return <div className="simple-empty">目前沒有交易</div>
   const sorted = [...transactions].sort((a, b) => b.occurredOn.localeCompare(a.occurredOn) || b.updatedAt.localeCompare(a.updatedAt))
   const grouped = sorted.reduce<Record<string, FinanceTransaction[]>>((result, transaction) => {
@@ -456,7 +457,7 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
     const personName = person ? advanceShareName(person, data) : ''
     const advanceNames = transaction.advance?.people.map((item) => advanceShareName(item, data)).filter(Boolean).join('、') ?? ''
     const accountMovement = transaction.accountMoves[0]?.deltaMinor ?? 0
-    const amount = settlement ? settlement.amountMinor * (settlement.direction === 'collect' ? 1 : -1) : transaction.advance?.direction === 'receivable' ? -transaction.advance.totalMinor : line ? line.amountTwdMinor * (line.direction === 'expense' ? -1 : 1) : transaction.transfer?.fromAmountMinor ? -transaction.transfer.fromAmountMinor : accountMovement
+    const amount = settlement ? settlement.amountMinor * (settlement.direction === 'collect' ? 1 : -1) : transaction.advance?.direction === 'receivable' ? -transaction.advance.totalMinor : line ? line.amountTwdMinor * (line.direction === 'expense' ? -1 : 1) : transaction.transfer?.fromAmountMinor ? accountContext ? accountTransferDisplayAmount(accountContext, transaction) : -transaction.transfer.fromAmountMinor : accountMovement
     const advanceReceivable = transaction.advance?.people.reduce((sum, item) => sum + item.expectedMinor, 0) ?? 0
     const familyExpense = transaction.reportLines.filter((item) => item.direction === 'expense').reduce((sum, item) => sum + item.amountTwdMinor, 0)
     const title = settlement
@@ -535,7 +536,7 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
       </div>
       <footer><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
     </section>
-    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間與篩選"><button className={period === 'month' ? 'active' : ''} type="button" onClick={() => setPeriod('month')}>本月</button><button className={period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => setPeriod('sixMonths')}>近 6 個月</button><button className={period === 'year' ? 'active' : ''} type="button" onClick={() => setPeriod('year')}>近 1 年</button><button className={hasActiveFilter ? 'active' : ''} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}>篩選</button></div><TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} /></section>
+    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間與篩選"><button className={period === 'month' ? 'active' : ''} type="button" onClick={() => setPeriod('month')}>本月</button><button className={period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => setPeriod('sixMonths')}>近 6 個月</button><button className={period === 'year' ? 'active' : ''} type="button" onClick={() => setPeriod('year')}>近 1 年</button><button className={hasActiveFilter ? 'active' : ''} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}>篩選</button></div><TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} accountContext={account} /></section>
   </main>
 }
 

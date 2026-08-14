@@ -5,6 +5,7 @@ import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
   accountPeriodRange,
   accountPeriodSummary,
+  accountTransferDisplayAmount,
   advanceRows,
   advancePeopleRows,
   calculateBalances,
@@ -82,6 +83,8 @@ test('帳戶摘要分開顯示本期收支與淨轉帳，信用卡付款方向�
   const range = accountPeriodRange('month')
   assert.deepEqual(accountPeriodSummary(bank, [...data.transactions, transfer], range.from, range.to), { income: 62_000, expense: 0, netTransfer: -5_000 })
   assert.deepEqual(accountPeriodSummary(card, [...data.transactions, transfer], range.from, range.to), { income: 0, expense: 14_280, netTransfer: 5_000 })
+  assert.equal(accountTransferDisplayAmount(bank, transfer), -5_000)
+  assert.equal(accountTransferDisplayAmount(card, transfer), 5_000)
 })
 
 test('帳戶快速期間以本月起點往前涵蓋 6 個月或 12 個月', () => {

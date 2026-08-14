@@ -48,6 +48,11 @@ export function accountPeriodSummary(account: Account, transactions: FinanceTran
   return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer }
 }
 
+export function accountTransferDisplayAmount(account: Account, transaction: FinanceTransaction) {
+  const movement = transaction.accountMoves.find((move) => move.accountId === account.id)?.deltaMinor ?? 0
+  return (account.type === 'credit_card' ? -1 : 1) * movement
+}
+
 export type AccountPeriod = 'month' | 'sixMonths' | 'year'
 
 export function accountPeriodRange(period: AccountPeriod, asOf = todayIso()) {
