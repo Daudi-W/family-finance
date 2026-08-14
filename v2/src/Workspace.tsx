@@ -62,7 +62,7 @@ import {
   toMinor,
 } from './finance.ts'
 import { iconFor, selectableIcons } from './icons.tsx'
-import { CalculatorInput } from './CalculatorInput.tsx'
+import { CalculatorInput, CalculatorSubmitProvider } from './CalculatorInput.tsx'
 import { fetchTwdReferenceRates } from './exchange-rates.ts'
 import { preferredAccountId, sortAccountsForUser, type AccountPreferences } from './account-preferences.ts'
 import { useUserPreferences } from './user-preferences.ts'
@@ -548,9 +548,9 @@ function AccountsPage({ store, preferences, savePreferences, onPush, hideBalance
   const groups = [
     { key: 'cash', label: '現金', items: accounts.filter((item) => item.type === 'cash' && item.currency === 'TWD') },
     { key: 'bank', label: '銀行', items: accounts.filter((item) => item.type === 'bank' && item.currency === 'TWD') },
-    { key: 'foreign', label: '外幣', items: accounts.filter((item) => item.currency !== 'TWD') },
     { key: 'credit_card', label: '信用卡', items: accounts.filter((item) => item.type === 'credit_card') },
     { key: 'investment', label: '投資', items: accounts.filter((item) => item.type === 'investment' && item.currency === 'TWD') },
+    { key: 'foreign', label: '外幣', items: accounts.filter((item) => item.currency !== 'TWD') },
     { key: 'receivable', label: '應收／借出', items: accounts.filter((item) => item.type === 'receivable') },
   ].filter((group) => group.items.length)
   return <main className="workspace-page">
@@ -650,7 +650,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
   }
 
-  return <main className="entry-page-v2">
+  return <CalculatorSubmitProvider onSubmit={() => void save(false)}><main className="entry-page-v2">
     <header className={`entry-page-head ${recurringRule ? 'editor-page-head' : ''}`}>
       <IconButton label="返回上一頁" onClick={onBack}><ArrowLeft /></IconButton>
       {recurringRule ? <h1>確認定期項目</h1> : <div className="entry-kind-tabs">{(['expense', 'income', 'transfer', 'advance'] as EntryKind[]).map((kind) => <button className={draft.kind === kind ? 'active' : ''} type="button" key={kind} onClick={() => changeKind(kind)}>{{ expense: '支出', income: '收入', transfer: '轉帳', advance: '代墊' }[kind]}</button>)}</div>}
@@ -686,7 +686,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
       {editingId ? <button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(editingId).then(onDone)}><Trash2 />刪除這筆明細</button> : null}
       {recurringRule ? <div className="entry-submit-actions is-single"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '處理中' : '確認入帳'}</button></div> : <div className="entry-submit-actions"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '儲存中' : '儲存'}</button><button type="button" disabled={saving} onClick={() => void save(true)}>{saving ? '儲存中' : '再記一筆'}</button></div>}
     </div>
-  </main>
+  </main></CalculatorSubmitProvider>
 }
 
 function AmountField({ label, value, currency, onChange, icon = 'coins' }: { label: string; value: string; currency: string; onChange: (value: string) => void; icon?: string }) {
@@ -702,7 +702,7 @@ function SettlementTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: direction === 'collect' ? inflowDelta(account, amount) : outflowDelta(account, amount), currency: account.currency }], settlement: { ...transaction.settlement, amountMinor: amount } })
     onDone()
   }
-  return <main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main>
+  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
 }
 
 function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPush, onDone }: { store: Store; transaction: FinanceTransaction; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; onPush: (route: Route) => void; onDone: () => void }) {
@@ -718,7 +718,7 @@ function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: difference, currency: account.currency }], reportLines: [{ direction, categoryId: category.id, amountMinor: amount, currency: account.currency, amountTwdMinor: toTwdMinor(amount, account), countsTowardBudget: false }], adjustment: { accountId: account.id, beforeMinor: transaction.adjustment.beforeMinor, actualMinor: transaction.adjustment.beforeMinor + difference, differenceMinor: difference } })
     onDone()
   }
-  return <main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main>
+  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
 }
 
 function EditorPageHeader({ title, onBack, onSave }: { title: string; onBack: () => void; onSave: () => void }) {
@@ -858,14 +858,13 @@ function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = 
   const monthLabel = month === currentMonth() ? '本月' : `${Number(month.slice(5))} 月`
   useEffect(() => {
     if (!todaySignal || view !== 'list' || month !== currentMonth()) return
-    const frame = requestAnimationFrame(() => {
-      const container = listScrollRef.current
-      if (!container) return
-      const groups = [...container.querySelectorAll<HTMLElement>('[data-date]')]
-      const target = groups.find((group) => group.dataset.date === todayIso()) ?? groups.find((group) => (group.dataset.date ?? '') <= todayIso())
-      container.scrollTo({ top: target?.offsetTop ?? 0 })
-    })
-    return () => cancelAnimationFrame(frame)
+    const container = listScrollRef.current
+    if (!container) return
+    const groups = [...container.querySelectorAll<HTMLElement>('[data-date]')]
+    const target = groups.find((group) => group.dataset.date === todayIso()) ?? groups.find((group) => (group.dataset.date ?? '') <= todayIso())
+    // 用實際位置差計算，offsetTop 是相對於有定位的祖先元素，會多算上面摘要與篩選列的高度
+    const top = target ? container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top : 0
+    container.scrollTo({ top })
   }, [month, todaySignal, view])
   return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} hideBalances={hideBalances} todaySignal={todaySignal} /> : <><section className="home-summary transaction-list-summary" aria-label={`${monthLabel}收支摘要`}><article><span>{monthLabel}支出</span><strong className="expense-text">{hideBalances ? '••••' : money(monthReport.expense)}</strong></article><article><span>{monthLabel}收入</span><strong className="income-text">{hideBalances ? '••••' : money(monthReport.income)}</strong></article><article><span>{monthLabel}結餘</span><strong className={moneyTone(monthReport.balance)}>{hideBalances ? '••••' : money(monthReport.balance)}</strong></article></section><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="transactions-scroll-region" ref={listScrollRef}><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></div></>}</main>
 }

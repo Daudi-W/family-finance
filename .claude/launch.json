@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "family-finance-v2",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:v2"],
+      "port": 5173
+    }
+  ]
+}

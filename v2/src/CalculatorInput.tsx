@@ -1,4 +1,14 @@
-import { useEffect, useState, type InputHTMLAttributes } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { Delete, X } from 'lucide-react'
 import { evaluateCalculatorExpression, formatCalculatorResult } from './calculator.ts'
@@ -8,30 +18,82 @@ type CalculatorInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChang
   onValueChange: (value: string) => void
 }
 
+/** 全域只保留一個開著的金額鍵盤：點另一個金額欄位時，鍵盤直接跳過去。 */
+let activeFieldId = ''
+const activeFieldListeners = new Set<() => void>()
+const subscribeActiveField = (listener: () => void) => { activeFieldListeners.add(listener); return () => { activeFieldListeners.delete(listener) } }
+const readActiveField = () => activeFieldId
+function focusField(id: string) {
+  if (activeFieldId === id) return
+  activeFieldId = id
+  for (const listener of activeFieldListeners) listener()
+}
+
+/**
+ * 讓「完成」等於這一頁的儲存動作。金額已經即時同步，完成就代表「我填完了」。
+ * 沒有提供儲存動作的頁面，完成只會收起鍵盤。
+ */
+const CalculatorSubmitContext = createContext<(() => void) | null>(null)
+
+export function CalculatorSubmitProvider({ onSubmit, children }: { onSubmit: () => void; children: ReactNode }) {
+  return <CalculatorSubmitContext.Provider value={onSubmit}>{children}</CalculatorSubmitContext.Provider>
+}
+
 const operatorPattern = /[+\-×÷]$/
 
 export function CalculatorInput({ value, onValueChange, disabled, ...props }: CalculatorInputProps) {
-  const [open, setOpen] = useState(false)
+  const fieldId = useId()
+  const open = useSyncExternalStore(subscribeActiveField, readActiveField) === fieldId
   const [expression, setExpression] = useState('')
   const [error, setError] = useState('')
   const [useCustomKeypad] = useState(() => window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820)
+  const submit = useContext(CalculatorSubmitContext)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const expressionRef = useRef('')
 
+  // 鍵盤浮在下方而不是蓋住整頁，開啟時把正在編輯的欄位捲到看得到的位置
   useEffect(() => {
     if (!open) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = previous }
+    const frame = requestAnimationFrame(() => inputRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
+  // 沒有遮罩，所以自己判斷「點到別的地方」要收起來；點其他金額欄位則交給那一欄接手
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: Event) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('.calculator-keypad') || target?.closest('[data-calculator-field]')) return
+      focusField('')
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
   }, [open])
 
   const show = () => {
     if (!useCustomKeypad || disabled) return
-    setExpression(value.replaceAll(',', '') || '')
+    const initial = value.replaceAll(',', '') || ''
+    expressionRef.current = initial
+    setExpression(initial)
     setError('')
-    setOpen(true)
+    focusField(fieldId)
   }
-  const number = (digit: string) => {
+
+  /** 每次變動就把目前算得出來的結果寫回欄位，不用等按完成。 */
+  const apply = (next: string) => {
+    expressionRef.current = next
+    setExpression(next)
     setError('')
-    setExpression((current) => {
+    if (!next) return onValueChange('')
+    if (operatorPattern.test(next)) return
+    const result = evaluateCalculatorExpression(next)
+    if (result !== null) onValueChange(formatCalculatorResult(result))
+  }
+
+  // 用 ref 讀目前算式，連續快速點按時不會因為還沒重繪而吃掉數字
+  const number = (digit: string) => {
+    const current = expressionRef.current
+    apply((() => {
       if (current.length >= 30) return current
       const segment = current.split(/[+\-×÷]/).at(-1) ?? ''
       if (digit === '.') {
@@ -40,28 +102,34 @@ export function CalculatorInput({ value, onValueChange, disabled, ...props }: Ca
       }
       if (!current || current === '0') return digit === '00' ? '0' : digit
       return `${current}${digit}`
-    })
+    })())
   }
+
   const operator = (next: string) => {
-    setError('')
-    setExpression((current) => {
+    const current = expressionRef.current
+    apply((() => {
       if (!current) return next === '-' ? '-' : current
       if (current === '-') return current
       if (operatorPattern.test(current)) return `${current.slice(0, -1)}${next}`
       return `${current.endsWith('.') ? `${current}0` : current}${next}`
-    })
+    })())
   }
+
   const done = () => {
-    const result = evaluateCalculatorExpression(expression)
+    const result = evaluateCalculatorExpression(expressionRef.current)
     if (result === null) return setError('算式還沒完成')
     onValueChange(formatCalculatorResult(result))
-    setOpen(false)
+    focusField('')
+    submit?.()
   }
+
   const preview = expression && !operatorPattern.test(expression) ? evaluateCalculatorExpression(expression) : null
 
   return <>
     <input
       {...props}
+      ref={inputRef}
+      data-calculator-field=""
       disabled={disabled}
       inputMode={useCustomKeypad ? 'none' : 'decimal'}
       readOnly={useCustomKeypad}
@@ -70,17 +138,17 @@ export function CalculatorInput({ value, onValueChange, disabled, ...props }: Ca
       onClick={show}
       onFocus={show}
     />
-    {open ? createPortal(<div className="calculator-backdrop" role="presentation" onPointerDown={(event) => { if (event.target === event.currentTarget) setOpen(false) }}>
-      <section className="calculator-keypad" role="dialog" aria-modal="true" aria-label="金額計算機">
-        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span><button type="button" aria-label="關閉計算機" onClick={() => setOpen(false)}><X /></button></header>
+    {open ? createPortal(
+      <section className="calculator-keypad" role="group" aria-label="金額計算機">
+        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span><button type="button" aria-label="關閉計算機" onClick={() => focusField('')}><X /></button></header>
         {error ? <p role="alert">{error}</p> : null}
         <div className="calculator-grid">
           {['7', '8', '9'].map((key) => <button type="button" key={key} onClick={() => number(key)}>{key}</button>)}
           <button className="operator" type="button" onClick={() => operator('÷')}>÷</button>
-          <button className="operator" type="button" onClick={() => { setExpression(''); setError('') }}>AC</button>
+          <button className="operator" type="button" onClick={() => apply('')}>AC</button>
           {['4', '5', '6'].map((key) => <button type="button" key={key} onClick={() => number(key)}>{key}</button>)}
           <button className="operator" type="button" onClick={() => operator('×')}>×</button>
-          <button className="operator" type="button" aria-label="刪除一位" onClick={() => { setExpression((current) => current.slice(0, -1)); setError('') }}><Delete /></button>
+          <button className="operator" type="button" aria-label="刪除一位" onClick={() => apply(expressionRef.current.slice(0, -1))}><Delete /></button>
           {['1', '2', '3'].map((key) => <button type="button" key={key} onClick={() => number(key)}>{key}</button>)}
           <button className="operator" type="button" onClick={() => operator('+')}>＋</button>
           <button className="calculator-done" type="button" onClick={done}>完成</button>
@@ -89,7 +157,8 @@ export function CalculatorInput({ value, onValueChange, disabled, ...props }: Ca
           <button type="button" onClick={() => number('.')}>.</button>
           <button className="operator" type="button" onClick={() => operator('-')}>－</button>
         </div>
-      </section>
-    </div>, document.body) : null}
+      </section>,
+      document.body,
+    ) : null}
   </>
 }
