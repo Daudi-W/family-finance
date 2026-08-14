@@ -10,12 +10,14 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Delete, X } from 'lucide-react'
+import { Check, Delete } from 'lucide-react'
 import { evaluateCalculatorExpression, formatCalculatorResult } from './calculator.ts'
 
 type CalculatorInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'inputMode' | 'type' | 'value'> & {
   value: string
   onValueChange: (value: string) => void
+  /** 數字每變一次就自動打開鍵盤，用於「一進記帳頁就直接輸入金額」。 */
+  autoOpenSignal?: number
 }
 
 /** 全域只保留一個開著的金額鍵盤：點另一個金額欄位時，鍵盤直接跳過去。 */
@@ -41,7 +43,7 @@ export function CalculatorSubmitProvider({ onSubmit, children }: { onSubmit: () 
 
 const operatorPattern = /[+\-×÷]$/
 
-export function CalculatorInput({ value, onValueChange, disabled, ...props }: CalculatorInputProps) {
+export function CalculatorInput({ value, onValueChange, disabled, autoOpenSignal = 0, ...props }: CalculatorInputProps) {
   const fieldId = useId()
   const open = useSyncExternalStore(subscribeActiveField, readActiveField) === fieldId
   const [expression, setExpression] = useState('')
@@ -50,6 +52,17 @@ export function CalculatorInput({ value, onValueChange, disabled, ...props }: Ca
   const submit = useContext(CalculatorSubmitContext)
   const inputRef = useRef<HTMLInputElement>(null)
   const expressionRef = useRef('')
+
+  // 一進記帳頁就直接進入金額輸入，少按一下
+  useEffect(() => {
+    if (!autoOpenSignal || !useCustomKeypad || disabled) return
+    const initial = value.replaceAll(',', '') || ''
+    expressionRef.current = initial
+    setExpression(initial)
+    setError('')
+    focusField(fieldId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenSignal])
 
   // 鍵盤浮在下方而不是蓋住整頁，開啟時把正在編輯的欄位捲到看得到的位置
   useEffect(() => {
@@ -140,7 +153,7 @@ export function CalculatorInput({ value, onValueChange, disabled, ...props }: Ca
     />
     {open ? createPortal(
       <section className="calculator-keypad" role="group" aria-label="金額計算機">
-        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span><button type="button" aria-label="關閉計算機" onClick={() => focusField('')}><X /></button></header>
+        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span><button className="calculator-confirm" type="button" aria-label="收起計算機" onClick={() => focusField('')}><Check /></button></header>
         {error ? <p role="alert">{error}</p> : null}
         <div className="calculator-grid">
           {['7', '8', '9'].map((key) => <button type="button" key={key} onClick={() => number(key)}>{key}</button>)}

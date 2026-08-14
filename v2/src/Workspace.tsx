@@ -594,6 +594,8 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
 
 function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue }: { store: Store; preferences: AccountPreferences; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void }) {
   const [saving, setSaving] = useState(false)
+  // 新增時直接進入金額輸入；編輯既有明細則不自動彈出，避免擋住要改的其他欄位
+  const [amountFocusSignal, setAmountFocusSignal] = useState(() => editingId ? 0 : 1)
   const [error, setError] = useState('')
   const accounts = activeSorted(store.data.accounts)
   const categories = activeSorted(store.data.categories.filter((item) => item.direction === (draft.kind === 'income' ? 'income' : 'expense')))
@@ -645,7 +647,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
     try {
       await store.save('transactions', { ...transaction, updatedAt: now })
       if (recurringRule) await store.save('recurringRules', { id: recurringRule.id, nextScheduledOn: addRecurringPeriod(recurringRule.nextScheduledOn, recurringRule.frequency) })
-      if (continueAfterSave && !recurringRule) onContinue(draft.kind)
+      if (continueAfterSave && !recurringRule) { onContinue(draft.kind); setAmountFocusSignal((value) => value + 1) }
       else onDone()
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
   }
@@ -661,7 +663,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
       {draft.kind === 'advance' ? <div className="advance-direction"><button className={draft.advanceDirection === 'receivable' ? 'active' : ''} type="button" onClick={() => setDraft((current) => ({ ...current, advanceDirection: 'receivable' }))}>我先付</button><button className={draft.advanceDirection === 'payable' ? 'active' : ''} type="button" onClick={() => setDraft((current) => ({ ...current, advanceDirection: 'payable' }))}>別人先付</button></div> : null}
       <section className="entry-fields-v2">
         {draft.kind === 'expense' || draft.kind === 'income' ? <>
-          <AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} />
+          <AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} autoOpenSignal={amountFocusSignal} />
           <FieldButton icon={category?.iconKey ?? 'receipt-text'} label="分類" value={category?.name ?? '請選擇'} hint={category ? budgetHint(category.id, store.data) : undefined} onClick={() => onPush({ name: 'category-picker' })} />
           <FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={draft.kind === 'income' ? '入帳帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} />
           <FieldButton icon={project?.iconKey ?? 'circle-off'} label="專案" value={project?.name ?? '無'} onClick={() => onPush({ name: 'project-picker' })} />
@@ -669,11 +671,11 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
         {draft.kind === 'transfer' ? <>
           <FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="轉出" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} />
           <FieldButton icon={toAccount?.iconKey ?? 'landmark'} label="轉入" value={toAccount?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'to' })} />
-          <AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} />
+          <AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} autoOpenSignal={amountFocusSignal} />
           {account && toAccount && account.currency !== toAccount.currency ? <AmountField label="轉入金額" icon="rotate-ccw" value={draft.toAmount} currency={toAccount.currency} onChange={(value) => setDraft((current) => ({ ...current, toAmount: value }))} /> : null}
         </> : null}
         {draft.kind === 'advance' ? <>
-          <AmountField label="消費總額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} />
+          <AmountField label="消費總額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} autoOpenSignal={amountFocusSignal} />
           <AdvanceShareFields draft={draft} setDraft={setDraft} commonPeople={activeSorted(store.data.advancePeople)} />
           {advanceHasPersonalExpense ? <FieldButton icon={category?.iconKey ?? 'receipt-text'} label="分類" value={category?.name ?? '請選擇'} hint={category ? budgetHint(category.id, store.data) : undefined} onClick={() => onPush({ name: 'category-picker' })} /> : null}
           {draft.advanceDirection === 'receivable' ? <FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="付款帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /> : null}
@@ -689,8 +691,8 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
   </main></CalculatorSubmitProvider>
 }
 
-function AmountField({ label, value, currency, onChange, icon = 'coins' }: { label: string; value: string; currency: string; onChange: (value: string) => void; icon?: string }) {
-  return <label className="field-row amount-field-row"><EntityIcon iconKey={icon} /><span className="field-label"><b>{label}</b></span><CalculatorInput aria-label={label} placeholder="輸入金額" value={value} onValueChange={onChange} /><small>{currency === 'TWD' ? 'NT$' : currency}</small></label>
+function AmountField({ label, value, currency, onChange, icon = 'coins', autoOpenSignal }: { label: string; value: string; currency: string; onChange: (value: string) => void; icon?: string; autoOpenSignal?: number }) {
+  return <label className="field-row amount-field-row"><EntityIcon iconKey={icon} /><span className="field-label"><b>{label}</b></span><CalculatorInput aria-label={label} placeholder="輸入金額" value={value} onValueChange={onChange} autoOpenSignal={autoOpenSignal} /><small>{currency === 'TWD' ? 'NT$' : currency}</small></label>
 }
 
 function SettlementTransactionEditor({ store, transaction, draft, setDraft, onPush, onDone }: { store: Store; transaction: FinanceTransaction; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; onPush: (route: Route) => void; onDone: () => void }) {
