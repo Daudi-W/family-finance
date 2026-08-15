@@ -13,6 +13,7 @@ import {
   ChevronUp,
   CircleDollarSign,
   CirclePlus,
+  CloudOff,
   Eye,
   EyeOff,
   GripVertical,
@@ -89,6 +90,7 @@ type RouteName =
   | 'projects' | 'project-detail' | 'project-form'
   | 'recurring' | 'recurring-form'
   | 'advances' | 'advance-people' | 'advance-detail' | 'settlement'
+  | 'sync-status'
 
 type Route = { name: RouteName; id?: string }
 type EntryKind = 'expense' | 'income' | 'transfer' | 'advance'
@@ -260,6 +262,7 @@ function IconButton({ label, children, onClick }: { label: string; children: Rea
 
 export default function Workspace({ user }: { user: User }) {
   const store = useFinanceStore(user)
+  ;(window as unknown as { __debugStore?: unknown }).__debugStore = store
   const preferences = useUserPreferences(user)
   const { partnerUid } = useHouseholdMembers(user)
   useAutomaticReferenceRates(store)
@@ -380,6 +383,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'pending': return <PendingPage store={store} onEdit={openPendingEntry} />
       case 'recurring-form': return <RecurringForm store={store} ruleId={route.id} onDone={back} />
       case 'advances': return <AdvancesPage store={store} onPush={push} />
+      case 'sync-status': return <SyncStatusPage store={store} onEdit={editTransaction} />
       case 'advance-people': return <AdvancePeoplePage store={store} />
       case 'advance-detail': return <AdvanceDetailPage store={store} transactionId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} />
       case 'settlement': return <SettlementPage store={store} reference={route.id ?? ''} onDone={back} />
@@ -409,6 +413,7 @@ export default function Workspace({ user }: { user: User }) {
                 : <h1>{title}</h1>}
           <div className="workspace-top-actions">
             {route.name === 'home' ? <>
+              {store.syncStatus.badgeCount > 0 ? <BadgeButton label="項變更尚未同步" count={store.syncStatus.badgeCount} onClick={() => push({ name: 'sync-status' })}><CloudOff /></BadgeButton> : null}
               <BadgeButton label="待確認定期收支" count={pendingRules.length} onClick={() => push({ name: 'pending' })}><Repeat2 /></BadgeButton>
               <BadgeButton label="未結清代墊與分帳" count={unsettled.length} onClick={() => push({ name: 'advances' })}><Handshake /></BadgeButton>
               <IconButton label={hideBalances ? '顯示金額' : '隱藏金額'} onClick={() => setHideBalances((value) => !value)}>{hideBalances ? <EyeOff /> : <Eye />}</IconButton>
@@ -445,6 +450,7 @@ function routeTitle(route: Route, data: FinanceData) {
     'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額', 'account-manager': '帳戶管理',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', 'advance-people': '常用代墊名單', settlement: '登記收款／還款',
+    'sync-status': '同步狀態',
   }
   if (route.name === 'account-detail') return data.accounts.find((item) => item.id === route.id)?.name ?? '帳戶明細'
   if (route.name === 'project-detail') return data.projects.find((item) => item.id === route.id)?.name ?? '專案明細'
@@ -698,7 +704,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
       <label className="entry-note"><span>備註</span><textarea placeholder="寫下備註…" value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label>
       {draft.kind === 'transfer' ? <section className="transfer-fee-section"><label className="fee-toggle"><input type="checkbox" checked={draft.fee !== ''} onChange={(event) => setDraft((current) => ({ ...current, fee: event.target.checked ? '0' : '' }))} /><span>有手續費</span></label>{draft.fee !== '' ? <label className="fee-amount"><span>手續費</span><CalculatorInput value={draft.fee} onValueChange={(value) => setDraft((current) => ({ ...current, fee: value }))} /><small>計入支出</small></label> : null}</section> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {editingId ? <button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(editingId).then(onDone)}><Trash2 />刪除這筆明細</button> : null}
+      {editingId ? <button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(editingId), onDone())}><Trash2 />刪除這筆明細</button> : null}
       {recurringRule ? <div className="entry-submit-actions is-single"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '處理中' : '確認入帳'}</button></div> : <div className="entry-submit-actions"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '儲存中' : '儲存'}</button><button type="button" disabled={saving} onClick={() => void save(true)}>{saving ? '儲存中' : '再記一筆'}</button></div>}
     </div>
   </main></CalculatorSubmitProvider>
@@ -717,7 +723,7 @@ function SettlementTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: direction === 'collect' ? inflowDelta(account, amount) : outflowDelta(account, amount), currency: account.currency }], settlement: { ...transaction.settlement, amountMinor: amount } })
     onDone()
   }
-  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
+  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
 }
 
 function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPush, onDone }: { store: Store; transaction: FinanceTransaction; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; onPush: (route: Route) => void; onDone: () => void }) {
@@ -733,7 +739,7 @@ function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: difference, currency: account.currency }], reportLines: [{ direction, categoryId: category.id, amountMinor: amount, currency: account.currency, amountTwdMinor: toTwdMinor(amount, account), countsTowardBudget: false }], adjustment: { accountId: account.id, beforeMinor: transaction.adjustment.beforeMinor, actualMinor: transaction.adjustment.beforeMinor + difference, differenceMinor: difference } })
     onDone()
   }
-  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => void store.voidTransaction(transaction.id).then(onDone)}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
+  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
 }
 
 function EditorPageHeader({ title, onBack, onSave }: { title: string; onBack: () => void; onSave: () => void }) {
@@ -1297,6 +1303,17 @@ async function postRecurringRule(store: Store, rule: RecurringRule) {
     await store.save('transactions', { id: occurrenceId, kind: direction, occurredOn: rule.nextScheduledOn, note: template.note || rule.name, projectId: template.projectId, accountMoves: [{ accountId: account.id, deltaMinor: direction === 'income' ? inflowDelta(account, template.amountMinor) : outflowDelta(account, template.amountMinor), currency: account.currency }], reportLines: [{ direction, categoryId: category.id, amountMinor: template.amountMinor, currency: account.currency, amountTwdMinor: Math.round(fromMinor(template.amountMinor, account.currency) * (account.currency === 'TWD' ? 1 : account.referenceRateToTwd ?? 0)), countsTowardBudget: true }], recurringOccurrenceId: occurrenceId })
   } else return
   await store.save('recurringRules', { id: rule.id, nextScheduledOn: addRecurringPeriod(rule.nextScheduledOn, rule.frequency) })
+}
+
+function SyncStatusPage({ store, onEdit }: { store: Store; onEdit: (transaction: FinanceTransaction) => void }) {
+  const { queued, failed, hasUnknownPending, badgeCount } = store.syncStatus
+  return <main className="workspace-page">
+    <p className="account-personalization-note">記帳按下儲存就已經存在這台裝置上，不會因為沒有網路而遺失。下面列出還在等待送到雲端的變更，恢復連線後會自動補送，不用手動操作；只有標記「同步失敗」的才需要自己重試。</p>
+    {failed.length ? <><div className="section-heading"><h2>同步失敗</h2></div><div className="workspace-list sync-status-list">{failed.map(({ id, transaction, message }) => <div className="sync-status-row" key={id}><span><b>{transaction?.note || '一筆交易'}</b><small>{message}</small></span><button type="button" onClick={() => store.retrySync(id)}>重試</button></div>)}</div></> : null}
+    {queued.length ? <><div className="section-heading"><h2>等待連線</h2></div><TransactionRows transactions={queued} data={store.data} onEdit={onEdit} hideBalances={false} /></> : null}
+    {hasUnknownPending ? <><div className="section-heading"><h2>等待連線</h2></div><div className="simple-empty compact">還有變更正在等待上傳。這次重新開啟後看不到個別項目，但資料已經存在這台裝置上，連上網路就會自動補送。</div></> : null}
+    {badgeCount === 0 ? <div className="simple-empty compact">全部都已同步到雲端</div> : null}
+  </main>
 }
 
 function PendingPage({ store, onEdit }: { store: Store; onEdit: (rule: RecurringRule) => void }) {

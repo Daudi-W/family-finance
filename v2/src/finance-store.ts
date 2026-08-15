@@ -10,7 +10,6 @@ import {
 import type { User } from 'firebase/auth'
 import { db, householdId } from './firebase.ts'
 import { buildDemoData } from './demo-data.ts'
-import { settleOrQueue } from './offline-write.ts'
 import {
   flattenMonths,
   indexShards,
@@ -19,6 +18,7 @@ import {
   type ShardIndex,
   type TxMonthDocument,
 } from './tx-months.ts'
+import { describeSyncStatus } from './sync-status.ts'
 import type {
   BaseDocument,
   CollectionName,
@@ -48,6 +48,12 @@ const documentCollectionNames: DocumentCollectionName[] = [
   'advancePeople',
 ]
 
+/** 一筆交易目前的同步狀態：null＝已排隊等伺服器確認，字串＝真的失敗的錯誤訊息。 */
+export type PendingSyncMap = Map<string, string | null>
+
+/** Firestore 回報「本機還有變更沒送上雲端」時，SDK 會把這個旗標設為 true。 */
+const hasUnsyncedWrites = (snapshot: { metadata: { hasPendingWrites: boolean } }) => snapshot.metadata.hasPendingWrites
+
 const clean = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T
 
 export function createDocumentId() {
@@ -67,6 +73,8 @@ export function useFinanceStore(user: User) {
   const [months, setMonths] = useState<TxMonthDocument[]>([])
   const [loaded, setLoaded] = useState<Set<CollectionName>>(new Set())
   const [error, setError] = useState('')
+  const [pendingSync, setPendingSync] = useState<PendingSyncMap>(new Map())
+  const [hasPendingWrites, setHasPendingWrites] = useState(false)
 
   useEffect(() => {
     const unsubscribes = documentCollectionNames.map((name) => onSnapshot(
@@ -78,10 +86,14 @@ export function useFinanceStore(user: User) {
       },
       (storeError) => setError(storeError.message),
     ))
+    // includeMetadataChanges 讓我們收得到「這份文件還有本機變更沒上傳」的通知；
+    // metadata 變動不計入 Firestore 讀取次數，不影響額度。
     unsubscribes.push(onSnapshot(
       monthCollectionPath(),
+      { includeMetadataChanges: true },
       (snapshot) => {
         setMonths(snapshot.docs.map((item) => ({ ...(item.data() as Omit<TxMonthDocument, 'id'>), id: item.id })))
+        setHasPendingWrites(hasUnsyncedWrites(snapshot))
         setLoaded((current) => new Set(current).add('transactions'))
       },
       (storeError) => setError(storeError.message),
@@ -95,10 +107,15 @@ export function useFinanceStore(user: User) {
 
   const actions = useMemo(() => {
     /**
-     * 寫入單筆交易：只更新月文件裡屬於這筆的那一格，
-     * 因此同一個月的其他交易（包含另一台裝置剛新增的）不會被覆蓋，離線也能排隊送出。
+     * 寫入單筆交易：只更新月文件裡屬於這筆的那一格，因此同一個月的其他交易
+     * （包含另一台裝置剛新增的）不會被覆蓋。
+     *
+     * 這裡不等伺服器確認——Firestore 呼叫 commit() 的當下就會把資料寫進本機
+     * 快取並讓畫面立刻更新，剩下「送到伺服器」的部分交給 SDK 在背景處理，
+     * 離線時它會自己排隊、恢復連線後自動補送。UI 只要標記「這筆還在等」，
+     * 真的失敗（不是單純離線）才需要使用者手動重試。
      */
-    const writeTransactionItem = async (value: FinanceTransaction, index: ShardIndex) => {
+    const writeTransactionItem = (value: FinanceTransaction, index: ShardIndex) => {
       const plan = planTransactionWrite(index, value.occurredOn, value.id)
       const stamp = { updatedAt: value.updatedAt, updatedBy: value.updatedBy }
       const targetReference = doc(monthCollectionPath(), plan.targetShardId)
@@ -112,11 +129,21 @@ export function useFinanceStore(user: User) {
       if (plan.removeFromShardId) {
         batch.update(doc(monthCollectionPath(), plan.removeFromShardId), { [`items.${value.id}`]: deleteField(), ...stamp })
       }
-      // 離線時本機已經寫好，不等伺服器確認也讓畫面往下走；真正的錯誤仍會被回報。
-      await settleOrQueue(batch.commit())
+      setPendingSync((current) => new Map(current).set(value.id, null))
+      batch.commit().then(
+        () => setPendingSync((current) => { if (!current.has(value.id)) return current; const next = new Map(current); next.delete(value.id); return next }),
+        (commitError: unknown) => setPendingSync((current) => new Map(current).set(value.id, commitError instanceof Error ? commitError.message : '同步失敗')),
+      )
     }
 
-    const saveTransaction = async (input: Partial<FinanceTransaction> & { id?: string }) => {
+    /** 手動重試：把已經標成失敗的那筆，用它最後一次的內容重新送一次。 */
+    const retrySync = (id: string) => {
+      const value = transactions.find((item) => item.id === id)
+      if (!value) return
+      writeTransactionItem(value, indexShards(months))
+    }
+
+    const saveTransaction = (input: Partial<FinanceTransaction> & { id?: string }) => {
       const id = input.id || createDocumentId()
       const existing = transactions.find((item) => item.id === id)
       const timestamp = new Date().toISOString()
@@ -130,7 +157,7 @@ export function useFinanceStore(user: User) {
         updatedBy: user.uid,
         revision: (existing?.revision ?? 0) + 1,
       }) as FinanceTransaction
-      await writeTransactionItem(value, shardIndex)
+      writeTransactionItem(value, shardIndex)
       return id
     }
 
@@ -173,9 +200,9 @@ export function useFinanceStore(user: User) {
       })
     }
 
-    const voidTransaction = async (id: string, reason = '使用者刪除') => {
+    const voidTransaction = (id: string, reason = '使用者刪除') => {
       const existing = transactions.find((item) => item.id === id)
-      if (!existing) throw new Error('找不到要刪除的明細。')
+      if (!existing) return
       const timestamp = new Date().toISOString()
       const value = clean({
         ...existing,
@@ -185,7 +212,7 @@ export function useFinanceStore(user: User) {
         updatedBy: user.uid,
         revision: (existing.revision ?? 0) + 1,
       }) as FinanceTransaction
-      await writeTransactionItem(value, shardIndex)
+      writeTransactionItem(value, shardIndex)
     }
 
     const seedDemo = async () => {
@@ -208,13 +235,19 @@ export function useFinanceStore(user: User) {
       await batch.commit()
     }
 
-    return { save, archive, voidTransaction, seedDemo }
-  }, [documents, transactions, shardIndex, user.uid])
+    return { save, archive, voidTransaction, seedDemo, retrySync }
+  }, [documents, transactions, months, shardIndex, user.uid])
+
+  const syncStatus = useMemo(
+    () => describeSyncStatus(pendingSync, hasPendingWrites, transactions),
+    [pendingSync, hasPendingWrites, transactions],
+  )
 
   return {
     data,
     ready: loaded.size === documentCollectionNames.length + 1,
     error,
+    syncStatus,
     ...actions,
   }
 }
