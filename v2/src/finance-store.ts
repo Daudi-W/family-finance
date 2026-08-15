@@ -10,6 +10,7 @@ import {
 import type { User } from 'firebase/auth'
 import { db, householdId } from './firebase.ts'
 import { buildDemoData } from './demo-data.ts'
+import { settleOrQueue } from './offline-write.ts'
 import {
   flattenMonths,
   indexShards,
@@ -111,7 +112,8 @@ export function useFinanceStore(user: User) {
       if (plan.removeFromShardId) {
         batch.update(doc(monthCollectionPath(), plan.removeFromShardId), { [`items.${value.id}`]: deleteField(), ...stamp })
       }
-      await batch.commit()
+      // 離線時本機已經寫好，不等伺服器確認也讓畫面往下走；真正的錯誤仍會被回報。
+      await settleOrQueue(batch.commit())
     }
 
     const saveTransaction = async (input: Partial<FinanceTransaction> & { id?: string }) => {
