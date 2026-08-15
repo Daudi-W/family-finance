@@ -29,6 +29,17 @@ export function sortAccountsForUser(accounts: Account[], accountOrder: string[],
   })
 }
 
+/** 把 fromId 搬到 toId 現在的位置；兩邊都要在清單裡，否則原樣退回。 */
+export function reorderAccountIds(orderedIds: string[], fromId: string, toId: string) {
+  const from = orderedIds.indexOf(fromId)
+  const to = orderedIds.indexOf(toId)
+  if (from < 0 || to < 0 || from === to) return orderedIds
+  const next = [...orderedIds]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  return next
+}
+
 export function preferredAccountId(accounts: Account[], preferences: AccountPreferences, requestedId = '', currentUid = '') {
   const sorted = sortAccountsForUser(accounts, preferences.accountOrder, currentUid)
   if (requestedId && sorted.some((account) => account.id === requestedId)) return requestedId

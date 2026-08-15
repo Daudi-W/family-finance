@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { preferredAccountId, sortAccountsForUser } from '../v2/src/account-preferences.ts'
+import { preferredAccountId, reorderAccountIds, sortAccountsForUser } from '../v2/src/account-preferences.ts'
 import type { Account } from '../v2/src/types.ts'
 
 const account = (id: string, sortOrder: number, archivedAt?: string): Account => ({
@@ -62,4 +62,23 @@ test('記帳預設帳戶會是登入者自己排最前面的那個', () => {
   const accounts = [owned('partner-1', 0, 'jessie'), owned('mine-1', 1, 'pei')]
   assert.equal(preferredAccountId(accounts, { accountOrder: [] }, '', 'pei'), 'mine-1')
   assert.equal(preferredAccountId(accounts, { accountOrder: [] }, '', 'jessie'), 'partner-1')
+})
+
+test('在選帳戶頁往上搬一個帳戶，只改順序不會弄丟其他帳戶', () => {
+  const order = ['a', 'b', 'c', 'd']
+  assert.deepEqual(reorderAccountIds(order, 'c', 'a'), ['c', 'a', 'b', 'd'])
+  assert.deepEqual(reorderAccountIds(order, 'a', 'd'), ['b', 'c', 'd', 'a'])
+  assert.deepEqual(order, ['a', 'b', 'c', 'd'])
+})
+
+test('搬到自己或不存在的帳戶時原樣退回，不會誤存偏好', () => {
+  const order = ['a', 'b', 'c']
+  assert.equal(reorderAccountIds(order, 'b', 'b'), order)
+  assert.equal(reorderAccountIds(order, 'b', '不存在'), order)
+  assert.equal(reorderAccountIds(order, '不存在', 'b'), order)
+})
+
+test('轉帳時清單少了對方帳戶，排序仍以完整清單計算，不會漏掉被過濾的帳戶', () => {
+  const full = ['from', 'hidden', 'target']
+  assert.deepEqual(reorderAccountIds(full, 'target', 'from'), ['target', 'from', 'hidden'])
 })
