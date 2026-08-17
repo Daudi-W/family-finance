@@ -1,16 +1,13 @@
 import {
-  createContext,
-  useContext,
   useEffect,
   useId,
   useRef,
   useState,
   useSyncExternalStore,
   type InputHTMLAttributes,
-  type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Delete } from 'lucide-react'
+import { Delete } from 'lucide-react'
 import { evaluateCalculatorExpression, formatCalculatorResult } from './calculator.ts'
 
 type CalculatorInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'inputMode' | 'type' | 'value'> & {
@@ -31,16 +28,6 @@ function focusField(id: string) {
   for (const listener of activeFieldListeners) listener()
 }
 
-/**
- * 讓「完成」等於這一頁的儲存動作。金額已經即時同步，完成就代表「我填完了」。
- * 沒有提供儲存動作的頁面，完成只會收起鍵盤。
- */
-const CalculatorSubmitContext = createContext<(() => void) | null>(null)
-
-export function CalculatorSubmitProvider({ onSubmit, children }: { onSubmit: () => void; children: ReactNode }) {
-  return <CalculatorSubmitContext.Provider value={onSubmit}>{children}</CalculatorSubmitContext.Provider>
-}
-
 const operatorPattern = /[+\-×÷]$/
 
 export function CalculatorInput({ value, onValueChange, disabled, autoOpenSignal = 0, ...props }: CalculatorInputProps) {
@@ -49,7 +36,6 @@ export function CalculatorInput({ value, onValueChange, disabled, autoOpenSignal
   const [expression, setExpression] = useState('')
   const [error, setError] = useState('')
   const [useCustomKeypad] = useState(() => window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 820)
-  const submit = useContext(CalculatorSubmitContext)
   const inputRef = useRef<HTMLInputElement>(null)
   const expressionRef = useRef('')
 
@@ -128,12 +114,12 @@ export function CalculatorInput({ value, onValueChange, disabled, autoOpenSignal
     })())
   }
 
+  /** 「完成」只負責把算式結果寫回欄位並收起鍵盤，儲存一律回到頁面上的儲存鍵。 */
   const done = () => {
     const result = evaluateCalculatorExpression(expressionRef.current)
     if (result === null) return setError('算式還沒完成')
     onValueChange(formatCalculatorResult(result))
     focusField('')
-    submit?.()
   }
 
   const preview = expression && !operatorPattern.test(expression) ? evaluateCalculatorExpression(expression) : null
@@ -153,7 +139,7 @@ export function CalculatorInput({ value, onValueChange, disabled, autoOpenSignal
     />
     {open ? createPortal(
       <section className="calculator-keypad" role="group" aria-label="金額計算機">
-        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span><button className="calculator-confirm" type="button" aria-label="收起計算機" onClick={() => focusField('')}><Check /></button></header>
+        <header><span><small>金額計算</small><strong>{expression || '0'}</strong>{preview !== null && expression ? <em>= {formatCalculatorResult(preview)}</em> : null}</span></header>
         {error ? <p role="alert">{error}</p> : null}
         <div className="calculator-grid">
           {['7', '8', '9'].map((key) => <button type="button" key={key} onClick={() => number(key)}>{key}</button>)}

@@ -30,6 +30,7 @@ import {
   Repeat2,
   Scale,
   Save,
+  Search,
   Settings,
   SlidersHorizontal,
   Trash2,
@@ -63,7 +64,7 @@ import {
   toMinor,
 } from './finance.ts'
 import { iconFor, selectableIcons } from './icons.tsx'
-import { CalculatorInput, CalculatorSubmitProvider } from './CalculatorInput.tsx'
+import { CalculatorInput } from './CalculatorInput.tsx'
 import { fetchTwdReferenceRates } from './exchange-rates.ts'
 import { preferredAccountId, reorderAccountIds, sortAccountsForUser, type AccountPreferences } from './account-preferences.ts'
 import { useHouseholdMembers } from './household-members.ts'
@@ -90,7 +91,7 @@ type RouteName =
   | 'projects' | 'project-detail' | 'project-form'
   | 'recurring' | 'recurring-form'
   | 'advances' | 'advance-people' | 'advance-detail' | 'settlement'
-  | 'sync-status'
+  | 'sync-status' | 'search'
 
 type Route = { name: RouteName; id?: string }
 type EntryKind = 'expense' | 'income' | 'transfer' | 'advance'
@@ -173,17 +174,19 @@ const touchSortTarget = (event: TouchEvent) => {
   return document.elementFromPoint(touch.clientX, touch.clientY)?.closest<HTMLElement>('[data-sort-id]')?.dataset.sortId ?? ''
 }
 
-function emptyEntry(kind: EntryKind = 'expense', accountId = '', categoryId = '', toAccountId = ''): EntryDraft {
-  return { kind, date: todayIso(), amount: '', toAmount: '', categoryId, accountId, toAccountId, projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
+function emptyEntry(kind: EntryKind = 'expense', accountId = '', categoryId = '', toAccountId = '', date = todayIso()): EntryDraft {
+  return { kind, date, amount: '', toAmount: '', categoryId, accountId, toAccountId, projectId: '', note: '', fee: '', advanceDirection: 'receivable', ownShare: '', shares: { 'share-1': '' }, shareNames: { 'share-1': '' }, shareOrder: ['share-1'] }
 }
 
-function newEntryDraft(kind: EntryKind, data: FinanceData, preferences: AccountPreferences, requestedAccountId = '', currentUid = '') {
+function newEntryDraft(kind: EntryKind, data: FinanceData, preferences: AccountPreferences, requestedAccountId = '', currentUid = '', date = todayIso()) {
   const accounts = sortAccountsForUser(data.accounts, preferences.accountOrder, currentUid)
-  const accountId = preferredAccountId(accounts, preferences, requestedAccountId, currentUid)
-  const toAccountId = kind === 'transfer' ? accounts.find((item) => item.id !== accountId)?.id ?? '' : ''
+  // 轉帳的轉出／轉入不能是同一個帳戶，先幫忙預設反而常常要多改一次，所以只帶明確指定的帳戶
+  const accountId = kind === 'transfer'
+    ? (data.accounts.some((item) => item.id === requestedAccountId) ? requestedAccountId : '')
+    : preferredAccountId(accounts, preferences, requestedAccountId, currentUid)
   const direction: Direction = kind === 'income' ? 'income' : 'expense'
   const categoryId = activeSorted(data.categories.filter((item) => item.direction === direction))[0]?.id ?? ''
-  return emptyEntry(kind, accountId, categoryId, toAccountId)
+  return emptyEntry(kind, accountId, categoryId, '', date)
 }
 
 function useAutomaticReferenceRates(store: Store) {
@@ -279,37 +282,57 @@ export default function Workspace({ user }: { user: User }) {
   const [reportMode, setReportMode] = useState<ReportMode>('expense')
   const [transactionView, setTransactionView] = useState<'calendar' | 'list'>('calendar')
   const [transactionMonth, setTransactionMonth] = useState(currentMonth())
+  // 選取日期放在這一層，離開首頁去記帳或編輯再回來時才會停在原本那一天
+  const [selectedDay, setSelectedDay] = useState(() => todayIso())
   const [transactionTodaySignal, setTransactionTodaySignal] = useState(0)
+  const [entryContextAccountId, setEntryContextAccountId] = useState('')
   // 一次性旗標：只有「開始新的一筆」與「再記一筆」會設為 true，記帳頁用掉後立刻清掉，
   // 所以中途去選帳戶或分類再回到記帳頁不會重複彈出計算機
   const [pendingAmountFocus, setPendingAmountFocus] = useState(false)
   const autoPosting = useRef(new Set<string>())
   const swipeStart = useRef<number | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const previousDepth = useRef(1)
   const route = routes.at(-1) ?? { name: 'home' as const }
   const root = routes[0]?.name ?? 'home'
+  const calendarSelectedDate = selectedDay.startsWith(transactionMonth) ? selectedDay : `${transactionMonth}-01`
+  // 從首頁日曆進記帳時，用你正在看的那一天當預設日期；其他入口（帳戶頁、清單模式）維持今天
+  const entryDefaultDate = () => (route.name === 'home' || route.name === 'transactions') && transactionView === 'calendar' ? calendarSelectedDate : todayIso()
 
   const push = (next: Route) => setRoutes((current) => [...current, next])
   const back = () => setRoutes((current) => current.length > 1 ? current.slice(0, -1) : current)
-  const goRoot = (name: RouteName) => {
-    if (!rootRoutes.includes(name)) return
-    setRoutes([{ name }])
-    if (name !== 'accounts') setManageAccounts(false)
-    if (name === 'entry') {
-      setEntryDraft(newEntryDraft('expense', store.data, preferences.value, '', user.uid))
-      setEditingTransactionId('')
-      setPendingRuleId('')
-      setPendingAmountFocus(true)
-    }
+  const changeTransactionMonth = (value: string) => {
+    setTransactionMonth(value)
+    setSelectedDay((current) => current.startsWith(value) ? current : `${value}-01`)
   }
-  const openNewEntry = (kind: EntryKind = 'expense', accountId = '') => {
-    setEntryDraft(newEntryDraft(kind, store.data, preferences.value, accountId, user.uid))
+  const openNewEntry = (kind: EntryKind = 'expense', accountId = '', date = entryDefaultDate()) => {
+    setEntryDraft(newEntryDraft(kind, store.data, preferences.value, accountId, user.uid, date))
     setEditingTransactionId('')
     setPendingRuleId('')
+    setEntryContextAccountId(accountId)
     setPendingAmountFocus(true)
     push({ name: 'entry' })
   }
-  const continueEntry = (kind: EntryKind) => {
-    setEntryDraft(newEntryDraft(kind, store.data, preferences.value, '', user.uid))
+  const goRoot = (name: RouteName) => {
+    if (!rootRoutes.includes(name)) return
+    // 記一筆疊在目前頁面上，不清掉頁面堆疊，儲存或返回才會回到剛才那一頁
+    if (name === 'entry') return openNewEntry('expense', route.name === 'account-detail' ? route.id ?? '' : '')
+    setRoutes([{ name }])
+    if (name !== 'accounts') setManageAccounts(false)
+  }
+  const openCardPayment = (card: Account) => {
+    const owed = accountBalances[card.id] ?? 0
+    const paymentAccountId = card.creditCard?.defaultPaymentAccountId ?? ''
+    const draft = newEntryDraft('transfer', store.data, preferences.value, paymentAccountId, user.uid, todayIso())
+    setEntryDraft({ ...draft, toAccountId: card.id, amount: owed > 0 ? String(fromMinor(owed, card.currency)) : '' })
+    setEditingTransactionId('')
+    setPendingRuleId('')
+    setEntryContextAccountId(paymentAccountId)
+    setPendingAmountFocus(false)
+    push({ name: 'entry' })
+  }
+  const continueEntry = (kind: EntryKind, date: string) => {
+    setEntryDraft(newEntryDraft(kind, store.data, preferences.value, entryContextAccountId, user.uid, date))
     setEditingTransactionId('')
     setPendingRuleId('')
     setPendingAmountFocus(true)
@@ -339,6 +362,15 @@ export default function Workspace({ user }: { user: User }) {
   const title = routeTitle(route, store.data)
   const showBack = routes.length > 1
 
+  // 往下一頁時從最上面開始看；返回時保留原本的捲動位置
+  useEffect(() => {
+    const grew = routes.length > previousDepth.current
+    previousDepth.current = routes.length
+    if (!grew) return
+    mainRef.current?.scrollTo({ top: 0 })
+    window.scrollTo({ top: 0 })
+  }, [routes])
+
   useEffect(() => {
     if (!store.ready) return
     for (const rule of pendingRules.filter((item) => item.postingMode === 'auto' && item.nextScheduledOn <= todayIso())) {
@@ -353,17 +385,18 @@ export default function Workspace({ user }: { user: User }) {
     if (!store.ready || !preferences.ready) return <LoadingPage />
     if (store.error || preferences.error) return <ErrorPage message={store.error || preferences.error} />
     switch (route.name) {
-      case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
+      case 'home': return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={changeTransactionMonth} selectedDay={calendarSelectedDate} onSelectDay={setSelectedDay} todaySignal={transactionTodaySignal} />
       case 'accounts': return <AccountsPage store={store} preferences={preferences.value} savePreferences={preferences.save} onPush={push} hideBalances={hideBalances} managing={manageAccounts} currentUid={user.uid} />
       case 'account-detail': return <AccountDetailPage store={store} accountId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} filter={transactionFilter.accountId === route.id ? transactionFilter : emptyTransactionFilter(route.id)} onFilterChange={setTransactionFilter} />
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} currentUid={user.uid} partnerUid={partnerUid} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
       case 'account-manager': return <AccountManagerPage store={store} onPush={push} />
-      case 'entry': return <EntryPage store={store} preferences={preferences.value} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} autoFocusAmount={pendingAmountFocus && !editingTransactionId} onAmountFocused={() => setPendingAmountFocus(false)} />
+      case 'entry': return <EntryPage store={store} preferences={preferences.value} currentUid={user.uid} contextAccountId={entryContextAccountId} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} autoFocusAmount={pendingAmountFocus && !editingTransactionId} onAmountFocused={() => setPendingAmountFocus(false)} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
-      case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => item.type === 'credit_card' ? 'expense-text' : ''} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} onReorder={async (fromId, toId) => { const current = sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).map((item) => item.id); const next = reorderAccountIds(current, fromId, toId); if (next !== current) await preferences.save({ accountOrder: next }) }} />
+      case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => moneyTone((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0))} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} onReorder={async (fromId, toId) => { const current = sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).map((item) => item.id); const next = reorderAccountIds(current, fromId, toId); if (next !== current) await preferences.save({ accountOrder: next }) }} />
       case 'project-picker': return <PickerPage title="選擇專案" items={activeSorted(store.data.projects)} selectedId={entryDraft.projectId} allowNone variant="list" getMeta={(item) => item.budgetMinor ? `已用 ${money(projectSpent(item.id))} / ${money(item.budgetMinor)}` : item.note || '未設定預算'} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, projectId: id })); back() }} />
-      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} hideBalances={hideBalances} todaySignal={transactionTodaySignal} />
+      case 'transactions': return <TransactionsPage store={store} onEdit={editTransaction} view={transactionView} month={transactionMonth} onMonth={changeTransactionMonth} selectedDay={calendarSelectedDate} onSelectDay={setSelectedDay} hideBalances={hideBalances} todaySignal={transactionTodaySignal} />
+      case 'search': return <SearchPage store={store} onEdit={editTransaction} />
       case 'transaction-filter': return <TransactionFilterPage store={store} value={transactionFilter.accountId === route.id ? transactionFilter : emptyTransactionFilter(route.id)} onChange={(value) => setTransactionFilter({ ...value, accountId: route.id ?? '' })} onDone={back} />
       case 'reports': return <ReportsPage store={store} customRange={reportRange} period={reportPeriod} setPeriod={setReportPeriod} anchorMonth={reportAnchorMonth} setAnchorMonth={setReportAnchorMonth} mode={reportMode} onCustom={() => push({ name: 'report-filter' })} onCategory={(direction, id) => push({ name: 'report-category', id: `${direction}:${id}` })} onDate={(id) => push({ name: 'report-date', id })} />
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
@@ -387,7 +420,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'advance-people': return <AdvancePeoplePage store={store} />
       case 'advance-detail': return <AdvanceDetailPage store={store} transactionId={route.id ?? ''} onPush={push} onEditTransaction={editTransaction} />
       case 'settlement': return <SettlementPage store={store} reference={route.id ?? ''} onDone={back} />
-      default: return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={setTransactionMonth} todaySignal={transactionTodaySignal} />
+      default: return <HomePage store={store} onEditTransaction={editTransaction} hideBalances={hideBalances} view={transactionView} month={transactionMonth} onMonth={changeTransactionMonth} selectedDay={calendarSelectedDate} onSelectDay={setSelectedDay} todaySignal={transactionTodaySignal} />
     }
   })()
 
@@ -401,9 +434,9 @@ export default function Workspace({ user }: { user: User }) {
         <RootNavigation active={route.name} onNavigate={navigateSidebar} desktop />
         <button className="workspace-user" type="button" onClick={() => void signOut(auth)}><span>{user.email?.slice(0, 1).toUpperCase()}</span><small>登出</small><LogOut /></button>
       </aside>
-      <section className={`workspace-main ${route.name === 'home' || route.name === 'transactions' ? 'transactions-workspace-main' : ''}`} onTouchStart={(event) => { swipeStart.current = event.touches[0]?.clientX ?? null }} onTouchEnd={(event) => { const start = swipeStart.current; const end = event.changedTouches[0]?.clientX ?? 0; swipeStart.current = null; if (showBack && start !== null && start < 45 && end - start > 80) back() }}>
+      <section ref={mainRef} className={`workspace-main ${route.name === 'home' || route.name === 'transactions' ? 'transactions-workspace-main' : ''}`} onTouchStart={(event) => { swipeStart.current = event.touches[0]?.clientX ?? null }} onTouchEnd={(event) => { const start = swipeStart.current; const end = event.changedTouches[0]?.clientX ?? 0; swipeStart.current = null; if (showBack && start !== null && start < 45 && end - start > 80) back() }}>
         {!entryMode ? <header className={`workspace-topbar ${route.name === 'reports' ? 'reports-topbar' : ''}`}>
-          <div>{showBack ? <IconButton label="上一頁" onClick={back}><ArrowLeft /></IconButton> : route.name === 'home' ? <button className="topbar-text-action" type="button" onClick={() => { setTransactionMonth(currentMonth()); setTransactionTodaySignal((value) => value + 1) }}>今天</button> : null}</div>
+          <div className="workspace-top-actions workspace-top-actions-start">{showBack ? <IconButton label="上一頁" onClick={back}><ArrowLeft /></IconButton> : route.name === 'home' ? <><button className="topbar-text-action" type="button" onClick={() => { setTransactionMonth(currentMonth()); setSelectedDay(todayIso()); setTransactionTodaySignal((value) => value + 1) }}>今天</button><IconButton label="搜尋明細" onClick={() => push({ name: 'search' })}><Search /></IconButton></> : null}</div>
           {route.name === 'reports'
             ? <ReportPrimaryTabs mode={reportMode} onChange={(value) => { setReportMode(value); if ((value === 'balance' || value === 'netWorth') && !['月', '年'].includes(reportPeriod)) setReportPeriod('月') }} compact />
             : route.name === 'home'
@@ -423,7 +456,10 @@ export default function Workspace({ user }: { user: User }) {
               <IconButton label="新增帳戶" onClick={() => push({ name: 'account-form' })}><Plus /></IconButton>
               <IconButton label={manageAccounts ? '完成帳戶編輯' : '編輯帳戶'} onClick={() => setManageAccounts((value) => !value)}>{manageAccounts ? <Check /> : <Menu />}</IconButton>
             </> : null}
-            {route.name === 'account-detail' ? <IconButton label="用此帳戶記一筆" onClick={() => openNewEntry('expense', route.id ?? '')}><CirclePlus /></IconButton> : null}
+            {route.name === 'account-detail' ? <>
+              {store.data.accounts.find((item) => item.id === route.id)?.type === 'credit_card' ? <IconButton label="繳這張卡的卡費" onClick={() => { const card = store.data.accounts.find((item) => item.id === route.id); if (card) openCardPayment(card) }}><HandCoins /></IconButton> : null}
+              <IconButton label="用此帳戶記一筆" onClick={() => openNewEntry('expense', route.id ?? '')}><CirclePlus /></IconButton>
+            </> : null}
             {route.name === 'account-adjust' ? <button className="topbar-text-action" type="submit" form="account-adjust-form">儲存</button> : null}
             {route.name === 'projects' ? <IconButton label="新增專案" onClick={() => push({ name: 'project-form' })}><Plus /></IconButton> : null}
             {route.name === 'project-detail' ? <IconButton label="編輯專案" onClick={() => push({ name: 'project-form', id: route.id })}><Pencil /></IconButton> : null}
@@ -450,7 +486,7 @@ function routeTitle(route: Route, data: FinanceData) {
     'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額', 'account-manager': '帳戶管理',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', 'advance-people': '常用代墊名單', settlement: '登記收款／還款',
-    'sync-status': '同步狀態',
+    'sync-status': '同步狀態', search: '搜尋明細',
   }
   if (route.name === 'account-detail') return data.accounts.find((item) => item.id === route.id)?.name ?? '帳戶明細'
   if (route.name === 'project-detail') return data.projects.find((item) => item.id === route.id)?.name ?? '專案明細'
@@ -492,10 +528,10 @@ function EmptyDataCard({ onSeed }: { onSeed: () => Promise<void> }) {
   return <section className="empty-data-card"><WalletCards /><h2>本機測試帳本目前是空的</h2><p>可先建立一組不含真實資料的示範分類、帳戶與交易，再逐頁測試。</p><button type="button" disabled={busy} onClick={() => { setBusy(true); void onSeed().finally(() => setBusy(false)) }}>{busy ? '建立中…' : '建立示範資料'}</button></section>
 }
 
-function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth, todaySignal }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; todaySignal: number }) {
+function HomePage({ store, onEditTransaction, hideBalances, view, month, onMonth, selectedDay, onSelectDay, todaySignal }: { store: Store; onEditTransaction: (transaction: FinanceTransaction) => void; hideBalances: boolean; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; selectedDay: string; onSelectDay: (value: string) => void; todaySignal: number }) {
   const empty = store.data.accounts.length === 0 && store.data.categories.length === 0
   if (empty) return <main className="workspace-page"><EmptyDataCard onSeed={store.seedDemo} /></main>
-  return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} hideBalances={hideBalances} todaySignal={todaySignal} />
+  return <TransactionsPage store={store} onEdit={onEditTransaction} view={view} month={month} onMonth={onMonth} selectedDay={selectedDay} onSelectDay={onSelectDay} hideBalances={hideBalances} todaySignal={todaySignal} />
 }
 
 function TransactionRows({ transactions, data, onEdit, hideBalances = false, showDateHeading = true, accountContext }: { transactions: FinanceTransaction[]; data: FinanceData; onEdit: (transaction: FinanceTransaction) => void; hideBalances?: boolean; showDateHeading?: boolean; accountContext?: Account }) {
@@ -516,28 +552,39 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
     const personName = person ? advanceShareName(person, data) : ''
     const advanceNames = transaction.advance?.people.map((item) => advanceShareName(item, data)).filter(Boolean).join('、') ?? ''
     const accountMovement = transaction.accountMoves[0]?.deltaMinor ?? 0
-    const amount = settlement ? settlement.amountMinor * (settlement.direction === 'collect' ? 1 : -1) : transaction.advance?.direction === 'receivable' ? -transaction.advance.totalMinor : line ? line.amountTwdMinor * (line.direction === 'expense' ? -1 : 1) : transaction.transfer?.fromAmountMinor ? accountContext ? accountTransferDisplayAmount(accountContext, transaction) : -transaction.transfer.fromAmountMinor : accountMovement
+    const isTransfer = transaction.kind === 'transfer' && Boolean(transaction.transfer)
+    const transferFrom = data.accounts.find((item) => item.id === transaction.transfer?.fromAccountId)
+    const transferTo = data.accounts.find((item) => item.id === transaction.transfer?.toAccountId)
+    // 轉帳要排在 line 之前判斷：有手續費的轉帳 reportLines[0] 是手續費，照 line 算會顯示成手續費金額
+    const amount = settlement ? settlement.amountMinor * (settlement.direction === 'collect' ? 1 : -1) : transaction.advance?.direction === 'receivable' ? -transaction.advance.totalMinor : isTransfer ? (accountContext ? accountTransferDisplayAmount(accountContext, transaction) : -(transaction.transfer?.fromAmountMinor ?? 0)) : line ? line.amountTwdMinor * (line.direction === 'expense' ? -1 : 1) : accountMovement
     const advanceReceivable = transaction.advance?.people.reduce((sum, item) => sum + item.expectedMinor, 0) ?? 0
     const familyExpense = transaction.reportLines.filter((item) => item.direction === 'expense').reduce((sum, item) => sum + item.amountTwdMinor, 0)
     const title = settlement
       ? (settlement.direction === 'collect' ? `收回代墊款${personName ? `・${personName}` : ''}` : `歸還代墊款${personName ? `・${personName}` : ''}`)
       : transaction.advance
         ? transaction.advance.direction === 'receivable' ? `我先代墊${advanceNames ? `・${advanceNames}` : ''}` : `${advanceNames || '別人'}先代墊`
-        : transaction.note || category?.name || transactionLabels[transaction.kind]
+        : transaction.note || (isTransfer ? transactionLabels.transfer : category?.name) || transactionLabels[transaction.kind]
     const advanceNote = transaction.note && transaction.note !== '代墊' ? `${transaction.note}・` : ''
-    const detail = settlement
+    const detail = isTransfer
+      ? `${transferFrom?.name ?? '—'} → ${transferTo?.name ?? '—'}`
+      : settlement
       ? `${settlement.direction === 'collect' ? '代墊收回・不計收入' : '代墊還款・不計支出'}${account ? ` · ${account.name}` : ''}`
       : transaction.advance
         ? transaction.advance.direction === 'receivable'
           ? `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}待收 ${money(advanceReceivable)}${account ? ` · ${account.name}` : ''}`
           : `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}待還 ${money(advanceReceivable)}`
         : `${category?.name ?? transactionLabels[transaction.kind]}${account ? ` · ${account.name}` : ''}`
-    const amountTone = settlement || transaction.advance ? 'neutral-money' : amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''
-    const amountText = transaction.advance?.direction === 'payable' ? `待還 ${money(advanceReceivable)}` : `${amount > 0 ? '+' : ''}${money(amount)}`
+    // 轉帳只是錢換位置，不是收入也不是支出：一律中性色；在某個帳戶的明細裡才保留進出方向
+    const amountTone = settlement || transaction.advance || isTransfer ? 'neutral-money' : amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''
+    const amountText = transaction.advance?.direction === 'payable'
+      ? `待還 ${money(advanceReceivable)}`
+      : isTransfer && !accountContext
+        ? money(Math.abs(amount))
+        : `${amount > 0 ? '+' : ''}${money(amount)}`
     return <button className="transaction-row-v2" type="button" key={transaction.id} onClick={() => onEdit(transaction)}>
-      <EntityIcon iconKey={category?.iconKey ?? (transaction.kind === 'transfer' ? 'rotate-ccw' : transaction.kind === 'settlement' ? 'hand-coins' : 'receipt-text')} />
+      <EntityIcon iconKey={isTransfer ? 'rotate-ccw' : category?.iconKey ?? (transaction.kind === 'settlement' ? 'hand-coins' : 'receipt-text')} />
       <span><strong>{title}</strong><small>{detail}</small></span>
-      <b className={amountTone}>{hideBalances ? '••••' : amountText}<small>{settlement ? '不計收支' : '明細'} ›</small></b>
+      <b className={amountTone}>{hideBalances ? '••••' : amountText}<small>{settlement || isTransfer ? '不計收支' : '明細'} ›</small></b>
     </button>
   })}</div></section>)}</div>
 }
@@ -566,10 +613,15 @@ function AccountsPage({ store, preferences, savePreferences, onPush, hideBalance
     { key: 'foreign', label: '外幣', items: accounts.filter((item) => item.currency !== 'TWD') },
     { key: 'receivable', label: '應收／借出', items: accounts.filter((item) => item.type === 'receivable') },
   ].filter((group) => group.items.length)
+  // 信用卡小計照實際餘額走：有欠款就是待繳，整組被預存到負的就顯示預存
+  const creditCardSummary = (items: Account[]) => {
+    const owed = items.reduce((sum, item) => sum + (balances[item.id] ?? 0), 0)
+    return { text: owed >= 0 ? `待繳 ${money(owed)}` : `預存 ${money(-owed)}`, tone: owed > 0 ? 'expense-text' : owed < 0 ? 'income-text' : '' }
+  }
   return <main className="workspace-page">
     <section className="net-worth-v2"><span>家庭淨資產</span><strong className={moneyTone(netWorth.netWorth)}>{hideBalances ? '••••••' : money(netWorth.netWorth)}</strong><div><span>總資產 <b className="income-text">{hideBalances ? '••••' : money(netWorth.assets)}</b></span><span>總負債 <b className="expense-text">{hideBalances ? '••••' : money(netWorth.liabilities)}</b></span></div></section>
     {managing ? <p className="account-personalization-note">帳戶排序只套用目前登入的帳號；記帳時會帶入排在最前面的帳戶，不會更改帳戶名稱或家庭帳務。</p> : null}
-    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span className={group.key === 'credit_card' ? 'expense-text' : 'income-text'}>{hideBalances ? '••••' : group.key === 'credit_card' ? `待繳 ${money(group.items.reduce((sum, item) => sum + Math.max(0, balances[item.id] ?? 0), 0))}` : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account, index) => { const displayBalance = (account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0); return <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} data-sort-id={account.id} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <div className="account-sort-controls"><button type="button" className="account-drag" aria-label={`拖曳${account.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(account.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(account.id, touchSortTarget(event)) }}><GripVertical /></button><span><button type="button" aria-label={`${account.name}上移`} disabled={index === 0} onClick={() => move(group.items, account.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${account.name}下移`} disabled={index === group.items.length - 1} onClick={() => move(group.items, account.id, 1)}><ChevronDown /></button></span></div> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={moneyTone(displayBalance)}>{hideBalances ? '••••' : money(displayBalance, account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div> })}</div></section>)}
+    {groups.map((group) => <section className="account-group-v2" key={group.key}><div className="account-group-head"><span>{group.label}</span><span className={group.key === 'credit_card' ? creditCardSummary(group.items).tone : 'income-text'}>{hideBalances ? '••••' : group.key === 'credit_card' ? creditCardSummary(group.items).text : money(group.items.reduce((sum, item) => sum + Math.round(fromMinor(balances[item.id] ?? 0, item.currency) * (item.currency === 'TWD' ? 1 : item.referenceRateToTwd ?? 0)), 0))}</span></div><div className="workspace-list account-list-v2">{group.items.map((account, index) => { const displayBalance = (account.type === 'credit_card' ? -1 : 1) * (balances[account.id] ?? 0); return <div className={`account-manage-row ${managing ? 'is-managing' : ''}`} data-sort-id={account.id} draggable={managing} key={account.id} onDragStart={() => setDragging(account.id)} onDragOver={(event) => event.preventDefault()} onDrop={() => void reorder(dragging, account.id)}>{managing ? <div className="account-sort-controls"><button type="button" className="account-drag" aria-label={`拖曳${account.name}`} onTouchStart={(event) => { event.stopPropagation(); setDragging(account.id) }} onTouchEnd={(event) => { event.stopPropagation(); void reorder(account.id, touchSortTarget(event)) }}><GripVertical /></button><span><button type="button" aria-label={`${account.name}上移`} disabled={index === 0} onClick={() => move(group.items, account.id, -1)}><ChevronUp /></button><button type="button" aria-label={`${account.name}下移`} disabled={index === group.items.length - 1} onClick={() => move(group.items, account.id, 1)}><ChevronDown /></button></span></div> : null}<button type="button" className="account-row-main" onClick={() => onPush({ name: managing ? 'account-form' : 'account-detail', id: account.id })}><EntityIcon iconKey={account.iconKey} /><span><strong>{account.name}</strong><small>{account.currency !== 'TWD' ? `${account.currency} · 匯率 ${account.referenceRateToTwd ?? '未設定'}` : account.type === 'credit_card' ? `結帳日 ${account.creditCard?.closingDay ?? '—'} 日 · 繳款日 ${account.creditCard?.paymentDay ?? '—'} 日` : accountTypeLabels[account.type]}</small></span><b className={moneyTone(displayBalance)}>{hideBalances ? '••••' : money(displayBalance, account.currency)}</b>{!managing ? <ChevronRight /> : null}</button>{managing ? <><IconButton label={`設定${account.name}`} onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal /></IconButton><IconButton label={`調整${account.name}餘額`} onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale /></IconButton><IconButton label={`封存${account.name}`} onClick={() => void store.archive('accounts', account.id, true)}><Trash2 /></IconButton></> : null}</div> })}</div></section>)}
   </main>
 }
 
@@ -605,7 +657,7 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
   </main>
 }
 
-function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue, autoFocusAmount, onAmountFocused }: { store: Store; preferences: AccountPreferences; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind) => void; autoFocusAmount: boolean; onAmountFocused: () => void }) {
+function EntryPage({ store, preferences, currentUid, contextAccountId, draft, setDraft, editingId, recurringRule, onPush, onBack, onDone, onContinue, autoFocusAmount, onAmountFocused }: { store: Store; preferences: AccountPreferences; currentUid: string; contextAccountId: string; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; editingId: string; recurringRule?: RecurringRule; onPush: (route: Route) => void; onBack: () => void; onDone: () => void; onContinue: (kind: EntryKind, date: string) => void; autoFocusAmount: boolean; onAmountFocused: () => void }) {
   const [saving, setSaving] = useState(false)
   const [amountFocusSignal, setAmountFocusSignal] = useState(0)
   useEffect(() => {
@@ -631,7 +683,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
   if (existingTransaction?.kind === 'settlement') return <SettlementTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
   if (existingTransaction?.kind === 'balance_adjustment') return <AdjustmentTransactionEditor store={store} transaction={existingTransaction} draft={draft} setDraft={setDraft} onPush={onPush} onDone={onDone} />
 
-  const changeKind = (kind: EntryKind) => setDraft((current) => ({ ...newEntryDraft(kind, store.data, preferences), date: current.date }))
+  const changeKind = (kind: EntryKind) => setDraft((current) => newEntryDraft(kind, store.data, preferences, contextAccountId, currentUid, current.date))
   const save = async (continueAfterSave = false) => {
     setError('')
     if (recurringOccurrenceId && store.data.transactions.some((item) => item.recurringOccurrenceId === recurringOccurrenceId)) return setError('這筆定期項目已經入帳')
@@ -665,12 +717,12 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
     try {
       await store.save('transactions', { ...transaction, updatedAt: now })
       if (recurringRule) await store.save('recurringRules', { id: recurringRule.id, nextScheduledOn: addRecurringPeriod(recurringRule.nextScheduledOn, recurringRule.frequency) })
-      if (continueAfterSave && !recurringRule) onContinue(draft.kind)
+      if (continueAfterSave && !recurringRule) onContinue(draft.kind, draft.date)
       else onDone()
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '儲存失敗') } finally { setSaving(false) }
   }
 
-  return <CalculatorSubmitProvider onSubmit={() => void save(false)}><main className="entry-page-v2">
+  return <main className="entry-page-v2">
     <header className={`entry-page-head ${recurringRule ? 'editor-page-head' : ''}`}>
       <IconButton label="返回上一頁" onClick={onBack}><ArrowLeft /></IconButton>
       {recurringRule ? <h1>確認定期項目</h1> : <div className="entry-kind-tabs">{(['expense', 'income', 'transfer', 'advance'] as EntryKind[]).map((kind) => <button className={draft.kind === kind ? 'active' : ''} type="button" key={kind} onClick={() => changeKind(kind)}>{{ expense: '支出', income: '收入', transfer: '轉帳', advance: '代墊' }[kind]}</button>)}</div>}
@@ -706,7 +758,7 @@ function EntryPage({ store, preferences, draft, setDraft, editingId, recurringRu
       {editingId ? <button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(editingId), onDone())}><Trash2 />刪除這筆明細</button> : null}
       {recurringRule ? <div className="entry-submit-actions is-single"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '處理中' : '確認入帳'}</button></div> : <div className="entry-submit-actions"><button type="button" disabled={saving} onClick={() => void save(false)}>{saving ? '儲存中' : '儲存'}</button><button type="button" disabled={saving} onClick={() => void save(true)}>{saving ? '儲存中' : '再記一筆'}</button></div>}
     </div>
-  </main></CalculatorSubmitProvider>
+  </main>
 }
 
 function AmountField({ label, value, currency, onChange, icon = 'coins', autoOpenSignal }: { label: string; value: string; currency: string; onChange: (value: string) => void; icon?: string; autoOpenSignal?: number }) {
@@ -722,7 +774,7 @@ function SettlementTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: direction === 'collect' ? inflowDelta(account, amount) : outflowDelta(account, amount), currency: account.currency }], settlement: { ...transaction.settlement, amountMinor: amount } })
     onDone()
   }
-  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
+  return <main className="entry-page-v2"><EditorPageHeader title={direction === 'collect' ? '代墊收款' : '代墊還款'} onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label={direction === 'collect' ? '收款帳戶' : '付款帳戶'} value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="金額" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main>
 }
 
 function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPush, onDone }: { store: Store; transaction: FinanceTransaction; draft: EntryDraft; setDraft: (value: EntryDraft | ((current: EntryDraft) => EntryDraft)) => void; onPush: (route: Route) => void; onDone: () => void }) {
@@ -738,7 +790,7 @@ function AdjustmentTransactionEditor({ store, transaction, draft, setDraft, onPu
     await store.save('transactions', { ...transaction, occurredOn: draft.date, note: draft.note, accountMoves: [{ accountId: account.id, deltaMinor: difference, currency: account.currency }], reportLines: [{ direction, categoryId: category.id, amountMinor: amount, currency: account.currency, amountTwdMinor: toTwdMinor(amount, account), countsTowardBudget: false }], adjustment: { accountId: account.id, beforeMinor: transaction.adjustment.beforeMinor, actualMinor: transaction.adjustment.beforeMinor + difference, differenceMinor: difference } })
     onDone()
   }
-  return <CalculatorSubmitProvider onSubmit={() => void save()}><main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main></CalculatorSubmitProvider>
+  return <main className="entry-page-v2"><EditorPageHeader title="帳務調整" onBack={onDone} onSave={() => void save()} /><div className="entry-page-content"><label className="date-only-row"><input type="date" aria-label="記帳日期" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} /><span>{formatEntryDate(draft.date)}</span></label><section className="entry-fields-v2"><FieldButton icon={account?.iconKey ?? 'wallet-cards'} label="帳戶" value={account?.name ?? '請選擇'} onClick={() => onPush({ name: 'account-picker', id: 'from' })} /><AmountField label="調整差額" icon="scale" value={draft.amount} currency={account?.currency ?? 'TWD'} onChange={(value) => setDraft((current) => ({ ...current, amount: value }))} /></section><label className="entry-note"><span>備註</span><textarea value={draft.note} onChange={(event) => setDraft((current) => ({ ...current, note: event.target.value }))} /></label><button className="danger-button entry-delete-button" type="button" onClick={() => (store.voidTransaction(transaction.id), onDone())}><Trash2 />刪除這筆明細</button></div></main>
 }
 
 function EditorPageHeader({ title, onBack, onSave }: { title: string; onBack: () => void; onSave: () => void }) {
@@ -881,7 +933,7 @@ function MonthSwitch({ month, onChange }: { month: string; onChange: (value: str
   return <div className="calendar-switch"><button type="button" aria-label="上個月" onClick={() => moveMonth(-1)}><ChevronLeft /></button><label className="month-picker"><input type="month" aria-label="選擇年月" value={month} onChange={(event) => onChange(event.target.value)} /><strong>{yearNumber} 年 {monthNumber} 月</strong></label><button type="button" aria-label="下個月" onClick={() => moveMonth(1)}><ChevronRight /></button></div>
 }
 
-function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = false, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; hideBalances?: boolean; todaySignal: number }) {
+function TransactionsPage({ store, onEdit, view, month, onMonth, selectedDay, onSelectDay, hideBalances = false, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; view: 'calendar' | 'list'; month: string; onMonth: (value: string) => void; selectedDay: string; onSelectDay: (value: string) => void; hideBalances?: boolean; todaySignal: number }) {
   const [filter, setFilter] = useState<'all' | TransactionKind>('all')
   const listScrollRef = useRef<HTMLDivElement>(null)
   const transactions = activeTransactions(store.data.transactions).filter((item) => item.occurredOn.startsWith(month) && (filter === 'all' || item.kind === filter)).sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))
@@ -897,13 +949,13 @@ function TransactionsPage({ store, onEdit, view, month, onMonth, hideBalances = 
     const top = target ? container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top : 0
     container.scrollTo({ top })
   }, [month, todaySignal, view])
-  return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} hideBalances={hideBalances} todaySignal={todaySignal} /> : <><section className="home-summary transaction-list-summary" aria-label={`${monthLabel}收支摘要`}><article><span>{monthLabel}支出</span><strong className="expense-text">{hideBalances ? '••••' : money(monthReport.expense)}</strong></article><article><span>{monthLabel}收入</span><strong className="income-text">{hideBalances ? '••••' : money(monthReport.income)}</strong></article><article><span>{monthLabel}結餘</span><strong className={moneyTone(monthReport.balance)}>{hideBalances ? '••••' : money(monthReport.balance)}</strong></article></section><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="transactions-scroll-region" ref={listScrollRef}><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></div></>}</main>
+  return <main className="workspace-page transactions-home"><MonthSwitch month={month} onChange={onMonth} />{view === 'calendar' ? <TransactionCalendar store={store} onEdit={onEdit} month={month} selected={selectedDay} onSelect={onSelectDay} hideBalances={hideBalances} todaySignal={todaySignal} /> : <><section className="home-summary transaction-list-summary" aria-label={`${monthLabel}收支摘要`}><article><span>{monthLabel}支出</span><strong className="expense-text">{hideBalances ? '••••' : money(monthReport.expense)}</strong></article><article><span>{monthLabel}收入</span><strong className="income-text">{hideBalances ? '••••' : money(monthReport.income)}</strong></article><article><span>{monthLabel}結餘</span><strong className={moneyTone(monthReport.balance)}>{hideBalances ? '••••' : money(monthReport.balance)}</strong></article></section><div className="filter-chips transaction-type-filters">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳']] as const).map(([value, label]) => <button className={filter === value ? 'active' : ''} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="transactions-scroll-region" ref={listScrollRef}><TransactionRows transactions={transactions} data={store.data} onEdit={onEdit} hideBalances={hideBalances} /></div></>}</main>
 }
 
-function TransactionCalendar({ store, onEdit, month, hideBalances, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; month: string; hideBalances: boolean; todaySignal: number }) {
-  const [selected, setSelected] = useState(todayIso().startsWith(currentMonth()) ? todayIso() : `${currentMonth()}-01`)
+function TransactionCalendar({ store, onEdit, month, selected, onSelect, hideBalances, todaySignal }: { store: Store; onEdit: (transaction: FinanceTransaction) => void; month: string; selected: string; onSelect: (value: string) => void; hideBalances: boolean; todaySignal: number }) {
+  const setSelected = onSelect
   const detailScrollRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (todaySignal) { setSelected(todayIso()); detailScrollRef.current?.scrollTo({ top: 0 }) } }, [todaySignal])
+  useEffect(() => { if (todaySignal) detailScrollRef.current?.scrollTo({ top: 0 }) }, [todaySignal])
   const [yearNumber, monthNumber] = month.split('-').map(Number)
   const days = new Date(yearNumber, monthNumber, 0).getDate()
   const start = (new Date(yearNumber, monthNumber - 1, 1).getDay() + 6) % 7
@@ -925,6 +977,44 @@ function TransactionCalendar({ store, onEdit, month, hideBalances, todaySignal }
   const summaryText = hideBalances && selectedItems.length ? '收支金額已隱藏' : summaryParts.length ? summaryParts.join('・') : selectedTransfers.length ? '沒有一般收支' : '沒有收支'
   useEffect(() => { detailScrollRef.current?.scrollTo({ top: 0 }) }, [activeSelected])
   return <><div className="calendar-week">{['一', '二', '三', '四', '五', '六', '日'].map((day) => <span key={day}>{day}</span>)}</div><div className="calendar-grid-v2">{Array.from({ length: start }, (_, index) => <span key={`blank-${index}`} />)}{Array.from({ length: days }, (_, index) => { const date = `${month}-${String(index + 1).padStart(2, '0')}`; const items = byDay[date] ?? []; const hasIncome = items.some((item) => item.reportLines.some((line) => line.direction === 'income')); const hasExpense = items.some((item) => item.reportLines.some((line) => line.direction === 'expense')); const hasTransfer = items.some((item) => item.kind === 'transfer'); return <button className={`${activeSelected === date ? 'selected' : ''} ${date === todayIso() ? 'today' : ''}`} type="button" aria-current={date === todayIso() ? 'date' : undefined} key={date} onClick={() => setSelected(date)}><b>{index + 1}</b><i>{hasIncome ? <em className="income-dot" /> : null}{hasExpense ? <em className="expense-dot" /> : null}{hasTransfer ? <em className="transfer-dot" /> : null}</i></button> })}</div><div className="transactions-scroll-region calendar-detail-scroll" ref={detailScrollRef}><div className="day-summary-v2"><strong>{formatDate(activeSelected)}</strong><span>{summaryText}</span></div>{selectedNonTransfers.length ? <TransactionRows transactions={selectedNonTransfers} data={store.data} onEdit={onEdit} showDateHeading={false} hideBalances={hideBalances} /> : selectedTransfers.length ? null : <div className="simple-empty compact">當天沒有交易</div>}{selectedTransfers.length ? <section className="calendar-transfer-block"><div className="calendar-transfer-summary"><strong>轉帳</strong><span>{hideBalances ? '••••' : money(transferTotal)}・{selectedTransfers.length} 筆</span></div><TransactionRows transactions={selectedTransfers} data={store.data} onEdit={onEdit} showDateHeading={false} hideBalances={hideBalances} /></section> : null}</div></>
+}
+
+const searchResultLimit = 200
+
+/** 把一筆交易攤平成可以比對的文字：備註、分類、帳戶、專案、代墊對象、類型與金額 */
+function searchHaystack(transaction: FinanceTransaction, data: FinanceData) {
+  const parts = [transaction.note ?? '', transactionLabels[transaction.kind]]
+  for (const line of transaction.reportLines) parts.push(data.categories.find((item) => item.id === line.categoryId)?.name ?? '', String(fromMinor(line.amountMinor, line.currency)))
+  for (const move of transaction.accountMoves) parts.push(data.accounts.find((item) => item.id === move.accountId)?.name ?? '', String(fromMinor(Math.abs(move.deltaMinor), move.currency)))
+  if (transaction.projectId) parts.push(data.projects.find((item) => item.id === transaction.projectId)?.name ?? '')
+  for (const person of transaction.advance?.people ?? []) parts.push(advanceShareName(person, data))
+  return parts.join(' ').toLowerCase()
+}
+
+function SearchPage({ store, onEdit }: { store: Store; onEdit: (transaction: FinanceTransaction) => void }) {
+  const [keyword, setKeyword] = useState('')
+  const [kind, setKind] = useState<'all' | TransactionKind>('all')
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [showDates, setShowDates] = useState(false)
+  const term = keyword.trim().toLowerCase()
+  const hasQuery = Boolean(term || from || to || kind !== 'all')
+  const matches = hasQuery
+    ? activeTransactions(store.data.transactions).filter((transaction) =>
+      (kind === 'all' || transaction.kind === kind)
+      && (!from || transaction.occurredOn >= from)
+      && (!to || transaction.occurredOn <= to)
+      && (!term || searchHaystack(transaction, store.data).includes(term)))
+    : []
+  const visible = matches.slice(0, searchResultLimit)
+  return <main className="workspace-page search-page">
+    <label className="search-bar"><Search /><input type="search" aria-label="搜尋關鍵字" placeholder="備註、分類、帳戶、專案、金額…" value={keyword} onChange={(event) => setKeyword(event.target.value)} />{keyword ? <button type="button" aria-label="清除關鍵字" onClick={() => setKeyword('')}><X /></button> : null}</label>
+    <div className="filter-chips">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳'], ['advance', '代墊']] as const).map(([value, label]) => <button className={kind === value ? 'active' : ''} type="button" key={value} onClick={() => setKind(value)}>{label}</button>)}<button className={showDates || from || to ? 'active' : ''} type="button" onClick={() => setShowDates((value) => !value)}>日期</button></div>
+    {showDates || from || to ? <div className="search-date-range"><label><span>從</span><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label><span>到</span><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>{from || to ? <button type="button" onClick={() => { setFrom(''); setTo('') }}>清除</button> : null}</div> : null}
+    {!hasQuery
+      ? <div className="simple-empty">輸入關鍵字，或選擇類型與日期開始搜尋</div>
+      : <><p className="search-result-count">{matches.length ? `找到 ${matches.length} 筆${matches.length > searchResultLimit ? `，先顯示最近 ${searchResultLimit} 筆` : ''}` : '沒有符合的明細'}</p>{visible.length ? <TransactionRows transactions={visible} data={store.data} onEdit={onEdit} /> : null}</>}
+  </main>
 }
 
 function TransactionFilterPage({ store, value, onChange, onDone }: { store: Store; value: TransactionFilter; onChange: (value: TransactionFilter) => void; onDone: () => void }) {

@@ -10,6 +10,7 @@
 .account-topbar-title > span:last-child { max-width: min(46vw,280px); overflow: hidden; text-overflow: ellipsis; }
 .workspace-topbar.reports-topbar { grid-template-columns: 44px minmax(0,300px) 44px; justify-content: center; }
 .workspace-top-actions { display: flex; align-items: center; justify-content: flex-end; justify-self: end; gap: 4px; }
+.workspace-top-actions-start { justify-content: flex-start; justify-self: start; }
 .topbar-view-switch { display: grid; grid-template-columns: 32px 32px; gap: 2px; padding: 2px; border-radius: 10px; background: #e8edf0; }
 .topbar-view-switch button { width: 32px; height: 32px; display: grid; place-items: center; color: var(--muted); border-radius: 8px; }
 .topbar-view-switch button.active { color: var(--primary-dark); background: #fff; box-shadow: 0 2px 7px rgba(31,45,61,.08); }
@@ -208,19 +209,35 @@
 .picker-list-v2 > button > b { color: var(--text); font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; }
 .settings-form { display: grid; gap: 12px; }
 .standalone-editor-content { padding: 16px; }
-.settings-form > label,.settings-form .form-columns label { display: grid; gap: 7px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.settings-form > label,.settings-form .form-columns label { min-width: 0; display: grid; gap: 7px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
 .settings-form label > span { font-weight: 700; }
 .settings-form label > small { color: var(--muted); line-height: 1.4; }
-.settings-form input,.settings-form select,.settings-form textarea,.settlement-form input,.settlement-form select { min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; }
+/* 沒有 min-width:0 的話，input 會撐到瀏覽器預設的 size=20 寬度，兩欄並排時把整頁推到比手機螢幕還寬 */
+.settings-form input,.settings-form select,.settings-form textarea,.settlement-form input,.settlement-form select { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; }
 .settings-form textarea { min-height: 90px; resize: vertical; }
-.form-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form-columns { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
 .toggle-row { min-height: 64px; position: relative; display: flex!important; grid-template-columns: none!important; flex-direction: row; align-items: center; justify-content: space-between; }
-.toggle-row input { position: absolute; opacity: 0; }
+.toggle-row input { width: auto; position: absolute; opacity: 0; }
 .toggle-row i { width: 46px; height: 27px; position: relative; border-radius: 99px; background: #cdd5da; transition: .2s; }
 .toggle-row i::after { content: ''; position: absolute; top: 3px; left: 3px; width: 21px; height: 21px; border-radius: 50%; background: #fff; transition: .2s; }
 .toggle-row input:checked + i { background: var(--primary); }
 .toggle-row input:checked + i::after { transform: translateX(19px); }
-.icon-chooser { margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.search-page { display: grid; align-content: start; gap: 12px; }
+.search-bar { min-width: 0; display: grid; grid-template-columns: 20px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.search-bar > svg { width: 20px; color: var(--muted); }
+.search-bar input { min-width: 0; min-height: 34px; border: 0; background: none; font-size: 16px; }
+.search-bar input:focus { outline: none; }
+.search-bar > button { width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); }
+.search-bar > button svg { width: 17px; }
+.search-date-range { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: end; gap: 8px; }
+.search-date-range label { min-width: 0; display: grid; gap: 5px; }
+.search-date-range label span { color: var(--muted); font-size: 13px; }
+.search-date-range input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; }
+.search-date-range > button { grid-column: 1 / -1; min-height: 38px; color: var(--primary); font-weight: 700; }
+.search-result-count { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* fieldset 預設不會縮到比內容窄，min-inline-size:0 才不會把整頁撐寬 */
+.icon-chooser { min-inline-size: 0; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
 .icon-chooser legend { padding: 0 6px; font-weight: 700; }
 .icon-chooser > div { display: grid; grid-template-columns: repeat(6,1fr); gap: 7px; }
 .icon-chooser button { aspect-ratio: 1; position: relative; display: grid; place-items: center; border-radius: 11px; background: #edf3f4; }
@@ -787,10 +804,10 @@
 .calculator-keypad > header {
   min-height: 68px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 4px 4px 10px 10px;
+  padding: 4px 10px 10px;
 }
 
 .calculator-keypad > header span {
@@ -823,15 +840,6 @@
   white-space: nowrap;
 }
 
-.calculator-keypad > header button {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-}
-
-.calculator-keypad > header button svg,
 .calculator-grid button svg {
   width: 21px;
 }

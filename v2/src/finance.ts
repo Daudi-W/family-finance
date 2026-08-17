@@ -72,7 +72,8 @@ export function calculateNetWorth(accounts: Account[], balances: Record<string, 
   let liabilities = 0
   for (const account of accounts.filter((item) => !item.archivedAt && item.includeInNetWorth)) {
     const twd = Math.round(fromMinor(balances[account.id] ?? 0, account.currency) * (account.currency === 'TWD' ? 1 : account.referenceRateToTwd ?? 0))
-    if (account.type === 'credit_card') liabilities += Math.max(0, twd)
+    // 信用卡餘額為正＝還沒繳的欠款；為負＝預先存進去的錢，那是資產不是負債，不能直接丟掉
+    if (account.type === 'credit_card') { if (twd >= 0) liabilities += twd; else assets += -twd }
     else assets += twd
   }
   return { assets, liabilities, netWorth: assets - liabilities }

@@ -105,6 +105,24 @@ test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => 
   assert.equal(canonicalAuthUrl('https://family-finance-v2-dev-260811.firebaseapp.com/', 'family-finance-v2-dev-260811.firebaseapp.com'), '')
 })
 
+test('信用卡欠款算負債，預存進去的錢算資產', () => {
+  const data = buildDemoData()
+  const base = { ...data.accounts[0], type: 'credit_card' as const, currency: 'TWD', includeInNetWorth: true, openingBalanceMinor: 0 }
+  const owing = { ...base, id: 'card-owing' }
+  const prepaid = { ...base, id: 'card-prepaid' }
+
+  const owed = calculateNetWorth([owing], { 'card-owing': 4_000 })
+  assert.equal(owed.liabilities, 4_000)
+  assert.equal(owed.assets, 0)
+  assert.equal(owed.netWorth, -4_000)
+
+  // 餘額為負代表先把錢存進卡裡，那筆錢不能從淨資產憑空消失
+  const stored = calculateNetWorth([prepaid], { 'card-prepaid': -1_500 })
+  assert.equal(stored.liabilities, 0)
+  assert.equal(stored.assets, 1_500)
+  assert.equal(stored.netWorth, 1_500)
+})
+
 test('外幣以最小單位儲存，淨資產依參考匯率換算台幣', () => {
   assert.equal(toMinor('12.34', 'USD'), 1_234)
   const data = buildDemoData()
