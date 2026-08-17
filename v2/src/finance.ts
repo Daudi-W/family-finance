@@ -45,7 +45,8 @@ export function accountPeriodSummary(account: Account, transactions: FinanceTran
   const income = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'income')).reduce((sum, line) => sum + line.amountMinor, 0)
   const expense = related.flatMap((transaction) => transaction.reportLines.filter((line) => line.direction === 'expense')).reduce((sum, line) => sum + line.amountMinor, 0)
   const rawNetTransfer = related.filter((transaction) => transaction.kind === 'transfer').flatMap((transaction) => transaction.accountMoves.filter((move) => move.accountId === account.id)).reduce((sum, move) => sum + move.deltaMinor, 0)
-  return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer }
+  // `|| 0` 是為了避免負零，信用卡沒有轉帳時會顯示成 -$0
+  return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer || 0 }
 }
 
 export function accountTransferDisplayAmount(account: Account, transaction: FinanceTransaction) {

@@ -230,7 +230,9 @@ function draftFromTransaction(transaction: FinanceTransaction, data: FinanceData
   return {
     kind: transaction.kind === 'income' || transaction.kind === 'transfer' || transaction.kind === 'advance' ? transaction.kind : 'expense',
     date: transaction.occurredOn,
-    amount: String(fromMinor(transaction.advance?.totalMinor ?? transaction.reportLines[0]?.amountMinor ?? transfer?.fromAmountMinor ?? transaction.settlement?.amountMinor ?? Math.abs(firstMove?.deltaMinor ?? 0), currency)),
+    // 轉帳要排在 reportLines 之前：有手續費的轉帳 reportLines[0] 是手續費，
+    // 照原順序會把手續費當成轉帳金額載進來，一按儲存就把轉帳金額改成手續費
+    amount: String(fromMinor(transaction.advance?.totalMinor ?? transfer?.fromAmountMinor ?? transaction.reportLines[0]?.amountMinor ?? transaction.settlement?.amountMinor ?? Math.abs(firstMove?.deltaMinor ?? 0), currency)),
     toAmount: transfer?.toAmountMinor ? String(fromMinor(transfer.toAmountMinor, toAccount?.currency ?? currency)) : '',
     categoryId: transaction.reportLines[0]?.categoryId ?? '',
     accountId: transfer?.fromAccountId ?? transaction.adjustment?.accountId ?? firstMove?.accountId ?? '',
@@ -584,7 +586,7 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
     return <button className="transaction-row-v2" type="button" key={transaction.id} onClick={() => onEdit(transaction)}>
       <EntityIcon iconKey={isTransfer ? 'rotate-ccw' : category?.iconKey ?? (transaction.kind === 'settlement' ? 'hand-coins' : 'receipt-text')} />
       <span><strong>{title}</strong><small>{detail}</small></span>
-      <b className={amountTone}>{hideBalances ? '••••' : amountText}<small>{settlement || isTransfer ? '不計收支' : '明細'} ›</small></b>
+      <b className={amountTone}>{hideBalances ? '••••' : amountText}<small>{settlement ? '不計收支' : '明細'} ›</small></b>
     </button>
   })}</div></section>)}</div>
 }
@@ -856,7 +858,8 @@ function AccountFormPage({ store, accountId, onDone, currentUid, partnerUid }: {
   const [name, setName] = useState(existing?.name ?? '')
   const [type, setType] = useState<AccountType>(existing?.type ?? 'bank')
   const [currency, setCurrency] = useState(existing?.currency ?? 'TWD')
-  const [openingBalance, setOpeningBalance] = useState(String(existing ? fromMinor(existing.openingBalanceMinor, existing.currency) : 0))
+  // 初始餘額也用跟帳戶頁一致的看法：信用卡欠款是負數、預存是正數（存進資料時再轉回內部表示）
+  const [openingBalance, setOpeningBalance] = useState(String(existing ? fromMinor((existing.type === 'credit_card' ? -1 : 1) * existing.openingBalanceMinor, existing.currency) : 0))
   const [include, setInclude] = useState(existing?.includeInNetWorth ?? true)
   const [iconKey, setIconKey] = useState(existing?.iconKey ?? 'landmark')
   const [rate, setRate] = useState(String(existing?.referenceRateToTwd ?? ''))
@@ -877,7 +880,7 @@ function AccountFormPage({ store, accountId, onDone, currentUid, partnerUid }: {
       id: existing?.id, name: name.trim(), type, currency: currency.toUpperCase(), iconKey,
       ownerUid: owner === 'mine' ? currentUid : owner === 'partner' ? partnerUid || existing?.ownerUid || '' : '',
       sortOrder: existing?.sortOrder ?? store.data.accounts.length, includeInNetWorth: include,
-      openingBalanceMinor: toMinor(openingBalance || 0, currency.toUpperCase()), openingDate: existing?.openingDate ?? todayIso(),
+      openingBalanceMinor: (type === 'credit_card' ? -1 : 1) * toMinor(openingBalance || 0, currency.toUpperCase()), openingDate: existing?.openingDate ?? todayIso(),
       referenceRateToTwd: isTwd ? undefined : Number(rate) || existing?.referenceRateToTwd || 0,
       referenceRateMode: isTwd ? undefined : rateMode,
       referenceRateDate: isTwd ? undefined : manualRateChanged ? todayIso() : existing?.referenceRateDate,
@@ -892,7 +895,7 @@ function AccountFormPage({ store, accountId, onDone, currentUid, partnerUid }: {
     <label><span>帳戶類型</span><select value={type} onChange={(event) => { const next = event.target.value as AccountType; setType(next); setIconKey({ cash: 'wallet-cards', bank: 'landmark', credit_card: 'credit-card', investment: 'chart-no-axes-combined', receivable: 'hand-coins' }[next]) }}>{Object.entries(accountTypeLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
     <label><span>歸屬</span><select value={owner} onChange={(event) => setOwner(event.target.value as 'mine' | 'partner' | 'shared')}><option value="mine">我的</option><option value="partner" disabled={!partnerUid && owner !== 'partner'}>另一半的</option><option value="shared">共用</option></select><small>{partnerUid ? '自己的帳戶會排在最前面，其次是共用，最後才是另一半的。只影響顯示順序，不影響任何金額。' : '另一半第一次登入後才能指定給對方。'}</small></label>
     <label><span>幣別</span><select value={currency} disabled={currencyLocked} onChange={(event) => setCurrency(event.target.value)}>{!currencyOptions.some(([value]) => value === currency) ? <option value={currency}>{currency}</option> : null}{currencyOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select>{currencyLocked ? <small>已有交易紀錄，為避免改寫歷史金額，幣別不可變更。</small> : null}</label>
-    <label><span>初始餘額</span><CalculatorInput value={openingBalance} onValueChange={setOpeningBalance} disabled={Boolean(existing)} /><small>{existing ? '建立後請使用「調整餘額」，保留帳務紀錄。' : '信用卡請填目前未繳負債。'}</small></label>
+    <label><span>初始餘額</span><CalculatorInput value={openingBalance} onValueChange={setOpeningBalance} disabled={Boolean(existing)} /><small>{existing ? '建立後請使用「調整餘額」，保留帳務紀錄。' : type === 'credit_card' ? '還沒繳的錢填負數（例如 -4000），先預存進去的錢填正數。' : '目前這個帳戶裡實際有多少錢。'}</small></label>
     {currency.toUpperCase() !== 'TWD' ? <><label><span>匯率更新方式</span><select value={rateMode} onChange={(event) => setRateMode(event.target.value as 'auto' | 'manual')}><option value="auto">每日自動更新</option><option value="manual">手動設定</option></select></label><label><span>1 {currency.toUpperCase()} 約等於多少 TWD</span><CalculatorInput value={rate} onValueChange={setRate} disabled={rateMode === 'auto'} /><small>{rateMode === 'auto' ? `由公開匯率每日更新${existing?.referenceRateDate ? `・資料日期 ${existing.referenceRateDate}` : ''}` : '手動匯率會保留，直到你改回自動更新。'}</small></label></> : null}
     {type === 'credit_card' ? <><div className="form-columns"><label><span>結帳日</span><input inputMode="numeric" value={closingDay} onChange={(event) => setClosingDay(event.target.value)} /></label><label><span>繳款日</span><input inputMode="numeric" value={paymentDay} onChange={(event) => setPaymentDay(event.target.value)} /></label></div><label><span>預設扣款帳戶</span><select value={paymentAccountId} onChange={(event) => setPaymentAccountId(event.target.value)}><option value="">不指定</option>{activeSorted(store.data.accounts).filter((item) => item.type !== 'credit_card' && item.id !== existing?.id).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></> : null}
     <ToggleRow label="計入淨資產" checked={include} onChange={setInclude} />
@@ -906,11 +909,14 @@ function AccountAdjustPage({ store, accountId, onDone }: { store: Store; account
   const account = store.data.accounts.find((item) => item.id === accountId)
   const current = account ? calculateBalances(store.data.accounts, store.data.transactions)[account.id] ?? 0 : 0
   const accountCurrency = account?.currency ?? 'TWD'
-  const [actual, setActual] = useState(String(fromMinor(current, accountCurrency)))
+  // 對帳時看到的數字要跟帳戶頁一致：信用卡欠款是負的、預存是正的
+  const displaySign = account?.type === 'credit_card' ? -1 : 1
+  const [actual, setActual] = useState(String(fromMinor(displaySign * current, accountCurrency)))
   const [note, setNote] = useState('對帳差異')
   const [date, setDate] = useState(todayIso())
   if (!account) return <main className="workspace-page"><div className="simple-empty">找不到帳戶</div></main>
-  const difference = toMinor(actual || 0, accountCurrency) - current
+  const difference = displaySign * toMinor(actual || 0, accountCurrency) - current
+  const displayDifference = displaySign * difference || 0
   const submit = async () => {
     if (!difference) return
     const direction: Direction = account.type === 'credit_card' ? (difference > 0 ? 'expense' : 'income') : (difference > 0 ? 'income' : 'expense')
@@ -924,7 +930,7 @@ function AccountAdjustPage({ store, accountId, onDone }: { store: Store; account
     })
     onDone()
   }
-  return <main className="workspace-page"><section className="adjust-card"><span>目前帳面餘額</span><strong>{money(current, account.currency)}</strong></section><form id="account-adjust-form" className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit() }}><label><span>實際餘額</span><CalculatorInput value={actual} onValueChange={setActual} /></label><div className="difference-row"><span>帳務調整</span><b className={difference < 0 ? 'expense-text' : 'income-text'}>{difference > 0 ? '+' : ''}{money(difference, account.currency)}</b></div><label><span>調整日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>原因</span><textarea value={note} onChange={(event) => setNote(event.target.value)} /></label></form></main>
+  return <main className="workspace-page"><section className="adjust-card"><span>目前帳面餘額</span><strong className={moneyTone(displaySign * current)}>{money(displaySign * current, account.currency)}</strong></section><form id="account-adjust-form" className="settings-form" onSubmit={(event) => { event.preventDefault(); void submit() }}><label><span>實際餘額</span><CalculatorInput value={actual} onValueChange={setActual} />{account.type === 'credit_card' ? <small>跟帳戶頁一樣的看法：還沒繳的錢填負數，先預存進去的錢填正數。</small> : null}</label><div className="difference-row"><span>帳務調整</span><b className={displayDifference < 0 ? 'expense-text' : 'income-text'}>{displayDifference > 0 ? '+' : ''}{money(displayDifference, account.currency)}</b></div><label><span>調整日期</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label><label><span>原因</span><textarea value={note} onChange={(event) => setNote(event.target.value)} /></label></form></main>
 }
 
 function MonthSwitch({ month, onChange }: { month: string; onChange: (value: string) => void }) {

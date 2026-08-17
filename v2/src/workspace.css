@@ -229,11 +229,12 @@
 .search-bar input:focus { outline: none; }
 .search-bar > button { width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); }
 .search-bar > button svg { width: 17px; }
-.search-date-range { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: end; gap: 8px; }
-.search-date-range label { min-width: 0; display: grid; gap: 5px; }
-.search-date-range label span { color: var(--muted); font-size: 13px; }
-.search-date-range input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; }
-.search-date-range > button { grid-column: 1 / -1; min-height: 38px; color: var(--primary); font-weight: 700; }
+/* 兩個日期欄並排在手機上會被擠扁，改成一行一個 */
+.search-date-range { display: grid; gap: 8px; }
+.search-date-range label { min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr); align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.search-date-range label span { color: var(--muted); font-weight: 700; }
+.search-date-range input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 0; background: none; font-size: 16px; }
+.search-date-range > button { justify-self: end; min-height: 38px; padding: 0 6px; color: var(--primary); font-weight: 700; }
 .search-result-count { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* fieldset 預設不會縮到比內容窄，min-inline-size:0 才不會把整頁撐寬 */
