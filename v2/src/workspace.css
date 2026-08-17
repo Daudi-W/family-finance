@@ -229,12 +229,12 @@
 .search-bar input:focus { outline: none; }
 .search-bar > button { width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); }
 .search-bar > button svg { width: 17px; }
-/* 兩個日期欄並排在手機上會被擠扁，改成一行一個 */
-.search-date-range { display: grid; gap: 8px; }
-.search-date-range label { min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr); align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
-.search-date-range label span { color: var(--muted); font-weight: 700; }
-.search-date-range input { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 0; background: none; font-size: 16px; }
-.search-date-range > button { justify-self: end; min-height: 38px; padding: 0 6px; color: var(--primary); font-weight: 700; }
+/* 從 ⟶ 到 排成同一行；日期欄用 1fr 平分剩下的寬度，不讓原生控制項把版面撐開 */
+.search-date-range { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 15px; background: #fff; }
+.search-date-range > span { flex: none; color: var(--muted); font-weight: 700; }
+.search-date-range input { flex: 1 1 0; width: 100%; min-width: 0; min-height: 40px; padding: 4px 2px; border: 0; background: none; font-size: 15px; }
+.search-date-range > button { flex: none; width: 30px; height: 30px; display: grid; place-items: center; color: var(--muted); }
+.search-date-range > button svg { width: 17px; }
 .search-result-count { margin: 0; color: var(--muted); font-size: 13px; }
 
 /* fieldset 預設不會縮到比內容窄，min-inline-size:0 才不會把整頁撐寬 */

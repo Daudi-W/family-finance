@@ -58,6 +58,7 @@ import {
   reportForMonth,
   reportForRange,
   reportRangeForPeriod,
+  transferToAmountMinor,
   type AccountPeriod,
   type ReportPeriod,
   todayIso,
@@ -233,7 +234,8 @@ function draftFromTransaction(transaction: FinanceTransaction, data: FinanceData
     // 轉帳要排在 reportLines 之前：有手續費的轉帳 reportLines[0] 是手續費，
     // 照原順序會把手續費當成轉帳金額載進來，一按儲存就把轉帳金額改成手續費
     amount: String(fromMinor(transaction.advance?.totalMinor ?? transfer?.fromAmountMinor ?? transaction.reportLines[0]?.amountMinor ?? transaction.settlement?.amountMinor ?? Math.abs(firstMove?.deltaMinor ?? 0), currency)),
-    toAmount: transfer?.toAmountMinor ? String(fromMinor(transfer.toAmountMinor, toAccount?.currency ?? currency)) : '',
+    // 只有跨幣別轉帳才有獨立的轉入金額；同幣別把舊值帶進來，改金額時會殘留成兩邊不一樣
+    toAmount: transfer?.toAmountMinor && toAccount && firstAccount && toAccount.currency !== firstAccount.currency ? String(fromMinor(transfer.toAmountMinor, toAccount.currency)) : '',
     categoryId: transaction.reportLines[0]?.categoryId ?? '',
     accountId: transfer?.fromAccountId ?? transaction.adjustment?.accountId ?? firstMove?.accountId ?? '',
     toAccountId: transfer?.toAccountId ?? transaction.accountMoves[1]?.accountId ?? '',
@@ -676,7 +678,8 @@ function EntryPage({ store, preferences, currentUid, contextAccountId, draft, se
   const category = categories.find((item) => item.id === draft.categoryId)
   const project = store.data.projects.find((item) => item.id === draft.projectId)
   const amount = toMinor(draft.amount, account?.currency ?? 'TWD')
-  const toAmount = toMinor(draft.toAmount, toAccount?.currency ?? account?.currency ?? 'TWD') || amount
+  const crossCurrency = Boolean(account && toAccount && account.currency !== toAccount.currency)
+  const toAmount = transferToAmountMinor(account?.currency ?? 'TWD', toAccount?.currency ?? account?.currency ?? 'TWD', amount, toMinor(draft.toAmount, toAccount?.currency ?? account?.currency ?? 'TWD'))
   const ownShare = draft.advanceDirection === 'payable' ? amount : toMinor(draft.ownShare || 0, account?.currency ?? 'TWD')
   const advanceHasPersonalExpense = draft.kind === 'advance' && ownShare > 0
   const existingTransaction = store.data.transactions.find((item) => item.id === editingId)
@@ -693,7 +696,7 @@ function EntryPage({ store, preferences, currentUid, contextAccountId, draft, se
     if (draft.kind !== 'advance' || draft.advanceDirection === 'receivable') if (!account) return setError('請選擇帳戶')
     if ((draft.kind === 'expense' || draft.kind === 'income' || advanceHasPersonalExpense) && !category) return setError('請選擇分類')
     if (draft.kind === 'transfer' && !toAccount) return setError('請選擇轉入帳戶')
-    if (draft.kind === 'transfer' && account && toAccount && account.currency !== toAccount.currency && !numberValue(draft.toAmount)) return setError('跨幣別轉帳請輸入轉入金額')
+    if (draft.kind === 'transfer' && crossCurrency && !numberValue(draft.toAmount)) return setError('跨幣別轉帳請輸入轉入金額')
     const now = new Date().toISOString()
     const previous = store.data.transactions.find((item) => item.id === editingId)
     const common = { id: editingId || recurringOccurrenceId || undefined, occurredOn: draft.date, note: draft.note, projectId: draft.kind === 'transfer' ? undefined : draft.projectId || undefined, accountMoves: [], reportLines: [], voidedAt: previous?.voidedAt, recurringOccurrenceId: recurringOccurrenceId || previous?.recurringOccurrenceId }
@@ -1016,7 +1019,7 @@ function SearchPage({ store, onEdit }: { store: Store; onEdit: (transaction: Fin
   return <main className="workspace-page search-page">
     <label className="search-bar"><Search /><input type="search" aria-label="搜尋關鍵字" placeholder="備註、分類、帳戶、專案、金額…" value={keyword} onChange={(event) => setKeyword(event.target.value)} />{keyword ? <button type="button" aria-label="清除關鍵字" onClick={() => setKeyword('')}><X /></button> : null}</label>
     <div className="filter-chips">{([['all', '全部'], ['expense', '支出'], ['income', '收入'], ['transfer', '轉帳'], ['advance', '代墊']] as const).map(([value, label]) => <button className={kind === value ? 'active' : ''} type="button" key={value} onClick={() => setKind(value)}>{label}</button>)}<button className={showDates || from || to ? 'active' : ''} type="button" onClick={() => setShowDates((value) => !value)}>日期</button></div>
-    {showDates || from || to ? <div className="search-date-range"><label><span>從</span><input type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label><span>到</span><input type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label>{from || to ? <button type="button" onClick={() => { setFrom(''); setTo('') }}>清除</button> : null}</div> : null}
+    {showDates || from || to ? <div className="search-date-range"><span>從</span><input type="date" aria-label="開始日期" value={from} onChange={(event) => setFrom(event.target.value)} /><span>到</span><input type="date" aria-label="結束日期" value={to} onChange={(event) => setTo(event.target.value)} />{from || to ? <button type="button" aria-label="清除日期範圍" onClick={() => { setFrom(''); setTo('') }}><X /></button> : null}</div> : null}
     {!hasQuery
       ? <div className="simple-empty">輸入關鍵字，或選擇類型與日期開始搜尋</div>
       : <><p className="search-result-count">{matches.length ? `找到 ${matches.length} 筆${matches.length > searchResultLimit ? `，先顯示最近 ${searchResultLimit} 筆` : ''}` : '沒有符合的明細'}</p>{visible.length ? <TransactionRows transactions={visible} data={store.data} onEdit={onEdit} /> : null}</>}

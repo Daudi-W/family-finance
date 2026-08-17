@@ -19,6 +19,7 @@ import {
   reportForMonth,
   toMinor,
   todayIso,
+  transferToAmountMinor,
 } from '../v2/src/finance.ts'
 
 test('v2 示意資料由同一批交易推導帳戶、收支與淨資產', () => {
@@ -103,6 +104,16 @@ test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => 
     'https://family-finance-v2-dev-260811.firebaseapp.com/reports?period=month#chart',
   )
   assert.equal(canonicalAuthUrl('https://family-finance-v2-dev-260811.firebaseapp.com/', 'family-finance-v2-dev-260811.firebaseapp.com'), '')
+})
+
+test('同幣別轉帳的轉入金額一律跟著轉出金額，不會沿用畫面上看不到的舊值', () => {
+  // 編輯一筆原本 431 的同幣別轉帳，把金額改成 150：轉入金額必須跟著變成 150，
+  // 否則會變成「轉出 150、轉入 431」，帳戶餘額與日期檢視就會對不起來
+  assert.equal(transferToAmountMinor('TWD', 'TWD', 150, 431), 150)
+  assert.equal(transferToAmountMinor('TWD', 'twd', 150, 0), 150)
+  // 跨幣別才保留使用者自己填的轉入金額；沒填就退回轉出金額
+  assert.equal(transferToAmountMinor('TWD', 'JPY', 1_000, 4_600), 4_600)
+  assert.equal(transferToAmountMinor('TWD', 'JPY', 1_000, 0), 1_000)
 })
 
 test('信用卡欠款算負債，預存進去的錢算資產', () => {

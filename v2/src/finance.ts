@@ -49,6 +49,16 @@ export function accountPeriodSummary(account: Account, transactions: FinanceTran
   return { income, expense, netTransfer: (account.type === 'credit_card' ? -1 : 1) * rawNetTransfer || 0 }
 }
 
+/**
+ * 轉帳實際要入帳到轉入帳戶的金額。
+ * 同幣別一定等於轉出金額——畫面上根本沒有「轉入金額」欄位可以改，
+ * 若沿用編輯前殘留的舊值，改金額就會產生「轉出 150、轉入 431」這種對不起來的資料。
+ */
+export function transferToAmountMinor(fromCurrency: string, toCurrency: string, fromAmountMinor: number, enteredToAmountMinor = 0) {
+  if (fromCurrency.toUpperCase() === toCurrency.toUpperCase()) return fromAmountMinor
+  return enteredToAmountMinor || fromAmountMinor
+}
+
 export function accountTransferDisplayAmount(account: Account, transaction: FinanceTransaction) {
   const movement = transaction.accountMoves.find((move) => move.accountId === account.id)?.deltaMinor ?? 0
   return (account.type === 'credit_card' ? -1 : 1) * movement
