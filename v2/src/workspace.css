@@ -121,8 +121,8 @@
 .account-overview-v2 > footer { min-height: 48px; display: flex; justify-content: flex-end; gap: 18px; padding: 0 14px; }
 .account-overview-v2 > footer button { display: flex; align-items: center; gap: 5px; color: var(--primary-dark); font-size: 13px; font-weight: 700; }
 .account-overview-v2 > footer svg { width: 16px; }
-.account-period-tabs.filter-chips { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); overflow: visible; }
-.account-period-tabs.filter-chips button { min-width: 0; padding-inline: 3px; white-space: nowrap; }
+.account-period-tabs.filter-chips { margin-bottom: 12px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible; }
+.account-period-tabs.filter-chips button { min-width: 0; padding-inline: 8px; white-space: nowrap; }
 .account-filter-button.active { color: #fff; padding: 6px 9px!important; background: var(--primary); }
 .account-custom-period { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; padding: 8px 10px; border: 1px solid var(--line); background: var(--paper-soft); }
 .account-custom-period span small,.account-custom-period span b { display: block; }
