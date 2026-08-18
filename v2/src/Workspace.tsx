@@ -43,7 +43,9 @@ import { useFinanceStore } from './finance-store.ts'
 import {
   activeTransactions,
   accountEffectiveRange,
+  accountPeriodLabels,
   accountPeriodSummary,
+  accountFlowPeriodLabel,
   accountTransferDisplayAmount,
   addRecurringPeriod,
   advancePeopleRows,
@@ -630,7 +632,7 @@ function AccountsPage({ store, preferences, savePreferences, onPush, hideBalance
 }
 
 function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter, onFilterChange }: { store: Store; accountId: string; onPush: (route: Route) => void; onEditTransaction: (transaction: FinanceTransaction) => void; filter: TransactionFilter; onFilterChange: (value: TransactionFilter) => void }) {
-  const [period, setPeriod] = useState<AccountPeriod>('month')
+  const [period, setPeriod] = useState<AccountPeriod>('year')
   const account = store.data.accounts.find((item) => item.id === accountId)
   if (!account) return <main className="workspace-page"><div className="simple-empty">找不到帳戶</div></main>
   const balance = calculateBalances(store.data.accounts, store.data.transactions)[account.id] ?? 0
@@ -647,17 +649,18 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
     if (hasCustomDates) onFilterChange({ ...filter, from: '', to: '' })
   }
   const customRangeLabel = `${filter.from || '最早紀錄'} ～ ${filter.to || '今天'}`
+  const flowPeriodLabel = accountFlowPeriodLabel(period, hasCustomDates)
   return <main className="workspace-page">
     <section className="account-overview-v2">
       <div className="account-overview-balance"><span className="account-balance-currency">{account.currency}</span><strong className={moneyTone(displayBalance)}>{money(displayBalance, account.currency)}</strong><span>目前餘額</span></div>
       <div className="account-overview-flows">
-        <span><b className="income-text">+{money(income, account.currency)}</b><small>收入</small></span>
-        <span><b className="expense-text">-{money(expense, account.currency)}</b><small>支出</small></span>
-        <span><b className={moneyTone(netTransfer)}>{netTransfer > 0 ? '+' : ''}{money(netTransfer, account.currency)}</b><small>淨轉帳</small></span>
+        <span><b className="income-text">+{money(income, account.currency)}</b><small>{flowPeriodLabel}收入</small></span>
+        <span><b className="expense-text">-{money(expense, account.currency)}</b><small>{flowPeriodLabel}支出</small></span>
+        <span><b className={moneyTone(netTransfer)}>{netTransfer > 0 ? '+' : ''}{money(netTransfer, account.currency)}</b><small>{flowPeriodLabel}淨轉帳</small></span>
       </div>
       <footer><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
     </section>
-    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2><span><button className={`account-filter-button ${hasActiveFilter ? 'active' : ''}`} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}><SlidersHorizontal />篩選</button></span></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間"><button className={!hasCustomDates && period === 'month' ? 'active' : ''} type="button" onClick={() => choosePeriod('month')}>本月</button><button className={!hasCustomDates && period === 'sixMonths' ? 'active' : ''} type="button" onClick={() => choosePeriod('sixMonths')}>近 6 個月</button><button className={!hasCustomDates && period === 'year' ? 'active' : ''} type="button" onClick={() => choosePeriod('year')}>近 1 年</button><button className={!hasCustomDates && period === 'all' ? 'active' : ''} type="button" onClick={() => choosePeriod('all')}>全部</button></div>{hasCustomDates ? <div className="account-custom-period"><span><small>自訂期間</small><b>{customRangeLabel}</b></span><button type="button" onClick={() => onFilterChange({ ...filter, from: '', to: '' })}>清除日期</button></div> : null}<TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} accountContext={account} /></section>
+    <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2><span><button className={`account-filter-button ${hasActiveFilter ? 'active' : ''}`} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}><SlidersHorizontal />篩選</button></span></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間">{(['sixMonths', 'year', 'all'] as AccountPeriod[]).map((value) => <button className={!hasCustomDates && period === value ? 'active' : ''} key={value} type="button" onClick={() => choosePeriod(value)}>{accountPeriodLabels[value]}</button>)}</div>{hasCustomDates ? <div className="account-custom-period"><span><small>自訂期間</small><b>{customRangeLabel}</b></span><button type="button" onClick={() => onFilterChange({ ...filter, from: '', to: '' })}>清除日期</button></div> : null}<TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} accountContext={account} /></section>
   </main>
 }
 

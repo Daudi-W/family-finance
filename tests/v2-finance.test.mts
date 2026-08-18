@@ -4,6 +4,7 @@ import { buildDemoData } from '../v2/src/demo-data.ts'
 import { canonicalAuthUrl } from '../v2/src/auth-url.ts'
 import {
   accountEffectiveRange,
+  accountFlowPeriodLabel,
   accountPeriodRange,
   accountPeriodSummary,
   accountTransferDisplayAmount,
@@ -82,20 +83,26 @@ test('帳戶摘要分開顯示本期收支與淨轉帳，信用卡付款方向�
     accountMoves: [{ accountId: 'bank', deltaMinor: -5_000, currency: 'TWD' }, { accountId: 'card', deltaMinor: -5_000, currency: 'TWD' }],
     transfer: { fromAccountId: 'bank', toAccountId: 'card', fromAmountMinor: 5_000, toAmountMinor: 5_000, feeMinor: 0 },
   }
-  const range = accountPeriodRange('month')
+  const range = { from: `${todayIso().slice(0, 7)}-01`, to: todayIso() }
   assert.deepEqual(accountPeriodSummary(bank, [...data.transactions, transfer], range.from, range.to), { income: 62_000, expense: 0, netTransfer: -5_000 })
   assert.deepEqual(accountPeriodSummary(card, [...data.transactions, transfer], range.from, range.to), { income: 0, expense: 14_280, netTransfer: 5_000 })
   assert.equal(accountTransferDisplayAmount(bank, transfer), -5_000)
   assert.equal(accountTransferDisplayAmount(card, transfer), 5_000)
 })
 
-test('帳戶快速期間可查看本月、近 6 個月、近 1 年或全部', () => {
-  assert.deepEqual(accountPeriodRange('month', '2026-08-14'), { from: '2026-08-01', to: '2026-08-14' })
+test('帳戶快速期間可查看近 6 個月、近 1 年或全部', () => {
   assert.deepEqual(accountPeriodRange('sixMonths', '2026-08-14'), { from: '2026-03-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('year', '2026-08-14'), { from: '2025-09-01', to: '2026-08-14' })
   assert.deepEqual(accountPeriodRange('all', '2026-08-14'), { from: '0001-01-01', to: '2026-08-14' })
-  assert.deepEqual(accountEffectiveRange('month', '2024-12-22', '2025-01-31', '2026-08-14'), { from: '2024-12-22', to: '2025-01-31' })
+  assert.deepEqual(accountEffectiveRange('sixMonths', '2024-12-22', '2025-01-31', '2026-08-14'), { from: '2024-12-22', to: '2025-01-31' })
   assert.deepEqual(accountEffectiveRange('year', '2024-12-22', '', '2026-08-14'), { from: '2024-12-22', to: '2026-08-14' })
+})
+
+test('帳戶摘要標籤帶出目前期間，避免期間流量被誤讀成當月', () => {
+  assert.equal(accountFlowPeriodLabel('year', false), '近 1 年')
+  assert.equal(accountFlowPeriodLabel('sixMonths', false), '近 6 個月')
+  assert.equal(accountFlowPeriodLabel('all', false), '全部期間')
+  assert.equal(accountFlowPeriodLabel('year', true), '自訂期間')
 })
 
 test('web.app 登入入口會保留路徑並轉到 Firebase Auth 網域', () => {
