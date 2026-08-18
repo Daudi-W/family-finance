@@ -216,6 +216,8 @@
 .settings-form input,.settings-form select,.settings-form textarea,.settlement-form input,.settlement-form select { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 16px; }
 .settings-form textarea { min-height: 90px; resize: vertical; }
 .form-columns { min-width: 0; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 8px; }
+/* iOS Safari 的原生日期欄有自己的最小寬度，塞進半欄會撐到卡片外，手機一律一列一個 */
+@media (max-width: 560px) { .date-columns { grid-template-columns: minmax(0,1fr); } }
 .toggle-row { min-height: 64px; position: relative; display: flex!important; grid-template-columns: none!important; flex-direction: row; align-items: center; justify-content: space-between; }
 .toggle-row input { width: auto; position: absolute; opacity: 0; }
 .toggle-row i { width: 46px; height: 27px; position: relative; border-radius: 99px; background: #cdd5da; transition: .2s; }

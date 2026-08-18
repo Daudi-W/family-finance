@@ -64,9 +64,9 @@ export function accountTransferDisplayAmount(account: Account, transaction: Fina
   return (account.type === 'credit_card' ? -1 : 1) * movement
 }
 
-export type AccountPeriod = 'sixMonths' | 'year' | 'all'
+export type AccountPeriod = 'year' | 'all'
 
-export const accountPeriodLabels: Record<AccountPeriod, string> = { sixMonths: '近 6 個月', year: '近 1 年', all: '全部' }
+export const accountPeriodLabels: Record<AccountPeriod, string> = { year: '近 1 年', all: '全部' }
 
 // 摘要三欄是「期間流量」不是存量，標籤要帶期間才不會被當成當月數字
 export function accountFlowPeriodLabel(period: AccountPeriod, hasCustomDates: boolean) {
@@ -77,7 +77,7 @@ export function accountFlowPeriodLabel(period: AccountPeriod, hasCustomDates: bo
 export function accountPeriodRange(period: AccountPeriod, asOf = todayIso()) {
   if (period === 'all') return { from: '0001-01-01', to: asOf }
   const monthStart = new Date(`${asOf.slice(0, 7)}-01T00:00:00Z`)
-  monthStart.setUTCMonth(monthStart.getUTCMonth() - (period === 'sixMonths' ? 5 : 11))
+  monthStart.setUTCMonth(monthStart.getUTCMonth() - 11)
   return { from: monthStart.toISOString().slice(0, 10), to: asOf }
 }
 
