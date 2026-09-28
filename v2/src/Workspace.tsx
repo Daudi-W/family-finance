@@ -16,6 +16,7 @@ import {
   CloudOff,
   Eye,
   EyeOff,
+  Download,
   GripVertical,
   Handshake,
   HandCoins,
@@ -72,6 +73,7 @@ import { fetchTwdReferenceRates } from './exchange-rates.ts'
 import { preferredAccountId, reorderAccountIds, sortAccountsForUser, type AccountPreferences } from './account-preferences.ts'
 import { useHouseholdMembers } from './household-members.ts'
 import { useUserPreferences } from './user-preferences.ts'
+import { downloadReportCsv } from './report-export.ts'
 import type {
   Account,
   AccountType,
@@ -1096,6 +1098,8 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
   const [chartView, setChartView] = useState<'donut' | 'bar'>('donut')
   const [descending, setDescending] = useState(true)
   const [legendPage, setLegendPage] = useState(0)
+  const legendTouch = useRef<{ x: number; y: number } | null>(null)
+  const suppressLegendClick = useRef(false)
   const trendMode = mode === 'balance' || mode === 'netWorth'
   const trendKeys = rollingTrendKeys(period, anchorMonth)
   const range = trendMode ? rollingTrendRange(trendKeys) : selectionRange(period, anchorMonth, customRange)
@@ -1109,7 +1113,8 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
   const sortedRows = descending ? rows : [...rows].reverse()
   const legendPageSize = 6
   const legendPages = Math.max(1, Math.ceil(rows.length / legendPageSize))
-  const visibleLegend = rows.slice(Math.min(legendPage, legendPages - 1) * legendPageSize, (Math.min(legendPage, legendPages - 1) + 1) * legendPageSize)
+  const currentLegendPage = Math.min(legendPage, legendPages - 1)
+  const visibleLegend = rows.slice(currentLegendPage * legendPageSize, (currentLegendPage + 1) * legendPageSize)
   let stop = 0
   const gradient = rows.map((item) => { const start = stop; stop += item.percent; return `${item.color} ${start}% ${stop}%` }).join(', ')
   const reportAccounts = accountFilter ? store.data.accounts.filter((item) => item.id === accountFilter) : store.data.accounts
@@ -1127,6 +1132,32 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
     const next = new Date(year, month - 1 + delta * (period === '年' ? 12 : 1), 1)
     setAnchorMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
   }
+  const exportReport = () => downloadReportCsv({
+    mode,
+    periodLabel: trendMode ? rollingTrendLabel(period, trendKeys) : reportPeriodLabel(period, anchorMonth, range),
+    from: range.from,
+    to: range.to,
+    accountName: accountFilter ? store.data.accounts.find((item) => item.id === accountFilter)?.name ?? '已刪除帳戶' : '全部帳戶',
+    projectName: projectFilter ? store.data.projects.find((item) => item.id === projectFilter)?.name ?? '已刪除專案' : '全部專案',
+    income: totals.income,
+    expense: totals.expense,
+    balance: totals.balance,
+    categories: rows.map((item) => ({ name: item.category.name, amount: item.amount, percent: item.percent })),
+    balanceRows: balanceSeries,
+    netWorthRows: netWorthSeries,
+    openingNetWorth,
+  })
+  const onLegendTouchEnd = (event: TouchEvent<HTMLElement>) => {
+    if (!legendTouch.current || legendPages <= 1) return
+    const dx = event.changedTouches[0].clientX - legendTouch.current.x
+    const dy = event.changedTouches[0].clientY - legendTouch.current.y
+    legendTouch.current = null
+    if (Math.abs(dx) < 45 || Math.abs(dx) <= Math.abs(dy) * 1.2) return
+    event.preventDefault()
+    suppressLegendClick.current = true
+    window.setTimeout(() => { suppressLegendClick.current = false }, 400)
+    setLegendPage((page) => Math.max(0, Math.min(legendPages - 1, page + (dx < 0 ? 1 : -1))))
+  }
   return <main className="workspace-page reports-v3">
     <div className={`report-period-tabs ${trendMode ? 'two' : ''}`} role="group" aria-label="報表期間">
       {periodTabs.map((item) => <button className={period === item ? 'active' : ''} type="button" onClick={() => { if (item === '自訂') onCustom(); setPeriod(item); setLegendPage(0) }} key={item}>{item}</button>)}
@@ -1136,14 +1167,15 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
       <strong>{trendMode ? rollingTrendLabel(period, trendKeys) : reportPeriodLabel(period, anchorMonth, range)}</strong>
       {period !== '自訂' ? <button type="button" aria-label="下一個期間" onClick={() => movePeriod(1)}><ChevronRight /></button> : <span />}
     </div>
+    <div className="report-export-actions"><button type="button" onClick={exportReport}><Download size={18} />匯出 Excel CSV</button></div>
     {mode === 'balance' ? <BalanceReport totals={totals} series={balanceSeries} descending={descending} onToggleSort={() => setDescending((value) => !value)} onDate={onDate} /> : mode === 'netWorth' ? <NetWorthReport series={netWorthSeries} openingNetWorth={openingNetWorth} descending={descending} onToggleSort={() => setDescending((value) => !value)} /> : <>
       <section className="report-chart-panel">
         <button className="report-chart-toggle" type="button" aria-label={chartView === 'donut' ? '切換成柱狀圖' : '切換成圓環圖'} onClick={() => setChartView((value) => value === 'donut' ? 'bar' : 'donut')}>{chartView === 'donut' ? <ChartColumn /> : <ChartPie />}</button>
         {rows.length ? chartView === 'donut' ? <div className="report-donut" style={{ background: `conic-gradient(${gradient})` }}><div><span>總{mode === 'income' ? '收入' : '支出'}</span><strong>{money(total)}</strong></div></div> : <CategoryBarChart rows={rows} /> : <div className="simple-empty compact">這個期間沒有{mode === 'income' ? '收入' : '支出'}資料</div>}
       </section>
-      {rows.length ? <section className="report-legend-card">
+      {rows.length ? <section className="report-legend-card" aria-label="分類項目，可左右滑動換頁" onTouchStart={(event) => { legendTouch.current = { x: event.touches[0].clientX, y: event.touches[0].clientY } }} onTouchEnd={onLegendTouchEnd} onTouchCancel={() => { legendTouch.current = null }} onClickCapture={(event) => { if (suppressLegendClick.current) { event.preventDefault(); event.stopPropagation(); suppressLegendClick.current = false } }}>
         <div className="report-legend-grid">{visibleLegend.map((item) => <button type="button" key={item.id} onClick={() => onCategory(direction, item.id)}><i style={{ background: item.color }} /><span>{item.category.name}</span><b>{Math.round(item.percent)}%</b></button>)}</div>
-        {legendPages > 1 ? <div className="report-legend-pages">{Array.from({ length: legendPages }, (_, index) => <button className={legendPage === index ? 'active' : ''} type="button" aria-label={`圖例第 ${index + 1} 頁`} onClick={() => setLegendPage(index)} key={index} />)}</div> : null}
+        {legendPages > 1 ? <div className="report-legend-pages">{Array.from({ length: legendPages }, (_, index) => <button className={currentLegendPage === index ? 'active' : ''} type="button" aria-label={`圖例第 ${index + 1} 頁`} onClick={() => setLegendPage(index)} key={index} />)}</div> : null}
       </section> : null}
       <section className="report-detail-card">
         <header><h2>{mode === 'income' ? '收入' : '支出'}明細</h2><button type="button" aria-label={descending ? '改為金額由小到大' : '改為金額由大到小'} onClick={() => setDescending((value) => !value)}><ArrowUpDown /></button></header>
