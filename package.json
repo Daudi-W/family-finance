@@ -18,9 +18,15 @@
     "test": "npm run test:domain && npm run test:firebase && npm run lint:v2 && npm run build:v2"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.1"
+    "@firebase/rules-unit-testing": "^5.0.1",
+    "uuid": "^11.1.1"
   },
   "engines": {
     "node": ">=22.6"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

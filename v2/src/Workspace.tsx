@@ -73,7 +73,7 @@ import { fetchTwdReferenceRates } from './exchange-rates.ts'
 import { preferredAccountId, reorderAccountIds, sortAccountsForUser, type AccountPreferences } from './account-preferences.ts'
 import { useHouseholdMembers } from './household-members.ts'
 import { useUserPreferences } from './user-preferences.ts'
-import { downloadReportCsv } from './report-export.ts'
+import { downloadAnnualReport } from './report-export.ts'
 import type {
   Account,
   AccountType,
@@ -90,7 +90,7 @@ type RouteName =
   | 'home' | 'accounts' | 'entry' | 'reports' | 'more'
   | 'transactions' | 'budget' | 'budget-category' | 'budgets' | 'budget-form' | 'pending'
   | 'account-detail' | 'account-form' | 'account-adjust' | 'account-manager'
-  | 'transaction-filter' | 'report-filter' | 'report-category' | 'report-date'
+  | 'transaction-filter' | 'report-filter' | 'report-category' | 'report-date' | 'report-export'
   | 'categories' | 'category-form' | 'category-picker'
   | 'account-picker' | 'project-picker'
   | 'projects' | 'project-detail' | 'project-form'
@@ -410,6 +410,7 @@ export default function Workspace({ user }: { user: User }) {
       case 'report-filter': return <ReportFilterPage store={store} value={reportRange} onChange={setReportRange} onDone={back} />
       case 'report-category': return <ReportCategoryPage store={store} reference={route.id ?? ''} customRange={reportRange} period={reportPeriod} anchorMonth={reportAnchorMonth} onEditTransaction={editTransaction} />
       case 'report-date': return <ReportDatePage store={store} dateKey={route.id ?? ''} customRange={reportRange} period={reportPeriod} onEditTransaction={editTransaction} />
+      case 'report-export': return <AnnualExportPage store={store} />
       case 'budget': return <BudgetSummaryPage store={store} onPush={push} />
       case 'budget-category': return <BudgetCategoryPage store={store} categoryId={route.id ?? ''} onEditTransaction={editTransaction} />
       case 'more': return <MorePage onPush={push} />
@@ -490,7 +491,7 @@ function routeTitle(route: Route, data: FinanceData) {
   const staticTitles: Partial<Record<RouteName, string>> = {
     home: '首頁', accounts: '帳戶', entry: route.id ? '編輯明細' : '記一筆', reports: '統計報表', more: '更多管理',
     transactions: '交易明細', budget: '本月收支與預算', 'budget-category': '分類預算明細', budgets: '預算設定', 'budget-form': route.id ? '編輯分類預算' : '新增分類預算', pending: '待確認',
-    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類明細', 'report-date': '日期明細',
+    'transaction-filter': '篩選明細', 'report-filter': '自訂報表區間', 'report-category': '分類明細', 'report-date': '日期明細', 'report-export': '匯出年度報表',
     'account-form': route.id && route.id !== 'manage' ? '帳戶設定' : route.id === 'manage' ? '管理帳戶' : '新增帳戶', 'account-adjust': '調整餘額', 'account-manager': '帳戶管理',
     categories: '分類與圖示', 'category-form': route.id ? '編輯分類' : '新增分類', 'category-picker': '選擇分類', 'account-picker': '選擇帳戶', 'project-picker': '選擇專案',
     projects: '專案記帳', 'project-form': route.id ? '專案設定' : '新增專案', recurring: '定期項目', 'recurring-form': route.id ? '編輯定期項目' : '新增定期項目', advances: '代墊與分帳', 'advance-people': '常用代墊名單', settlement: '登記收款／還款',
@@ -1132,21 +1133,6 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
     const next = new Date(year, month - 1 + delta * (period === '年' ? 12 : 1), 1)
     setAnchorMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
   }
-  const exportReport = () => downloadReportCsv({
-    mode,
-    periodLabel: trendMode ? rollingTrendLabel(period, trendKeys) : reportPeriodLabel(period, anchorMonth, range),
-    from: range.from,
-    to: range.to,
-    accountName: accountFilter ? store.data.accounts.find((item) => item.id === accountFilter)?.name ?? '已刪除帳戶' : '全部帳戶',
-    projectName: projectFilter ? store.data.projects.find((item) => item.id === projectFilter)?.name ?? '已刪除專案' : '全部專案',
-    income: totals.income,
-    expense: totals.expense,
-    balance: totals.balance,
-    categories: rows.map((item) => ({ name: item.category.name, amount: item.amount, percent: item.percent })),
-    balanceRows: balanceSeries,
-    netWorthRows: netWorthSeries,
-    openingNetWorth,
-  })
   const onLegendTouchEnd = (event: TouchEvent<HTMLElement>) => {
     if (!legendTouch.current || legendPages <= 1) return
     const dx = event.changedTouches[0].clientX - legendTouch.current.x
@@ -1167,7 +1153,6 @@ function ReportsPage({ store, customRange, period, setPeriod, anchorMonth, setAn
       <strong>{trendMode ? rollingTrendLabel(period, trendKeys) : reportPeriodLabel(period, anchorMonth, range)}</strong>
       {period !== '自訂' ? <button type="button" aria-label="下一個期間" onClick={() => movePeriod(1)}><ChevronRight /></button> : <span />}
     </div>
-    <div className="report-export-actions"><button type="button" onClick={exportReport}><Download size={18} />匯出 Excel CSV</button></div>
     {mode === 'balance' ? <BalanceReport totals={totals} series={balanceSeries} descending={descending} onToggleSort={() => setDescending((value) => !value)} onDate={onDate} /> : mode === 'netWorth' ? <NetWorthReport series={netWorthSeries} openingNetWorth={openingNetWorth} descending={descending} onToggleSort={() => setDescending((value) => !value)} /> : <>
       <section className="report-chart-panel">
         <button className="report-chart-toggle" type="button" aria-label={chartView === 'donut' ? '切換成柱狀圖' : '切換成圓環圖'} onClick={() => setChartView((value) => value === 'donut' ? 'bar' : 'donut')}>{chartView === 'donut' ? <ChartColumn /> : <ChartPie />}</button>
@@ -1317,6 +1302,7 @@ function BudgetCategoryPage({ store, categoryId, onEditTransaction }: { store: S
 
 function MorePage({ onPush }: { onPush: (route: Route) => void }) {
   const items = [
+    { route: 'report-export' as const, label: '匯出年度報表', description: 'Excel 月收支、分類與交易明細', icon: Download },
     { route: 'account-manager' as const, label: '帳戶管理', description: '設定、封存與恢復帳戶', icon: Landmark },
     { route: 'projects' as const, label: '專案記帳', description: '旅行、活動等獨立收支', icon: ReceiptText },
     { route: 'budgets' as const, label: '預算設定', description: '每月與年度分類預算', icon: CircleDollarSign },
@@ -1325,6 +1311,21 @@ function MorePage({ onPush }: { onPush: (route: Route) => void }) {
     { route: 'categories' as const, label: '分類與圖示', description: '收入、支出分類與排序', icon: Settings },
   ]
   return <main className="workspace-page"><div className="settings-menu-v2">{items.map((item) => { const Icon = item.icon; return <button type="button" key={item.route} onClick={() => onPush({ name: item.route })}><span className="entity-icon"><Icon /></span><span><b>{item.label}</b><small>{item.description}</small></span><ChevronRight /></button> })}</div></main>
+}
+
+function AnnualExportPage({ store }: { store: Store }) {
+  const currentYear = Number(todayIso().slice(0, 4))
+  const [year, setYear] = useState(currentYear)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const years = [...new Set([currentYear, ...store.data.transactions.map((item) => Number(item.occurredOn.slice(0, 4)))])].filter((item) => Number.isInteger(item) && item >= 2000 && item <= 2100).sort((a, b) => b - a)
+  const exportWorkbook = async () => {
+    setBusy(true); setError('')
+    try { await downloadAnnualReport(store.data, year) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '匯出失敗，請再試一次。') }
+    finally { setBusy(false) }
+  }
+  return <main className="workspace-page"><section className="settings-form report-export-page"><label><span>報表年份</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item} 年</option>)}</select></label><p className="page-intro">依年度整理每月收入、支出、結餘、分類統計與交易明細。格式參考原年度計畫表，只列帳本實際收支，不含預算或存錢目標。</p><button className="primary-button" type="button" disabled={busy} onClick={() => void exportWorkbook()}><Download size={18} />{busy ? '正在產生 Excel…' : '下載 Excel 報表'}</button>{error ? <p role="alert" className="form-error">{error}</p> : null}</section></main>
 }
 
 function AccountManagerPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {

@@ -1,27 +1,48 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildReportCsv, type ReportExport } from '../v2/src/report-export.ts'
+import { buildAnnualReportData, createAnnualWorkbook } from '../v2/src/report-export.ts'
+import type { FinanceData } from '../v2/src/types.ts'
 
-const base: ReportExport = {
-  mode: 'expense', periodLabel: '2026 年 9 月', from: '2026-09-01', to: '2026-09-30',
-  accountName: '全部帳戶', projectName: '全部專案', income: 1200, expense: 500, balance: 700,
-  categories: [{ name: '=HYPERLINK("bad")', amount: 500, percent: 100 }],
-  balanceRows: [], netWorthRows: [], openingNetWorth: 0,
-}
+const data = {
+  categories: [
+    { id: 'income', name: '薪資', direction: 'income', sortOrder: 0 },
+    { id: 'expense', name: '=HYPERLINK("bad")', direction: 'expense', sortOrder: 0 },
+  ],
+  projects: [{ id: 'trip', name: '旅行' }],
+  transactions: [
+    { occurredOn: '2026-01-05', note: '一月薪水', reportLines: [{ categoryId: 'income', direction: 'income', amountTwdMinor: 50000 }] },
+    { occurredOn: '2026-01-07', projectId: 'trip', note: '餐費', reportLines: [{ categoryId: 'expense', direction: 'expense', amountTwdMinor: 8000 }] },
+    { occurredOn: '2026-02-02', reportLines: [{ categoryId: 'expense', direction: 'expense', amountTwdMinor: 1500 }] },
+    { occurredOn: '2026-02-03', reportLines: [], kind: 'transfer' },
+    { occurredOn: '2026-02-04', voidedAt: '2026-02-05', reportLines: [{ categoryId: 'expense', direction: 'expense', amountTwdMinor: 999 }] },
+  ],
+} as unknown as FinanceData
 
-test('分類報表可由 Excel 讀取，數字欄位維持數字且文字不會成為公式', () => {
-  const csv = buildReportCsv(base)
-  assert.ok(csv.startsWith('\uFEFF'))
-  assert.ok(csv.includes('"分類","金額（TWD）","占比（%）"\r\n'))
-  assert.ok(csv.includes('"\'=HYPERLINK(""bad"")",500,100\r\n'))
-  assert.ok(csv.includes('"合計",500,100\r\n'))
+test('年度報表只計實際收支，轉帳與作廢交易不列入', () => {
+  const report = buildAnnualReportData(data, 2026)
+  assert.equal(report.monthlyIncome[0], 50000)
+  assert.equal(report.monthlyExpense[0], 8000)
+  assert.equal(report.monthlyExpense[1], 1500)
+  assert.equal(report.expense[0].total, 9500)
+  assert.equal(report.details.length, 3)
+  assert.equal(report.details[1].project, '旅行')
 })
 
-test('結餘與淨資產報表匯出趨勢及摘要', () => {
-  const balance = buildReportCsv({ ...base, mode: 'balance', balanceRows: [{ label: '9 月', income: 1200, expense: 500, balance: 700 }] })
-  assert.ok(balance.includes('"區間結餘（TWD）",700\r\n'))
-  assert.ok(balance.includes('"9 月",1200,500,700\r\n'))
-  const worth = buildReportCsv({ ...base, mode: 'netWorth', openingNetWorth: 1000, netWorthRows: [{ label: '9 月', netWorth: 1300, change: 300 }] })
-  assert.ok(worth.includes('"期末淨資產（TWD）",1300\r\n'))
-  assert.ok(worth.includes('"9 月",1300,300\r\n'))
+test('XLSX 有年度總覽、分類與明細；公式及數字可供 Excel 使用', async () => {
+  const workbook = await createAnnualWorkbook(buildAnnualReportData(data, 2026))
+  assert.deepEqual(workbook.worksheets.map((sheet) => sheet.name), ['年度總覽', '分類收支', '交易明細'])
+  const overview = workbook.getWorksheet('年度總覽')!
+  assert.deepEqual(overview.getCell('O4').value, { formula: 'SUM(C4:N4)', result: 50000 })
+  assert.deepEqual(overview.getCell('C6').value, { formula: 'C4-C5', result: 42000 })
+  const category = workbook.getWorksheet('分類收支')!
+  assert.equal(category.getCell('A11').value, '=HYPERLINK("bad")')
+  assert.equal(workbook.getWorksheet('交易明細')!.getCell('D5').value, 8000)
+  const bytes = await workbook.xlsx.writeBuffer()
+  assert.equal(new Uint8Array(bytes)[0], 0x50)
+  assert.equal(new Uint8Array(bytes)[1], 0x4b)
+  const { default: ExcelJS } = await import('exceljs')
+  const reopened = new ExcelJS.Workbook()
+  await reopened.xlsx.load(bytes)
+  assert.equal(reopened.getWorksheet('分類收支')!.getCell('A11').value, '=HYPERLINK("bad")')
+  assert.deepEqual(reopened.getWorksheet('年度總覽')!.getCell('O6').value, { formula: 'O4-O5', result: 40500 })
 })
