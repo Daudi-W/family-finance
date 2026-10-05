@@ -183,21 +183,25 @@ export function advancePeopleRows(advance: FinanceTransaction, transactions: Fin
   })
 }
 
+// 日期一律用 UTC 午夜計算：本地午夜再 toISOString() 在台北會變成前一天，定期項目每期往前漂一天
+const addUtcDays = (date: string, days: number) => {
+  const value = new Date(`${date}T00:00:00Z`)
+  value.setUTCDate(value.getUTCDate() + days)
+  return value.toISOString().slice(0, 10)
+}
+
 export function pendingRecurring(rules: RecurringRule[], today = todayIso()) {
-  return rules.filter((rule) => {
-    if (rule.archivedAt) return false
-    const previewDate = new Date(`${today}T00:00:00`)
-    previewDate.setDate(previewDate.getDate() + rule.previewDays)
-    return rule.nextScheduledOn <= previewDate.toISOString().slice(0, 10)
-  })
+  return rules.filter((rule) => !rule.archivedAt && rule.nextScheduledOn <= addUtcDays(today, rule.previewDays))
 }
 
 export function addRecurringPeriod(date: string, frequency: RecurringRule['frequency']) {
-  const next = new Date(`${date}T00:00:00`)
-  if (frequency === 'weekly') next.setDate(next.getDate() + 7)
-  if (frequency === 'monthly') next.setMonth(next.getMonth() + 1)
-  if (frequency === 'yearly') next.setFullYear(next.getFullYear() + 1)
-  return next.toISOString().slice(0, 10)
+  if (frequency === 'weekly') return addUtcDays(date, 7)
+  const [year, month, day] = date.split('-').map(Number)
+  const targetYear = frequency === 'yearly' ? year + 1 : year + (month === 12 ? 1 : 0)
+  const targetMonth = frequency === 'yearly' ? month : month % 12 + 1
+  // 1/31 的下一期是 2 月底，不是溢位到 3/2
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate()
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`
 }
 
 export function monthRange(period: '本月' | '近三個月' | '今年', now = todayIso()) {

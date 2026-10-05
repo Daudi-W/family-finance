@@ -8,6 +8,7 @@ import {
   accountPeriodRange,
   accountPeriodSummary,
   accountTransferDisplayAmount,
+  addRecurringPeriod,
   advanceRows,
   advancePeopleRows,
   calculateBalances,
@@ -145,4 +146,16 @@ test('外幣以最小單位儲存，淨資產依參考匯率換算台幣', () =>
   const usdAccount = { ...data.accounts[0], id: 'usd', currency: 'USD', openingBalanceMinor: 12_345, referenceRateToTwd: 30, type: 'bank' as const }
   const netWorth = calculateNetWorth([usdAccount], { usd: 12_345 })
   assert.equal(netWorth.assets, 3_704)
+})
+
+test('定期項目日期在台北時區不會每期往前漂一天，月底不溢位', () => {
+  assert.equal(addRecurringPeriod('2026-08-20', 'monthly'), '2026-09-20')
+  assert.equal(addRecurringPeriod('2026-12-20', 'monthly'), '2027-01-20')
+  assert.equal(addRecurringPeriod('2026-01-31', 'monthly'), '2026-02-28')
+  assert.equal(addRecurringPeriod('2026-10-05', 'weekly'), '2026-10-12')
+  assert.equal(addRecurringPeriod('2028-02-29', 'yearly'), '2029-02-28')
+  const rule = { nextScheduledOn: '2026-10-05', previewDays: 0 } as Parameters<typeof pendingRecurring>[0][number]
+  assert.equal(pendingRecurring([rule], '2026-10-05').length, 1)
+  assert.equal(pendingRecurring([{ ...rule, nextScheduledOn: '2026-10-08', previewDays: 3 }], '2026-10-05').length, 1)
+  assert.equal(pendingRecurring([{ ...rule, nextScheduledOn: '2026-10-09', previewDays: 3 }], '2026-10-05').length, 0)
 })
