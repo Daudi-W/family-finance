@@ -13,6 +13,9 @@ import {
   advancePeopleRows,
   calculateBalances,
   calculateNetWorth,
+  cardStatementPeriods,
+  cardStatementStatus,
+  cardStatementSummary,
   monthKey,
   monthlyBudgetRows,
   monthSequence,
@@ -158,4 +161,50 @@ test('定期項目日期在台北時區不會每期往前漂一天，月底不�
   assert.equal(pendingRecurring([rule], '2026-10-05').length, 1)
   assert.equal(pendingRecurring([{ ...rule, nextScheduledOn: '2026-10-08', previewDays: 3 }], '2026-10-05').length, 1)
   assert.equal(pendingRecurring([{ ...rule, nextScheduledOn: '2026-10-09', previewDays: 3 }], '2026-10-05').length, 0)
+})
+
+test('信用卡依結帳日切成一期一期，小月結帳日落在月底，繳款日在結帳日前代表下個月繳', () => {
+  const periods = cardStatementPeriods(12, 28, '2026-08-20', '2026-10-18')
+  assert.deepEqual(periods.map((item) => [item.from, item.closingDate, item.paymentDate]), [
+    ['2026-10-13', '2026-11-12', '2026-11-28'],
+    ['2026-09-13', '2026-10-12', '2026-10-28'],
+    ['2026-08-13', '2026-09-12', '2026-09-28'],
+  ])
+  const monthEnd = cardStatementPeriods(31, 15, '2026-02-10', '2026-03-01')
+  assert.deepEqual(monthEnd.map((item) => [item.from, item.closingDate, item.paymentDate]), [
+    ['2026-03-01', '2026-03-31', '2026-04-15'],
+    ['2026-02-01', '2026-02-28', '2026-03-15'],
+  ])
+  const yearEnd = cardStatementPeriods(5, 22, '2026-12-28', '2027-01-03')
+  assert.deepEqual(yearEnd.map((item) => [item.from, item.closingDate]), [['2026-12-06', '2027-01-05']])
+})
+
+test('帳單每期只算期間內的消費與繳款，結帳日欠款累計到結帳日為止', () => {
+  const card = { id: 'card', type: 'credit_card', currency: 'TWD', openingBalanceMinor: 1_000, openingDate: '2026-08-01' } as Parameters<typeof cardStatementSummary>[0]
+  const tx = (id: string, occurredOn: string, kind: string, deltaMinor: number, voidedAt?: string) => ({ id, occurredOn, kind, voidedAt, accountMoves: [{ accountId: 'card', deltaMinor, currency: 'TWD' }], reportLines: [] }) as unknown as Parameters<typeof cardStatementSummary>[1][number]
+  const transactions = [
+    tx('before', '2026-09-12', 'expense', 500),
+    tx('first-day', '2026-09-13', 'expense', 300),
+    tx('refund', '2026-09-20', 'income', -100),
+    tx('pay', '2026-09-28', 'transfer', -1_500),
+    tx('voided', '2026-10-01', 'expense', 9_999, '2026-10-02'),
+    tx('closing-day', '2026-10-12', 'expense', 700),
+    tx('next', '2026-10-13', 'expense', 50),
+    { ...tx('other-card', '2026-10-01', 'expense', 0), accountMoves: [{ accountId: 'bank', deltaMinor: -80, currency: 'TWD' }] },
+  ]
+  const period = cardStatementPeriods(12, 28, '2026-10-01', '2026-10-12')[0]
+  const summary = cardStatementSummary(card, transactions, period)
+  assert.equal(summary.charges, 900)
+  assert.equal(summary.payments, 1_500)
+  assert.equal(summary.closingBalance, 900)
+  assert.deepEqual(summary.transactions.map((item) => item.id), ['first-day', 'refund', 'pay', 'closing-day'])
+})
+
+test('帳單狀態：還沒結帳是本期，填了帳單金額才比對相符或有差額', () => {
+  const period = { from: '2026-09-13', closingDate: '2026-10-12', paymentDate: '2026-10-28' }
+  assert.equal(cardStatementStatus(period, 900, 900, '2026-10-12'), 'open')
+  assert.equal(cardStatementStatus(period, 900, undefined, '2026-10-13'), 'unchecked')
+  assert.equal(cardStatementStatus(period, 900, null, '2026-10-13'), 'unchecked')
+  assert.equal(cardStatementStatus(period, 900, 900, '2026-10-13'), 'matched')
+  assert.equal(cardStatementStatus(period, 900, 1_200, '2026-10-13'), 'mismatch')
 })

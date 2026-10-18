@@ -42,6 +42,18 @@ export type Account = BaseDocument & {
     paymentDay: number
     defaultPaymentAccountId?: string
   }
+  /**
+   * 信用卡帳單對帳：key 是該期結帳日（YYYY-MM-DD），存使用者照帳單填的「本期新增款項」。
+   * 狀態不另存，每次用帳上金額即時比對，事後補記或改帳會自動反映。
+   */
+  statementChecks?: Record<string, CardStatementCheck>
+}
+
+export type CardStatementCheck = {
+  /** null＝清掉填過的帳單金額，回到未核對。 */
+  statementMinor: number | null
+  updatedAt: string
+  updatedBy: string
 }
 
 export type Project = BaseDocument & {

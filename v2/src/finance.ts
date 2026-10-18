@@ -204,6 +204,77 @@ export function addRecurringPeriod(date: string, frequency: RecurringRule['frequ
   return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(Math.min(day, lastDay)).padStart(2, '0')}`
 }
 
+export type CardStatementPeriod = {
+  /** 結帳日，也是這期在 statementChecks 裡的 key */
+  closingDate: string
+  from: string
+  paymentDate: string
+}
+
+// 結帳日設 31 的卡，小月就在月底結帳，跟銀行的做法一致
+const dayInMonth = (year: number, month: number, day: number) => {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(Math.max(day, 1), lastDay)).padStart(2, '0')}`
+}
+
+export function cardStatementPeriod(closingDate: string, closingDay: number, paymentDay: number): CardStatementPeriod {
+  const [year, month] = closingDate.split('-').map(Number)
+  const previousClosing = dayInMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1, closingDay)
+  // 繳款日比結帳日早（例如 12 日結帳、3 日繳款），代表是下個月繳
+  const paymentDate = paymentDay > closingDay
+    ? dayInMonth(year, month, paymentDay)
+    : dayInMonth(month === 12 ? year + 1 : year, month === 12 ? 1 : month + 1, paymentDay)
+  return { closingDate, from: addUtcDays(previousClosing, 1), paymentDate }
+}
+
+/** 從最早一筆紀錄所在的那期，排到還沒結帳的本期；新的在前。 */
+export function cardStatementPeriods(closingDay: number, paymentDay: number, earliestDate: string, today = todayIso()) {
+  const periods: CardStatementPeriod[] = []
+  let [year, month] = earliestDate.split('-').map(Number)
+  if (earliestDate > dayInMonth(year, month, closingDay)) { month += 1; if (month === 13) { month = 1; year += 1 } }
+  while (true) {
+    const closingDate = dayInMonth(year, month, closingDay)
+    periods.push(cardStatementPeriod(closingDate, closingDay, paymentDay))
+    if (closingDate >= today) break
+    month += 1
+    if (month === 13) { month = 1; year += 1 }
+  }
+  return periods.reverse()
+}
+
+/**
+ * 一期帳單的帳上數字，內部表示「正數＝欠款」：
+ * - charges：本期新增款項（消費減退款，含帳務調整），對應帳單的「本期新增款項」
+ * - payments：本期繳款（轉帳進這張卡）
+ * - closingBalance：結帳日當天的帳上欠款，對應帳單的「本期應繳總額」
+ */
+export function cardStatementSummary(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod) {
+  let charges = 0
+  let payments = 0
+  let closingBalance = account.openingDate <= period.closingDate ? account.openingBalanceMinor : 0
+  const related: FinanceTransaction[] = []
+  for (const transaction of activeTransactions(transactions)) {
+    if (transaction.occurredOn > period.closingDate) continue
+    const moves = transaction.accountMoves.filter((move) => move.accountId === account.id)
+    if (!moves.length) continue
+    const delta = moves.reduce((sum, move) => sum + move.deltaMinor, 0)
+    closingBalance += delta
+    if (transaction.occurredOn < period.from) continue
+    related.push(transaction)
+    if (transaction.kind === 'transfer') payments -= delta
+    else charges += delta
+  }
+  return { charges, payments, closingBalance, transactions: related }
+}
+
+export type CardStatementStatus = 'open' | 'unchecked' | 'matched' | 'mismatch'
+
+export function cardStatementStatus(period: CardStatementPeriod, charges: number, statementMinor: number | null | undefined, today = todayIso()): CardStatementStatus {
+  if (period.closingDate >= today) return 'open'
+  if (statementMinor === null || statementMinor === undefined) return 'unchecked'
+  return statementMinor === charges ? 'matched' : 'mismatch'
+}
+
 export function monthRange(period: '本月' | '近三個月' | '今年', now = todayIso()) {
   const [year, month] = now.split('-').map(Number)
   if (period === '本月') return { from: `${year}-${String(month).padStart(2, '0')}-01`, to: `${year}-${String(month).padStart(2, '0')}-31` }

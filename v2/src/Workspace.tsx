@@ -53,6 +53,10 @@ import {
   advanceRows,
   calculateBalances,
   calculateNetWorth,
+  cardStatementPeriod,
+  cardStatementPeriods,
+  cardStatementStatus,
+  cardStatementSummary,
   fromMinor,
   money,
   monthKey,
@@ -63,6 +67,7 @@ import {
   reportRangeForPeriod,
   transferToAmountMinor,
   type AccountPeriod,
+  type CardStatementStatus,
   type ReportPeriod,
   todayIso,
   toMinor,
@@ -89,7 +94,7 @@ import './workspace.css'
 type RouteName =
   | 'home' | 'accounts' | 'entry' | 'reports' | 'more'
   | 'transactions' | 'budget' | 'budget-category' | 'budgets' | 'budget-form' | 'pending'
-  | 'account-detail' | 'account-form' | 'account-adjust' | 'account-manager'
+  | 'account-detail' | 'account-form' | 'account-adjust' | 'account-manager' | 'card-statements' | 'card-statement'
   | 'transaction-filter' | 'report-filter' | 'report-category' | 'report-date' | 'report-export'
   | 'categories' | 'category-form' | 'category-picker'
   | 'account-picker' | 'project-picker'
@@ -399,6 +404,8 @@ export default function Workspace({ user }: { user: User }) {
       case 'account-form': return <AccountFormPage store={store} accountId={route.id} onDone={back} currentUid={user.uid} partnerUid={partnerUid} />
       case 'account-adjust': return <AccountAdjustPage store={store} accountId={route.id ?? ''} onDone={back} />
       case 'account-manager': return <AccountManagerPage store={store} onPush={push} />
+      case 'card-statements': return <CardStatementsPage store={store} accountId={route.id ?? ''} onPush={push} />
+      case 'card-statement': return <CardStatementPage store={store} reference={route.id ?? ''} currentUid={user.uid} onEditTransaction={editTransaction} onDone={back} />
       case 'entry': return <EntryPage store={store} preferences={preferences.value} currentUid={user.uid} contextAccountId={entryContextAccountId} draft={entryDraft} setDraft={setEntryDraft} editingId={editingTransactionId} recurringRule={store.data.recurringRules.find((item) => item.id === pendingRuleId)} onPush={push} onBack={leaveEntry} onDone={leaveEntry} onContinue={continueEntry} autoFocusAmount={pendingAmountFocus && !editingTransactionId} onAmountFocused={() => setPendingAmountFocus(false)} />
       case 'category-picker': return <PickerPage title="選擇分類" items={activeSorted(store.data.categories.filter((item) => item.direction === (entryDraft.kind === 'income' ? 'income' : 'expense')))} selectedId={entryDraft.categoryId} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, categoryId: id })); back() }} />
       case 'account-picker': return <PickerPage title={route.id === 'to' ? '選擇轉入帳戶' : entryDraft.kind === 'income' ? '選擇入帳帳戶' : entryDraft.kind === 'transfer' ? '選擇轉出帳戶' : '選擇付款帳戶'} items={sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).filter((item) => item.id !== (route.id === 'to' ? entryDraft.accountId : entryDraft.toAccountId))} selectedId={route.id === 'to' ? entryDraft.toAccountId : entryDraft.accountId} variant="list" getMeta={(item) => `${accountTypeLabels[item.type]}・${item.currency}`} getEnd={(item) => money((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0), item.currency)} getEndClass={(item) => moneyTone((item.type === 'credit_card' ? -1 : 1) * (accountBalances[item.id] ?? 0))} onBack={back} onSelect={(id) => { setEntryDraft((draft) => ({ ...draft, [route.id === 'to' ? 'toAccountId' : 'accountId']: id })); back() }} onReorder={async (fromId, toId) => { const current = sortAccountsForUser(store.data.accounts, preferences.value.accountOrder, user.uid).map((item) => item.id); const next = reorderAccountIds(current, fromId, toId); if (next !== current) await preferences.save({ accountOrder: next }) }} />
@@ -470,6 +477,7 @@ export default function Workspace({ user }: { user: User }) {
               <IconButton label="用此帳戶記一筆" onClick={() => openNewEntry('expense', route.id ?? '')}><CirclePlus /></IconButton>
             </> : null}
             {route.name === 'account-adjust' ? <button className="topbar-text-action" type="submit" form="account-adjust-form">儲存</button> : null}
+            {route.name === 'card-statement' ? <button className="topbar-text-action" type="submit" form="card-statement-form">儲存</button> : null}
             {route.name === 'projects' ? <IconButton label="新增專案" onClick={() => push({ name: 'project-form' })}><Plus /></IconButton> : null}
             {route.name === 'project-detail' ? <IconButton label="編輯專案" onClick={() => push({ name: 'project-form', id: route.id })}><Pencil /></IconButton> : null}
             {route.name === 'budgets' ? <IconButton label="新增分類預算" onClick={() => push({ name: 'budget-form' })}><Plus /></IconButton> : null}
@@ -498,6 +506,8 @@ function routeTitle(route: Route, data: FinanceData) {
     'sync-status': '同步狀態', search: '搜尋明細',
   }
   if (route.name === 'account-detail') return data.accounts.find((item) => item.id === route.id)?.name ?? '帳戶明細'
+  if (route.name === 'card-statements') return `${data.accounts.find((item) => item.id === route.id)?.name ?? '信用卡'}帳單`
+  if (route.name === 'card-statement') return `${statementMonthLabel(route.id?.split('|')[1] ?? '')}帳單`
   if (route.name === 'project-detail') return data.projects.find((item) => item.id === route.id)?.name ?? '專案明細'
   if (route.name === 'advance-detail') return '代墊明細'
   return staticTitles[route.name] ?? '家庭記帳'
@@ -661,9 +671,78 @@ function AccountDetailPage({ store, accountId, onPush, onEditTransaction, filter
         <span><b className="expense-text">-{money(expense, account.currency)}</b><small>{flowPeriodLabel}支出</small></span>
         <span><b className={moneyTone(netTransfer)}>{netTransfer > 0 ? '+' : ''}{money(netTransfer, account.currency)}</b><small>{flowPeriodLabel}淨轉帳</small></span>
       </div>
-      <footer><button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
+      <footer>{account.type === 'credit_card' ? <button type="button" onClick={() => onPush({ name: 'card-statements', id: account.id })}><ReceiptText />帳單對帳</button> : null}<button type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}><SlidersHorizontal />帳戶設定</button><button type="button" onClick={() => onPush({ name: 'account-adjust', id: account.id })}><Scale />調整餘額</button></footer>
     </section>
     <section className="workspace-section"><div className="section-heading"><h2>這個帳戶的明細</h2><span><button className={`account-filter-button ${hasActiveFilter ? 'active' : ''}`} type="button" onClick={() => onPush({ name: 'transaction-filter', id: account.id })}><SlidersHorizontal />篩選</button></span></div><div className="account-period-tabs filter-chips" role="group" aria-label="帳戶明細期間">{(['year', 'all'] as AccountPeriod[]).map((value) => <button className={!hasCustomDates && period === value ? 'active' : ''} key={value} type="button" onClick={() => choosePeriod(value)}>{accountPeriodLabels[value]}</button>)}</div>{hasCustomDates ? <div className="account-custom-period"><span><small>自訂期間</small><b>{customRangeLabel}</b></span><button type="button" onClick={() => onFilterChange({ ...filter, from: '', to: '' })}>清除日期</button></div> : null}<TransactionRows transactions={related} data={store.data} onEdit={onEditTransaction} accountContext={account} /></section>
+  </main>
+}
+
+const statementMonthLabel = (closingDate: string) => closingDate ? `${Number(closingDate.slice(0, 4))} 年 ${Number(closingDate.slice(5, 7))} 月` : ''
+const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+const statementStatusText = (status: CardStatementStatus, difference: number, currency: string) => ({
+  open: { text: '本期・尚未結帳', tone: '' },
+  unchecked: { text: '未核對', tone: '' },
+  matched: { text: '✓ 相符', tone: 'income-text' },
+  mismatch: { text: `差 ${money(Math.abs(difference), currency)}`, tone: 'expense-text' },
+})[status]
+
+function CardStatementsPage({ store, accountId, onPush }: { store: Store; accountId: string; onPush: (route: Route) => void }) {
+  const account = store.data.accounts.find((item) => item.id === accountId)
+  if (!account) return <main className="workspace-page"><div className="simple-empty">找不到帳戶</div></main>
+  if (!account.creditCard?.closingDay) return <main className="workspace-page"><div className="simple-empty">這張卡還沒設定結帳日，請先到帳戶設定填寫。</div><button className="primary-button full-width-action" type="button" onClick={() => onPush({ name: 'account-form', id: account.id })}>前往帳戶設定</button></main>
+  const { closingDay, paymentDay } = account.creditCard
+  const cardTransactions = activeTransactions(store.data.transactions).filter((transaction) => transaction.accountMoves.some((move) => move.accountId === account.id))
+  const earliest = cardTransactions.reduce((min, transaction) => transaction.occurredOn < min ? transaction.occurredOn : min, todayIso())
+  const periods = cardStatementPeriods(closingDay, paymentDay, earliest)
+  return <main className="workspace-page"><p className="page-intro">每月 {closingDay} 日結帳。點一期，把帳單上的「本期新增款項」填進去，就會比對有沒有漏記。</p><div className="settings-menu-v2 card-statement-list">{periods.map((period) => {
+    const { charges } = cardStatementSummary(account, store.data.transactions, period)
+    const statementMinor = account.statementChecks?.[period.closingDate]?.statementMinor
+    const status = cardStatementStatus(period, charges, statementMinor)
+    const label = statementStatusText(status, (statementMinor ?? 0) - charges, account.currency)
+    return <button type="button" key={period.closingDate} onClick={() => onPush({ name: 'card-statement', id: `${account.id}|${period.closingDate}` })}><EntityIcon iconKey="receipt-text" /><span><b>{statementMonthLabel(period.closingDate)}帳單</b><small>{shortDate(period.from)}–{shortDate(period.closingDate)}・繳款 {shortDate(period.paymentDate)}</small></span><strong>{money(charges, account.currency)}<small className={label.tone}>{label.text} ›</small></strong></button>
+  })}</div></main>
+}
+
+function CardStatementPage({ store, reference, currentUid, onEditTransaction, onDone }: { store: Store; reference: string; currentUid: string; onEditTransaction: (transaction: FinanceTransaction) => void; onDone: () => void }) {
+  const [accountId, closingDate] = reference.split('|')
+  const account = store.data.accounts.find((item) => item.id === accountId)
+  const saved = account?.statementChecks?.[closingDate]?.statementMinor
+  const [statement, setStatement] = useState(saved === null || saved === undefined ? '' : String(fromMinor(saved, account?.currency ?? 'TWD')))
+  const [error, setError] = useState('')
+  if (!account?.creditCard?.closingDay || !closingDate) return <main className="workspace-page"><div className="simple-empty">找不到這期帳單</div></main>
+  const period = cardStatementPeriod(closingDate, account.creditCard.closingDay, account.creditCard.paymentDay)
+  const summary = cardStatementSummary(account, store.data.transactions, period)
+  const statementMinor = statement.trim() ? toMinor(statement, account.currency) : null
+  const status = cardStatementStatus(period, summary.charges, statementMinor)
+  const difference = (statementMinor ?? 0) - summary.charges
+  const submit = async () => {
+    if (statementMinor !== null && !Number.isFinite(statementMinor)) return setError('請輸入有效的金額')
+    try {
+      await store.save('accounts', { id: account.id, statementChecks: { [closingDate]: { statementMinor, updatedAt: new Date().toISOString(), updatedBy: currentUid } } })
+      onDone()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '儲存失敗')
+    }
+  }
+  const hint = status === 'open' ? '這期還沒結帳，結帳後收到帳單再來對。'
+    : statementMinor === null ? '填入帳單上的「本期新增款項」，下面會即時比對。'
+      : difference > 0 ? `帳單比帳上多 ${money(difference, account.currency)}：可能有消費沒記到，或是年費、利息、手續費。`
+        : difference < 0 ? `帳上比帳單多 ${money(-difference, account.currency)}：可能重複記帳，或有消費被銀行算到下一期。`
+          : '金額相符，這期沒有漏記。'
+  return <main className="workspace-page">
+    <section className="detail-card-v2">
+      <div><span>帳單期間</span><b>{shortDate(period.from)}–{shortDate(period.closingDate)}</b></div>
+      <div><span>繳款截止</span><b>{formatDate(period.paymentDate)}</b></div>
+      <div><span>本期新增款項（帳上）</span><b>{money(summary.charges, account.currency)}</b></div>
+      <div><span>本期繳款</span><b>{money(summary.payments, account.currency)}</b></div>
+      <div><span>結帳日帳上欠款</span><b>{money(summary.closingBalance, account.currency)}</b></div>
+    </section>
+    <form id="card-statement-form" className="settings-form card-statement-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
+      <label><span>帳單上的「本期新增款項」</span><CalculatorInput placeholder="照帳單填" value={statement} onValueChange={(value) => { setStatement(value); setError('') }} /><small>結帳日帳上欠款可以對照帳單的「本期應繳總額」；銀行用入帳日切期，結帳日前後兩三天的消費可能跑到下一期。</small></label>
+      <div className="difference-row"><span>{hint}</span>{statementMinor !== null && status !== 'open' ? <b className={difference ? 'expense-text' : 'income-text'}>{difference ? `${difference > 0 ? '+' : '-'}${money(Math.abs(difference), account.currency)}` : '✓'}</b> : null}</div>
+      {error ? <p className="form-error">{error}</p> : null}
+    </form>
+    <section className="workspace-section"><div className="section-heading"><h2>本期明細</h2><span>{summary.transactions.length} 筆</span></div>{summary.transactions.length ? <TransactionRows transactions={[...summary.transactions].sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))} data={store.data} onEdit={onEditTransaction} accountContext={account} /> : <div className="simple-empty">這期沒有紀錄</div>}</section>
   </main>
 }
 

@@ -265,6 +265,9 @@ input[type="date"] { -webkit-appearance: none; appearance: none; }
 .adjust-card span { color: var(--muted); }
 .adjust-card strong { display: block; margin-top: 5px; color: var(--primary-dark); font-size: 28px; }
 .difference-row { display: flex; justify-content: space-between; padding: 16px; border-radius: 14px; background: #edf3f4; }
+.card-statement-form { margin-top: 12px; }
+.card-statement-form .difference-row { align-items: center; gap: 12px; line-height: 1.5; }
+.card-statement-form .difference-row b { flex: none; }
 .filter-chips { display: flex; gap: 4px; overflow-x: auto; }
 .filter-chips button { min-width: max-content; flex: 1; padding: 0 13px; }
 .view-toggle-v2,.report-mode-tabs { display: grid; grid-template-columns: repeat(2,1fr); margin-bottom: 14px; padding: 2px; border-radius: 10px; background: #e8edf0; }
@@ -451,7 +454,7 @@ input[type="date"] { -webkit-appearance: none; appearance: none; }
 .budget-summary-cards span,.budget-summary-cards b { display: block; }
 .budget-summary-cards span { color: var(--muted); font-size: 13px; }
 .budget-summary-cards b { margin-top: 5px; }
-.budget-list-v2 > button,.recurring-rules > button { grid-template-columns: 46px minmax(0,1fr) auto; }
+.budget-list-v2 > button,.recurring-rules > button,.card-statement-list > button { grid-template-columns: 46px minmax(0,1fr) auto; }
 .category-manager-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 12px; }
 .category-manage-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .category-manage-actions button { min-height: 40px; padding: 0 8px; color: var(--primary); font-weight: 700; }
