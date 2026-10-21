@@ -47,6 +47,8 @@ export type Account = BaseDocument & {
    * 狀態不另存，每次用帳上金額即時比對，事後補記或改帳會自動反映。
    */
   statementChecks?: Record<string, CardStatementCheck>
+  /** 銀行入帳晚、帳單算到下一期的交易：key 是交易 ID，false＝改回原本那期。 */
+  statementDeferred?: Record<string, boolean>
 }
 
 export type CardStatementCheck = {

@@ -53,6 +53,7 @@ import {
   advanceRows,
   calculateBalances,
   calculateNetWorth,
+  cardStatementBoundary,
   cardStatementPeriod,
   cardStatementPeriods,
   cardStatementStatus,
@@ -709,6 +710,7 @@ function CardStatementPage({ store, reference, currentUid, onEditTransaction, on
   const saved = account?.statementChecks?.[closingDate]?.statementMinor
   const [statement, setStatement] = useState(saved === null || saved === undefined ? '' : String(fromMinor(saved, account?.currency ?? 'TWD')))
   const [error, setError] = useState('')
+  const [deferring, setDeferring] = useState('')
   if (!account?.creditCard?.closingDay || !closingDate) return <main className="workspace-page"><div className="simple-empty">找不到這期帳單</div></main>
   const period = cardStatementPeriod(closingDate, account.creditCard.closingDay, account.creditCard.paymentDay)
   const summary = cardStatementSummary(account, store.data.transactions, period)
@@ -724,10 +726,21 @@ function CardStatementPage({ store, reference, currentUid, onEditTransaction, on
       setError(saveError instanceof Error ? saveError.message : '儲存失敗')
     }
   }
+  const boundary = cardStatementBoundary(account, store.data.transactions, period)
+  const toggleDeferred = async (transactionId: string, deferred: boolean) => {
+    setDeferring(transactionId)
+    try {
+      await store.save('accounts', { id: account.id, statementDeferred: { [transactionId]: !deferred } })
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '儲存失敗')
+    } finally {
+      setDeferring('')
+    }
+  }
   const hint = status === 'open' ? '這期還沒結帳，結帳後收到帳單再來對。'
     : statementMinor === null ? '填入帳單上的「本期新增款項」，下面會即時比對。'
-      : difference > 0 ? `帳單比帳上多 ${money(difference, account.currency)}：可能有消費沒記到，或是年費、利息、手續費。`
-        : difference < 0 ? `帳上比帳單多 ${money(-difference, account.currency)}：可能重複記帳，或有消費被銀行算到下一期。`
+      : difference > 0 ? `帳單比帳上多 ${money(difference, account.currency)}：可能有消費沒記到、上期最後幾天的消費被銀行算到這期（到上一期改算下期），或是年費、利息、手續費。`
+        : difference < 0 ? `帳上比帳單多 ${money(-difference, account.currency)}：可能重複記帳，或有消費被銀行算到下一期（在下方「結帳日前的消費」改算下期）。`
           : '金額相符，這期沒有漏記。'
   return <main className="workspace-page">
     <section className="detail-card-v2">
@@ -742,6 +755,12 @@ function CardStatementPage({ store, reference, currentUid, onEditTransaction, on
       <div className="difference-row"><span>{hint}</span>{statementMinor !== null && status !== 'open' ? <b className={difference ? 'expense-text' : 'income-text'}>{difference ? `${difference > 0 ? '+' : '-'}${money(Math.abs(difference), account.currency)}` : '✓'}</b> : null}</div>
       {error ? <p className="form-error">{error}</p> : null}
     </form>
+    {boundary.length ? <section className="workspace-section"><div className="section-heading"><h2>結帳日前的消費</h2></div><p className="page-intro">銀行用入帳日切期，帳單上若算到下一期，點一下改算下期。</p><div className="settings-menu-v2 card-statement-list">{boundary.map(({ transaction, deferred, movedIn }) => {
+      const category = store.data.categories.find((item) => item.id === transaction.reportLines[0]?.categoryId)
+      const delta = transaction.accountMoves.filter((move) => move.accountId === account.id).reduce((sum, move) => sum + move.deltaMinor, 0)
+      const state = movedIn ? ['從上期移入', '移回上期'] : deferred ? ['已改算下一期', '改回這期'] : ['算在這期', '改算下期']
+      return <button type="button" key={transaction.id} disabled={deferring === transaction.id} onClick={() => void toggleDeferred(transaction.id, deferred)}><EntityIcon iconKey={category?.iconKey ?? 'receipt-text'} /><span><b>{transaction.note || category?.name || transactionLabels[transaction.kind]}</b><small>{shortDate(transaction.occurredOn)}・{money(delta, account.currency)}・{state[0]}</small></span><strong><small className={deferred ? 'expense-text' : ''}>{state[1]} ›</small></strong></button>
+    })}</div></section> : null}
     <section className="workspace-section"><div className="section-heading"><h2>本期明細</h2><span>{summary.transactions.length} 筆</span></div>{summary.transactions.length ? <TransactionRows transactions={[...summary.transactions].sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))} data={store.data} onEdit={onEditTransaction} accountContext={account} /> : <div className="simple-empty">這期沒有紀錄</div>}</section>
   </main>
 }

@@ -13,6 +13,7 @@ import {
   advancePeopleRows,
   calculateBalances,
   calculateNetWorth,
+  cardStatementBoundary,
   cardStatementPeriods,
   cardStatementStatus,
   cardStatementSummary,
@@ -201,10 +202,36 @@ test('帳單每期只算期間內的消費與繳款，結帳日欠款累計到�
 })
 
 test('帳單狀態：還沒結帳是本期，填了帳單金額才比對相符或有差額', () => {
-  const period = { from: '2026-09-13', closingDate: '2026-10-12', paymentDate: '2026-10-28' }
+  const period = { from: '2026-09-13', closingDate: '2026-10-12', paymentDate: '2026-10-28', previousFrom: '2026-08-13' }
   assert.equal(cardStatementStatus(period, 900, 900, '2026-10-12'), 'open')
   assert.equal(cardStatementStatus(period, 900, undefined, '2026-10-13'), 'unchecked')
   assert.equal(cardStatementStatus(period, 900, null, '2026-10-13'), 'unchecked')
   assert.equal(cardStatementStatus(period, 900, 900, '2026-10-13'), 'matched')
   assert.equal(cardStatementStatus(period, 900, 1_200, '2026-10-13'), 'mismatch')
+})
+
+test('從卡片轉出的代墊／借出算新增款項，轉進卡片才算繳款', () => {
+  const card = { id: 'card', type: 'credit_card', currency: 'TWD', openingBalanceMinor: 0, openingDate: '2026-01-01' } as Parameters<typeof cardStatementSummary>[0]
+  const transactions = [
+    { id: 'lend', occurredOn: '2026-07-26', kind: 'transfer', accountMoves: [{ accountId: 'card', deltaMinor: 480, currency: 'TWD' }, { accountId: 'loan', deltaMinor: 480, currency: 'TWD' }], reportLines: [] },
+    { id: 'pay', occurredOn: '2026-08-07', kind: 'transfer', accountMoves: [{ accountId: 'bank', deltaMinor: -2_262, currency: 'TWD' }, { accountId: 'card', deltaMinor: -2_262, currency: 'TWD' }], reportLines: [] },
+  ] as unknown as Parameters<typeof cardStatementSummary>[1]
+  const summary = cardStatementSummary(card, transactions, cardStatementPeriods(21, 7, '2026-08-21', '2026-08-21')[0])
+  assert.equal(summary.charges, 480)
+  assert.equal(summary.payments, 2_262)
+})
+
+test('標成算到下一期的消費，這期不算、下一期才算，結帳日欠款也跟著銀行走', () => {
+  const tx = (id: string, occurredOn: string, deltaMinor: number) => ({ id, occurredOn, kind: 'expense', accountMoves: [{ accountId: 'card', deltaMinor, currency: 'TWD' }], reportLines: [] })
+  const transactions = [tx('early', '2026-07-01', 1_000), tx('sun-a', '2026-07-19', 360), tx('sun-b', '2026-07-19', 400), tx('aug', '2026-08-01', 2_000)] as unknown as Parameters<typeof cardStatementSummary>[1]
+  const card = { id: 'card', type: 'credit_card', currency: 'TWD', openingBalanceMinor: 0, openingDate: '2026-01-01', statementDeferred: { 'sun-a': true, 'sun-b': true, early: false } } as unknown as Parameters<typeof cardStatementSummary>[0]
+  const [august, july] = cardStatementPeriods(21, 7, '2026-07-01', '2026-08-21')
+  assert.deepEqual([july.previousFrom, july.from, july.closingDate], ['2026-05-22', '2026-06-22', '2026-07-21'])
+  assert.deepEqual([cardStatementSummary(card, transactions, july).charges, cardStatementSummary(card, transactions, july).closingBalance], [1_000, 1_000])
+  const next = cardStatementSummary(card, transactions, august)
+  assert.deepEqual([next.charges, next.closingBalance, next.transactions.map((item) => item.id).sort()], [2_760, 3_760, ['aug', 'sun-a', 'sun-b']])
+  assert.deepEqual(cardStatementBoundary(card, transactions, july).map((item) => [item.transaction.id, item.deferred, item.movedIn]), [['sun-a', true, false], ['sun-b', true, false]])
+  assert.deepEqual(cardStatementBoundary(card, transactions, august).map((item) => [item.transaction.id, item.movedIn]), [['sun-a', true], ['sun-b', true]])
+  const januaryPeriod = cardStatementPeriods(21, 7, '2027-01-10', '2027-01-10')[0]
+  assert.equal(januaryPeriod.previousFrom, '2026-11-22')
 })

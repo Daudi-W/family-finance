@@ -209,6 +209,8 @@ export type CardStatementPeriod = {
   closingDate: string
   from: string
   paymentDate: string
+  /** 上一期的起日：被標成「算到下一期」的交易，落在上一期才會算進這期 */
+  previousFrom: string
 }
 
 // 結帳日設 31 的卡，小月就在月底結帳，跟銀行的做法一致
@@ -220,11 +222,12 @@ const dayInMonth = (year: number, month: number, day: number) => {
 export function cardStatementPeriod(closingDate: string, closingDay: number, paymentDay: number): CardStatementPeriod {
   const [year, month] = closingDate.split('-').map(Number)
   const previousClosing = dayInMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1, closingDay)
+  const olderClosing = dayInMonth(month <= 2 ? year - 1 : year, month <= 2 ? month + 10 : month - 2, closingDay)
   // 繳款日比結帳日早（例如 12 日結帳、3 日繳款），代表是下個月繳
   const paymentDate = paymentDay > closingDay
     ? dayInMonth(year, month, paymentDay)
     : dayInMonth(month === 12 ? year + 1 : year, month === 12 ? 1 : month + 1, paymentDay)
-  return { closingDate, from: addUtcDays(previousClosing, 1), paymentDate }
+  return { closingDate, from: addUtcDays(previousClosing, 1), paymentDate, previousFrom: addUtcDays(olderClosing, 1) }
 }
 
 /** 從最早一筆紀錄所在的那期，排到還沒結帳的本期；新的在前。 */
@@ -244,8 +247,9 @@ export function cardStatementPeriods(closingDay: number, paymentDay: number, ear
 
 /**
  * 一期帳單的帳上數字，內部表示「正數＝欠款」：
- * - charges：本期新增款項（消費減退款，含帳務調整），對應帳單的「本期新增款項」
+ * - charges：本期新增款項（消費減退款，含帳務調整、從這張卡轉出的代墊／借出），對應帳單的「本期新增款項」
  * - payments：本期繳款（轉帳進這張卡）
+ * 標在 account.statementDeferred 的交易，銀行入帳晚、帳單算到下一期，這裡也跟著往後算一期。
  * - closingBalance：結帳日當天的帳上欠款，對應帳單的「本期應繳總額」
  */
 export function cardStatementSummary(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod) {
@@ -254,17 +258,31 @@ export function cardStatementSummary(account: Account, transactions: FinanceTran
   let closingBalance = account.openingDate <= period.closingDate ? account.openingBalanceMinor : 0
   const related: FinanceTransaction[] = []
   for (const transaction of activeTransactions(transactions)) {
-    if (transaction.occurredOn > period.closingDate) continue
     const moves = transaction.accountMoves.filter((move) => move.accountId === account.id)
     if (!moves.length) continue
+    const deferred = account.statementDeferred?.[transaction.id] === true
+    if (deferred ? transaction.occurredOn >= period.from : transaction.occurredOn > period.closingDate) continue
     const delta = moves.reduce((sum, move) => sum + move.deltaMinor, 0)
     closingBalance += delta
-    if (transaction.occurredOn < period.from) continue
+    if (transaction.occurredOn < (deferred ? period.previousFrom : period.from)) continue
     related.push(transaction)
-    if (transaction.kind === 'transfer') payments -= delta
+    // 轉進卡片才是繳款；從卡片轉出（代墊、借出、領現）在帳單上是一筆消費
+    if (transaction.kind === 'transfer' && delta < 0) payments -= delta
     else charges += delta
   }
   return { charges, payments, closingBalance, transactions: related }
+}
+
+/** 結帳日前幾天的交易可能被銀行算到下一期：列出這期最後幾天的、以及從上期移進來的，讓使用者照帳單切換。 */
+export function cardStatementBoundary(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod, days = 5) {
+  const tailFrom = addUtcDays(period.closingDate, 1 - days)
+  return activeTransactions(transactions).flatMap((transaction) => {
+    if (!transaction.accountMoves.some((move) => move.accountId === account.id)) return []
+    const deferred = account.statementDeferred?.[transaction.id] === true
+    if (transaction.occurredOn >= tailFrom && transaction.occurredOn <= period.closingDate) return [{ transaction, deferred, movedIn: false }]
+    if (deferred && transaction.occurredOn >= period.previousFrom && transaction.occurredOn < period.from) return [{ transaction, deferred, movedIn: true }]
+    return []
+  }).sort((a, b) => b.transaction.occurredOn.localeCompare(a.transaction.occurredOn))
 }
 
 export type CardStatementStatus = 'open' | 'unchecked' | 'matched' | 'mismatch'
