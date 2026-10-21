@@ -57,7 +57,9 @@ import {
   cardStatementPeriod,
   cardStatementPeriods,
   cardStatementStatus,
+  cardStatementSuggestion,
   cardStatementSummary,
+  CARD_STATEMENT_TAIL_DAYS,
   fromMinor,
   money,
   monthKey,
@@ -727,16 +729,18 @@ function CardStatementPage({ store, reference, currentUid, onEditTransaction, on
     }
   }
   const boundary = cardStatementBoundary(account, store.data.transactions, period)
-  const toggleDeferred = async (transactionId: string, deferred: boolean) => {
-    setDeferring(transactionId)
+  const suggestion = status !== 'open' && statementMinor !== null && Number.isFinite(statementMinor) ? cardStatementSuggestion(account, store.data.transactions, period, statementMinor, account.creditCard.closingDay, account.creditCard.paymentDay) : null
+  const setDeferred = async (transactionIds: string[], deferred: boolean, key = transactionIds[0]) => {
+    setDeferring(key)
     try {
-      await store.save('accounts', { id: account.id, statementDeferred: { [transactionId]: !deferred } })
+      await store.save('accounts', { id: account.id, statementDeferred: Object.fromEntries(transactionIds.map((id) => [id, deferred])) })
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '儲存失敗')
     } finally {
       setDeferring('')
     }
   }
+  const transactionName = (transaction: FinanceTransaction) => transaction.note || store.data.categories.find((item) => item.id === transaction.reportLines[0]?.categoryId)?.name || transactionLabels[transaction.kind]
   const hint = status === 'open' ? '這期還沒結帳，結帳後收到帳單再來對。'
     : statementMinor === null ? '填入帳單上的「本期新增款項」，下面會即時比對。'
       : difference > 0 ? `帳單比帳上多 ${money(difference, account.currency)}：可能有消費沒記到、上期最後幾天的消費被銀行算到這期（到上一期改算下期），或是年費、利息、手續費。`
@@ -751,15 +755,16 @@ function CardStatementPage({ store, reference, currentUid, onEditTransaction, on
       <div><span>結帳日帳上欠款</span><b>{money(summary.closingBalance, account.currency)}</b></div>
     </section>
     <form id="card-statement-form" className="settings-form card-statement-form" onSubmit={(event) => { event.preventDefault(); void submit() }}>
-      <label><span>帳單上的「本期新增款項」</span><CalculatorInput placeholder="照帳單填" value={statement} onValueChange={(value) => { setStatement(value); setError('') }} /><small>結帳日帳上欠款可以對照帳單的「本期應繳總額」；銀行用入帳日切期，結帳日前後兩三天的消費可能跑到下一期。</small></label>
+      <label><span>帳單上的「本期新增款項」</span><CalculatorInput placeholder="照帳單填" value={statement} onValueChange={(value) => { setStatement(value); setError('') }} /><small>本期新增款項對不上不一定是記錯，先看「結帳日帳上欠款」有沒有等於帳單的「本期應繳總額」。銀行用入帳日切期，結帳日前 {CARD_STATEMENT_TAIL_DAYS} 天內的消費都可能跑到下一期。</small></label>
       <div className="difference-row"><span>{hint}</span>{statementMinor !== null && status !== 'open' ? <b className={difference ? 'expense-text' : 'income-text'}>{difference ? `${difference > 0 ? '+' : '-'}${money(Math.abs(difference), account.currency)}` : '✓'}</b> : null}</div>
+      {suggestion ? <div className="statement-suggestion"><p>{suggestion.source === 'current' ? '這幾筆加起來剛好是差額，可能被銀行算到下一期：' : '上一期的這幾筆加起來剛好是差額，可能被銀行算到這一期：'}</p><ul>{suggestion.transactions.map((transaction) => <li key={transaction.id}><span>{shortDate(transaction.occurredOn)} {transactionName(transaction)}</span><b>{money(transaction.accountMoves.filter((move) => move.accountId === account.id).reduce((sum, move) => sum + move.deltaMinor, 0), account.currency)}</b></li>)}</ul><button className="primary-button" type="button" disabled={deferring === 'suggestion'} onClick={() => void setDeferred(suggestion.transactions.map((item) => item.id), true, 'suggestion')}>{suggestion.source === 'current' ? '這幾筆改算下期' : '這幾筆改算到這期'}</button></div> : null}
       {error ? <p className="form-error">{error}</p> : null}
     </form>
-    {boundary.length ? <section className="workspace-section"><div className="section-heading"><h2>結帳日前的消費</h2></div><p className="page-intro">銀行用入帳日切期，帳單上若算到下一期，點一下改算下期。</p><div className="settings-menu-v2 card-statement-list">{boundary.map(({ transaction, deferred, movedIn }) => {
+    {boundary.length ? <section className="workspace-section"><div className="section-heading"><h2>結帳日前的消費</h2></div><p className="page-intro">列出結帳日前 {CARD_STATEMENT_TAIL_DAYS} 天內的消費。銀行用入帳日切期，帳單上若算到下一期，點一下改算下期。</p><div className="settings-menu-v2 card-statement-list">{boundary.map(({ transaction, deferred, movedIn }) => {
       const category = store.data.categories.find((item) => item.id === transaction.reportLines[0]?.categoryId)
       const delta = transaction.accountMoves.filter((move) => move.accountId === account.id).reduce((sum, move) => sum + move.deltaMinor, 0)
       const state = movedIn ? ['從上期移入', '移回上期'] : deferred ? ['已改算下一期', '改回這期'] : ['算在這期', '改算下期']
-      return <button type="button" key={transaction.id} disabled={deferring === transaction.id} onClick={() => void toggleDeferred(transaction.id, deferred)}><EntityIcon iconKey={category?.iconKey ?? 'receipt-text'} /><span><b>{transaction.note || category?.name || transactionLabels[transaction.kind]}</b><small>{shortDate(transaction.occurredOn)}・{money(delta, account.currency)}・{state[0]}</small></span><strong><small className={deferred ? 'expense-text' : ''}>{state[1]} ›</small></strong></button>
+      return <button type="button" key={transaction.id} disabled={deferring === transaction.id} onClick={() => void setDeferred([transaction.id], !deferred)}><EntityIcon iconKey={category?.iconKey ?? 'receipt-text'} /><span><b>{transactionName(transaction)}</b><small>{shortDate(transaction.occurredOn)}・{money(delta, account.currency)}・{state[0]}</small></span><strong><small className={deferred ? 'expense-text' : ''}>{state[1]} ›</small></strong></button>
     })}</div></section> : null}
     <section className="workspace-section"><div className="section-heading"><h2>本期明細</h2><span>{summary.transactions.length} 筆</span></div>{summary.transactions.length ? <TransactionRows transactions={[...summary.transactions].sort((a, b) => b.occurredOn.localeCompare(a.occurredOn))} data={store.data} onEdit={onEditTransaction} accountContext={account} /> : <div className="simple-empty">這期沒有紀錄</div>}</section>
   </main>

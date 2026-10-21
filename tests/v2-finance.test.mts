@@ -16,6 +16,7 @@ import {
   cardStatementBoundary,
   cardStatementPeriods,
   cardStatementStatus,
+  cardStatementSuggestion,
   cardStatementSummary,
   monthKey,
   monthlyBudgetRows,
@@ -234,4 +235,32 @@ test('標成算到下一期的消費，這期不算、下一期才算，結帳�
   assert.deepEqual(cardStatementBoundary(card, transactions, august).map((item) => [item.transaction.id, item.movedIn]), [['sun-a', true], ['sun-b', true]])
   const januaryPeriod = cardStatementPeriods(21, 7, '2027-01-10', '2027-01-10')[0]
   assert.equal(januaryPeriod.previousFrom, '2026-11-22')
+})
+
+test('驗收資料：差額剛好是跨期的幾筆時提示改算下期，改完後三期本期新增都等於銀行帳單', () => {
+  const tx = (id: string, occurredOn: string, deltaMinor: number, kind = 'expense') => ({ id, occurredOn, kind, accountMoves: [{ accountId: 'card', deltaMinor, currency: 'TWD' }], reportLines: [] })
+  const transactions = [
+    tx('may-17', '2026-05-17', 240), tx('may-23', '2026-05-23', 35), tx('pay-jun', '2026-06-05', -5_506, 'transfer'),
+    tx('pay-jul', '2026-07-06', -275, 'transfer'), tx('jul-09', '2026-07-09', 60), tx('jul-12', '2026-07-12', 2_590), tx('jul-14', '2026-07-14', 162),
+    tx('jul-19-a', '2026-07-19', 400), tx('jul-19-b', '2026-07-19', 360),
+    tx('jul-26', '2026-07-26', 780), tx('jul-26-lend', '2026-07-26', 480, 'transfer'), tx('jul-27', '2026-07-27', 1_100), tx('jul-29', '2026-07-29', 630),
+    tx('aug-01', '2026-08-01', 180), tx('aug-02', '2026-08-02', 135), tx('aug-02-lend', '2026-08-02', 70, 'transfer'), tx('pay-aug', '2026-08-05', -2_812, 'transfer'),
+    tx('aug-11', '2026-08-11', 65), tx('aug-13-a', '2026-08-13', 40), tx('aug-13-b', '2026-08-13', 100), tx('aug-17', '2026-08-17', 85),
+  ] as unknown as Parameters<typeof cardStatementSummary>[1]
+  const base = { id: 'card', type: 'credit_card', currency: 'TWD', openingBalanceMinor: 5_506, openingDate: '2026-04-30' }
+  const [august, july, june] = cardStatementPeriods(21, 7, '2026-06-01', '2026-08-21')
+  const card = (statementDeferred: Record<string, boolean> = {}) => ({ ...base, statementDeferred }) as unknown as Parameters<typeof cardStatementSummary>[0]
+  const ids = (account: ReturnType<typeof card>, period: typeof june, statement: number) => cardStatementSuggestion(account, transactions, period, statement, 21, 7)
+
+  const before = card()
+  assert.deepEqual([june, july, august].map((period) => cardStatementSummary(before, transactions, period)).map(({ charges, payments, closingBalance }) => [charges, payments, closingBalance]), [[35, 5_506, 275], [3_572, 275, 3_572], [3_665, 2_812, 4_425]])
+  assert.deepEqual(ids(before, june, 275), { source: 'previous', transactions: [transactions[0]] })
+  assert.deepEqual(ids(before, july, 2_812)?.transactions.map((item) => item.id).sort(), ['jul-19-a', 'jul-19-b'])
+  assert.equal(ids(before, july, 2_812)?.source, 'current')
+  assert.deepEqual([ids(before, august, 4_425)?.source, ids(before, august, 4_425)?.transactions.map((item) => item.id).sort()], ['previous', ['jul-19-a', 'jul-19-b']])
+  assert.equal(ids(before, july, 1), null)
+
+  const after = card({ 'may-17': true, 'jul-19-a': true, 'jul-19-b': true })
+  assert.deepEqual([june, july, august].map((period) => cardStatementSummary(after, transactions, period)).map(({ charges, closingBalance }) => [charges, closingBalance]), [[275, 275], [2_812, 2_812], [4_425, 4_425]])
+  assert.equal(ids(after, july, 2_812), null)
 })

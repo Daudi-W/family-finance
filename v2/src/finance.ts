@@ -273,8 +273,11 @@ export function cardStatementSummary(account: Account, transactions: FinanceTran
   return { charges, payments, closingBalance, transactions: related }
 }
 
+/** 網購、部分店家可能隔一週以上才入帳，結帳日前這幾天（含結帳日）的消費都可能被銀行算到下一期 */
+export const CARD_STATEMENT_TAIL_DAYS = 10
+
 /** 結帳日前幾天的交易可能被銀行算到下一期：列出這期最後幾天的、以及從上期移進來的，讓使用者照帳單切換。 */
-export function cardStatementBoundary(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod, days = 5) {
+export function cardStatementBoundary(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod, days = CARD_STATEMENT_TAIL_DAYS) {
   const tailFrom = addUtcDays(period.closingDate, 1 - days)
   return activeTransactions(transactions).flatMap((transaction) => {
     if (!transaction.accountMoves.some((move) => move.accountId === account.id)) return []
@@ -283,6 +286,47 @@ export function cardStatementBoundary(account: Account, transactions: FinanceTra
     if (deferred && transaction.occurredOn >= period.previousFrom && transaction.occurredOn < period.from) return [{ transaction, deferred, movedIn: true }]
     return []
   }).sort((a, b) => b.transaction.occurredOn.localeCompare(a.transaction.occurredOn))
+}
+
+const cardDelta = (account: Account, transaction: FinanceTransaction) => transaction.accountMoves.filter((move) => move.accountId === account.id).reduce((sum, move) => sum + move.deltaMinor, 0)
+
+// 筆數少（十天內通常不到 15 筆）就直接列舉子集合；有好幾組時取筆數最少、最靠近結帳日的
+const SUBSET_SEARCH_LIMIT = 15
+function exactSubset<T>(items: T[], amountOf: (item: T) => number, target: number) {
+  const pool = items.slice(0, SUBSET_SEARCH_LIMIT)
+  let best = 0
+  let bestCount = Infinity
+  for (let mask = 1; mask < 1 << pool.length; mask += 1) {
+    let sum = 0
+    let count = 0
+    for (let index = 0; index < pool.length; index += 1) {
+      if (mask & (1 << index)) { sum += amountOf(pool[index]); count += 1 }
+    }
+    if (sum === target && count < bestCount) { best = mask; bestCount = count }
+  }
+  return best ? pool.filter((_, index) => best & (1 << index)) : []
+}
+
+export type CardStatementSuggestion = {
+  /** current：這期最後幾天的被銀行算到下一期；previous：上一期最後幾天的被銀行算到這期 */
+  source: 'current' | 'previous'
+  transactions: FinanceTransaction[]
+}
+
+/**
+ * 帳上和帳單的本期新增款項有差額時，找結帳日前幾天、還沒改算下期的消費，看哪幾筆加起來剛好等於差額。
+ * 帳上比較多→這期的可能被算到下一期；帳單比較多→上一期的可能被算到這期。都要「改算下期」。
+ */
+export function cardStatementSuggestion(account: Account, transactions: FinanceTransaction[], period: CardStatementPeriod, statementMinor: number, closingDay: number, paymentDay: number): CardStatementSuggestion | null {
+  const difference = cardStatementSummary(account, transactions, period).charges - statementMinor
+  if (!difference) return null
+  const source = difference > 0 ? 'current' : 'previous'
+  const target = source === 'current' ? period : cardStatementPeriod(addUtcDays(period.from, -1), closingDay, paymentDay)
+  const candidates = cardStatementBoundary(account, transactions, target)
+    .filter(({ transaction, deferred, movedIn }) => !deferred && !movedIn && !(transaction.kind === 'transfer' && cardDelta(account, transaction) < 0))
+    .map(({ transaction }) => transaction)
+  const found = exactSubset(candidates, (transaction) => cardDelta(account, transaction), Math.abs(difference))
+  return found.length ? { source, transactions: found } : null
 }
 
 export type CardStatementStatus = 'open' | 'unchecked' | 'matched' | 'mismatch'
