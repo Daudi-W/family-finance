@@ -69,6 +69,30 @@ test('舊版已寫入代墊份額的結清金額時，不再顯示為未結清',
   assert.equal(advanceRows(data.transactions)[0]?.remaining, 0)
 })
 
+test('代墊結清狀態：分次收回累計、記下最後收款日，作廢的收款不算', () => {
+  const data = buildDemoData()
+  const advance = data.transactions.find((transaction) => transaction.kind === 'advance')
+  assert.ok(advance?.advance)
+  const [first, second] = advance.advance.people
+  const settle = (id: string, personId: string, amountMinor: number, occurredOn: string, voidedAt?: string) => ({
+    ...advance, id, kind: 'settlement' as const, occurredOn, voidedAt, advance: undefined, reportLines: [],
+    settlement: { advanceTransactionId: advance.id, personId, direction: 'collect' as const, amountMinor },
+  })
+  const transactions = [
+    ...data.transactions,
+    settle('s1', first.personId, first.expectedMinor, '2026-11-13'),
+    settle('s2', second.personId, 300, '2026-11-24'),
+    settle('s3', second.personId, 500, '2026-11-30', '2026-11-30T00:00:00Z'),
+  ]
+  const row = advanceRows(transactions).find((item) => item.transaction.id === advance.id)
+  assert.equal(row?.original, 1_600)
+  assert.equal(row?.settled, 1_100)
+  assert.equal(row?.remaining, 500)
+  assert.equal(row?.settledOn, '2026-11-24')
+  const people = advancePeopleRows(advance, transactions)
+  assert.equal(people.reduce((sum, person) => sum + person.remainingMinor, 0), row?.remaining)
+})
+
 test('報表月份序列不受台灣時區影響而多出前一個月', () => {
   assert.deepEqual(monthSequence('2026-08-01', '2026-08-31'), ['2026-08'])
   assert.deepEqual(monthSequence('2026-06-01', '2026-08-31'), ['2026-06', '2026-07', '2026-08'])

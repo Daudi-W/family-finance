@@ -532,6 +532,9 @@ input[type="date"] { -webkit-appearance: none; appearance: none; }
 .advance-list-v2 { margin-top: 10px; }
 .advance-list-v2 > button { grid-template-columns: 44px minmax(0,1fr) auto; }
 .advance-list-v2 > button > strong { text-align: right; }
+.advance-tabs.filter-chips { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.advance-list-v2 .settled-text { color: var(--income); font-weight: 400; }
+.advance-more-button { min-height: 46px; border: 1px solid var(--line); border-radius: 14px; color: var(--primary-dark); background: #fff; }
 .advance-list-v2 > button > strong small { margin-top: 3px; font-weight: 400; }
 .advance-balance { padding: 18px; text-align: center; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
 .advance-balance span,.advance-balance small { display: block; color: var(--muted); }

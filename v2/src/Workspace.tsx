@@ -564,6 +564,9 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
     return result
   }, {})
   const groups: [string, FinanceTransaction[]][] = showDateHeading ? Object.entries(grouped) : [['', sorted]]
+  // 代墊列要顯示收回進度、收還款列要標出對應哪一筆代墊；有代墊才掃一次帳本
+  const needsAdvanceStatus = transactions.some((transaction) => transaction.kind === 'advance' || transaction.settlement)
+  const advanceStatus = new Map(needsAdvanceStatus ? advanceRows(data.transactions).map((row) => [row.transaction.id, row]) : [])
   return <div className="transaction-date-groups">{groups.map(([date, items]) => <section className="transaction-date-group" data-date={date || undefined} key={date || 'selected-day'}>{date ? <h3>{formatDateHeading(date)}</h3> : null}<div className="workspace-list">{items.map((transaction) => {
     const line = transaction.reportLines[0]
     const category = data.categories.find((item) => item.id === line?.categoryId)
@@ -587,19 +590,29 @@ function TransactionRows({ transactions, data, onEdit, hideBalances = false, sho
         ? transaction.advance.direction === 'receivable' ? `我先代墊${advanceNames ? `・${advanceNames}` : ''}` : `${advanceNames || '別人'}先代墊`
         : transaction.note || (isTransfer ? transactionLabels.transfer : category?.name) || transactionLabels[transaction.kind]
     const advanceNote = transaction.note && transaction.note !== '代墊' ? `${transaction.note}・` : ''
+    const status = transaction.advance ? advanceStatus.get(transaction.id) : undefined
+    const receivable = transaction.advance?.direction !== 'payable'
+    // 結清後不再寫「待收 $X」：全部收回打勾、收一部分寫已收與待收
+    const advanceProgress = !status || status.settled === 0
+      ? `${receivable ? '待收' : '待還'} ${money(advanceReceivable)}`
+      : status.remaining === 0
+        ? `✓ 已${receivable ? '收回' : '還清'}${status.settledOn ? ` ${shortDate(status.settledOn)}` : ''}`
+        : `已${receivable ? '收' : '還'} ${money(status.settled)}・${receivable ? '待收' : '待還'} ${money(status.remaining)}`
+    const settlementNote = settlement && transaction.note && !['收到代墊款', '歸還代墊款'].includes(transaction.note) ? `${transaction.note}・` : ''
+    const settlementTarget = advance ? `對應 ${shortDate(advance.occurredOn)} ${advance.note && advance.note !== '代墊' ? advance.note : '代墊'}` : '代墊'
     const detail = isTransfer
       ? `${transferFrom?.name ?? '—'} → ${transferTo?.name ?? '—'}`
       : settlement
-      ? `${settlement.direction === 'collect' ? '代墊收回・不計收入' : '代墊還款・不計支出'}${account ? ` · ${account.name}` : ''}`
+      ? `${settlementNote}${settlementTarget}${account ? ` · ${account.name}` : ''}`
       : transaction.advance
         ? transaction.advance.direction === 'receivable'
-          ? `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}待收 ${money(advanceReceivable)}${account ? ` · ${account.name}` : ''}`
-          : `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}待還 ${money(advanceReceivable)}`
+          ? `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}${advanceProgress}${account ? ` · ${account.name}` : ''}`
+          : `${advanceNote}${familyExpense ? `家庭支出 ${money(familyExpense)}・` : ''}${advanceProgress}`
         : `${category?.name ?? transactionLabels[transaction.kind]}${account ? ` · ${account.name}` : ''}`
     // 轉帳只是錢換位置，不是收入也不是支出：一律中性色；在某個帳戶的明細裡才保留進出方向
     const amountTone = settlement || transaction.advance || isTransfer ? 'neutral-money' : amount < 0 ? 'expense-text' : amount > 0 ? 'income-text' : ''
     const amountText = transaction.advance?.direction === 'payable'
-      ? `待還 ${money(advanceReceivable)}`
+      ? status?.remaining === 0 ? `已還 ${money(advanceReceivable)}` : `待還 ${money(status?.remaining ?? advanceReceivable)}`
       : isTransfer && !accountContext
         ? money(Math.abs(amount))
         : `${amount > 0 ? '+' : ''}${money(amount)}`
@@ -1602,9 +1615,14 @@ function advanceShareName(share: { personId: string; name?: string }, data: Fina
 }
 
 function AdvancesPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {
-  const [tab, setTab] = useState<'receivable' | 'payable'>('receivable')
-  const rows = advanceRows(store.data.transactions).filter((row) => row.remaining > 0 && row.transaction.advance?.direction === tab)
+  const [tab, setTab] = useState<'receivable' | 'payable' | 'settled'>('receivable')
+  const [settledLimit, setSettledLimit] = useState(30)
   const allRows = advanceRows(store.data.transactions)
+  // 已結清：最近結清的在上面，回頭查「那筆到底收了沒」用
+  const settledRows = allRows
+    .filter((row) => row.remaining === 0)
+    .sort((a, b) => (b.settledOn ?? b.transaction.occurredOn).localeCompare(a.settledOn ?? a.transaction.occurredOn) || b.transaction.occurredOn.localeCompare(a.transaction.occurredOn))
+  const rows = tab === 'settled' ? settledRows.slice(0, settledLimit) : allRows.filter((row) => row.remaining > 0 && row.transaction.advance?.direction === tab)
   const receivable = allRows.filter((row) => row.transaction.advance?.direction === 'receivable').reduce((sum, row) => sum + row.remaining, 0)
   const payable = allRows.filter((row) => row.transaction.advance?.direction === 'payable').reduce((sum, row) => sum + row.remaining, 0)
   const commonPeople = activeSorted(store.data.advancePeople)
@@ -1612,9 +1630,17 @@ function AdvancesPage({ store, onPush }: { store: Store; onPush: (route: Route) 
     <section className="report-summary"><article><span>別人應還我</span><b className="income-text">{money(receivable)}</b></article><article><span>我應還別人</span><b className="expense-text">{money(payable)}</b></article></section>
     <div className="section-heading"><h2>常用名單</h2><button type="button" onClick={() => onPush({ name: 'advance-people' })}>管理名單</button></div>
     <div className="advance-people-preview">{commonPeople.length ? commonPeople.map((person) => <span key={person.id}>{person.name}</span>) : <span>尚未新增常用姓名</span>}</div>
-    <div className="section-heading"><h2>未結清項目</h2></div>
-    <div className="filter-chips"><button className={tab === 'receivable' ? 'active' : ''} type="button" onClick={() => setTab('receivable')}>待收</button><button className={tab === 'payable' ? 'active' : ''} type="button" onClick={() => setTab('payable')}>待還</button></div>
-    <div className="advance-list-v2">{rows.length ? rows.map((row) => { const people = row.transaction.advance?.people.map((share) => advanceShareName(share, store.data)).join('、'); return <button type="button" key={row.transaction.id} onClick={() => onPush({ name: 'advance-detail', id: row.transaction.id })}><EntityIcon iconKey="hand-coins" /><span><b>{people}{row.transaction.note ? `・${row.transaction.note}` : ''}</b><small>原始 {money(row.transaction.advance?.people.reduce((sum, share) => sum + share.expectedMinor, 0) ?? 0, row.transaction.advance?.currency ?? 'TWD')}・{formatDate(row.transaction.occurredOn)}</small></span><strong className={tab === 'receivable' ? 'income-text' : 'expense-text'}>待{tab === 'receivable' ? '收' : '還'} {money(row.remaining, row.transaction.advance?.currency ?? 'TWD')}<small>明細 ›</small></strong></button> }) : <div className="simple-empty">目前沒有資料</div>}</div>
+    <div className="section-heading"><h2>{tab === 'settled' ? '已結清項目' : '未結清項目'}</h2></div>
+    <div className="filter-chips advance-tabs"><button className={tab === 'receivable' ? 'active' : ''} type="button" onClick={() => setTab('receivable')}>待收</button><button className={tab === 'payable' ? 'active' : ''} type="button" onClick={() => setTab('payable')}>待還</button><button className={tab === 'settled' ? 'active' : ''} type="button" onClick={() => setTab('settled')}>已結清</button></div>
+    <div className="advance-list-v2">{rows.length ? rows.map((row) => {
+      const people = row.transaction.advance?.people.map((share) => advanceShareName(share, store.data)).join('、')
+      const currency = row.transaction.advance?.currency ?? 'TWD'
+      const receivable = row.transaction.advance?.direction === 'receivable'
+      return <button type="button" key={row.transaction.id} onClick={() => onPush({ name: 'advance-detail', id: row.transaction.id })}><EntityIcon iconKey="hand-coins" /><span><b>{people}{row.transaction.note ? `・${row.transaction.note}` : ''}</b><small>{tab === 'settled' ? `${receivable ? '我先代墊' : '別人先代墊'}・` : `原始 ${money(row.original, currency)}・`}{formatDate(row.transaction.occurredOn)}</small></span>{tab === 'settled'
+        ? <strong className="settled-text">✓ {receivable ? '已收回' : '已還清'} {money(row.original, currency)}<small>{row.settledOn ? `${shortDate(row.settledOn)} 結清` : '已結清'}・明細 ›</small></strong>
+        : <strong className={tab === 'receivable' ? 'income-text' : 'expense-text'}>待{tab === 'receivable' ? '收' : '還'} {money(row.remaining, currency)}<small>{row.settled ? `已${tab === 'receivable' ? '收' : '還'} ${money(row.settled, currency)}・` : ''}明細 ›</small></strong>}</button>
+    }) : <div className="simple-empty">{tab === 'settled' ? '還沒有結清的代墊' : '目前沒有資料'}</div>}</div>
+    {tab === 'settled' && settledRows.length > settledLimit ? <button className="advance-more-button full-width-action" type="button" onClick={() => setSettledLimit((limit) => limit + 30)}>再顯示 30 筆（共 {settledRows.length} 筆）</button> : null}
   </main>
 }
 

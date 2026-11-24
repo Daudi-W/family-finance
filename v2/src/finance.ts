@@ -163,13 +163,33 @@ export function settlementsByAdvance(transactions: FinanceTransaction[]) {
   return totals
 }
 
+/**
+ * 每筆代墊的結清狀態。收還款只掃一次（每日明細每列都要查，不能每筆代墊各掃全帳本）。
+ * settledOn：最後一筆收還款的日期；舊版只寫在份額上的結清沒有日期，回退為 undefined。
+ */
 export function advanceRows(transactions: FinanceTransaction[]) {
-  return activeTransactions(transactions)
+  const active = activeTransactions(transactions)
+  const settledByPerson = new Map<string, number>()
+  const lastSettledOn = new Map<string, string>()
+  for (const transaction of active) {
+    const settlement = transaction.settlement
+    if (!settlement) continue
+    const key = `${settlement.advanceTransactionId}\u0000${settlement.personId}`
+    settledByPerson.set(key, (settledByPerson.get(key) ?? 0) + settlement.amountMinor)
+    const previous = lastSettledOn.get(settlement.advanceTransactionId)
+    if (!previous || transaction.occurredOn > previous) lastSettledOn.set(settlement.advanceTransactionId, transaction.occurredOn)
+  }
+  return active
     .filter((transaction) => transaction.kind === 'advance' && transaction.advance)
-    .map((transaction) => ({
-      transaction,
-      remaining: advancePeopleRows(transaction, transactions).reduce((sum, person) => sum + person.remainingMinor, 0),
-    }))
+    .map((transaction) => {
+      const people = transaction.advance?.people ?? []
+      const original = people.reduce((sum, person) => sum + person.expectedMinor, 0)
+      const remaining = people.reduce((sum, person) => {
+        const settled = Math.max(person.settledMinor ?? 0, settledByPerson.get(`${transaction.id}\u0000${person.personId}`) ?? 0)
+        return sum + Math.max(0, person.expectedMinor - settled)
+      }, 0)
+      return { transaction, original, remaining, settled: original - remaining, settledOn: lastSettledOn.get(transaction.id) }
+    })
 }
 
 export function advancePeopleRows(advance: FinanceTransaction, transactions: FinanceTransaction[]) {
