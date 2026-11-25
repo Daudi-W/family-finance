@@ -1,7 +1,7 @@
-import type { Account, FinanceData, Direction, FinanceTransaction } from './types.ts'
+import type { Account, Category, FinanceData, Direction, FinanceTransaction } from './types.ts'
 import { activeTransactions, fromMinor, todayIso } from './finance.ts'
 
-type CategoryRow = { id: string; name: string; direction: Direction; monthly: number[]; total: number }
+type CategoryRow = { id: string; name: string; direction: Direction; irregular: boolean; monthly: number[]; total: number }
 type DetailRow = { date: string; direction: Direction; category: string; amount: number; project: string; note: string }
 
 export type AnnualReportData = {
@@ -11,6 +11,11 @@ export type AnnualReportData = {
   details: DetailRow[]
   monthlyIncome: number[]
   monthlyExpense: number[]
+  /** 支出拆成固定／不固定，兩者相加＝支出。 */
+  monthlyFixedExpense: number[]
+  monthlyIrregularExpense: number[]
+  /** 對帳補上的收入－支出（已含在收支裡），可能是漏記。 */
+  monthlyAdjustmentNet: number[]
   /** 每月月底的資產負債；尚未到的月份為 null。 */
   balanceSheet: (BalancePoint | null)[]
   /** 去年底，用來算一月的增減。 */
@@ -23,6 +28,10 @@ export type BalancePoint = { cash: number; investment: number; receivable: numbe
 
 const months = Array.from({ length: 12 }, (_, index) => index)
 const total = (values: number[]) => values.reduce((sum, value) => sum + value, 0)
+/** 分類沒標記就算固定；系統的「餘額調整」支出分類不是生活費，算不固定。 */
+export const isIrregularCategory = (category?: Category) => category?.irregular ?? category?.systemKey === 'balance_adjustment_expense'
+const isAdjustment = (transaction: FinanceTransaction, category?: Category) => transaction.kind === 'balance_adjustment' || Boolean(category?.systemKey?.startsWith('balance_adjustment'))
+
 const monthEnd = (year: number, month: number) => new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10)
 
 /** 與 calculateNetWorth 同口徑：只算未封存、計入淨資產的帳戶；外幣用帳戶目前的參考匯率。 */
@@ -56,6 +65,7 @@ export function buildAnnualReportData(data: FinanceData, year: number, asOf = to
   const projects = new Map(data.projects.map((item) => [item.id, item.name]))
   const rows = new Map<string, CategoryRow>()
   const details: DetailRow[] = []
+  const monthlyAdjustmentNet = Array(12).fill(0)
   for (const transaction of activeTransactions(data.transactions)) {
     if (Number(transaction.occurredOn.slice(0, 4)) !== year) continue
     const month = Number(transaction.occurredOn.slice(5, 7)) - 1
@@ -64,9 +74,11 @@ export function buildAnnualReportData(data: FinanceData, year: number, asOf = to
       const key = `${line.direction}:${line.categoryId}`
       if (!rows.has(key)) rows.set(key, {
         id: line.categoryId, name: categories.get(line.categoryId)?.name ?? '已刪除分類',
-        direction: line.direction, monthly: Array(12).fill(0), total: 0,
+        direction: line.direction, irregular: line.direction === 'expense' && isIrregularCategory(categories.get(line.categoryId)),
+        monthly: Array(12).fill(0), total: 0,
       })
       const row = rows.get(key)!
+      if (isAdjustment(transaction, categories.get(line.categoryId))) monthlyAdjustmentNet[month] += line.direction === 'income' ? line.amountTwdMinor : -line.amountTwdMinor
       row.monthly[month] += line.amountTwdMinor
       row.total += line.amountTwdMinor
       details.push({
@@ -98,6 +110,9 @@ export function buildAnnualReportData(data: FinanceData, year: number, asOf = to
     year, income, expense, details,
     monthlyIncome: months.map((month) => total(income.map((row) => row.monthly[month]))),
     monthlyExpense: months.map((month) => total(expense.map((row) => row.monthly[month]))),
+    monthlyFixedExpense: months.map((month) => total(expense.filter((row) => !row.irregular).map((row) => row.monthly[month]))),
+    monthlyIrregularExpense: months.map((month) => total(expense.filter((row) => row.irregular).map((row) => row.monthly[month]))),
+    monthlyAdjustmentNet,
     openingBalance: points[0],
     balanceSheet: months.map((month) => `${year}-${String(month + 1).padStart(2, '0')}-01` > asOf ? null : points[month + 1]),
     monthlyInvestmentInflow,
@@ -171,11 +186,12 @@ function classificationSheet(workbook: Workbook, report: AnnualReportData) {
   sheet.getCell('A2').value = '依帳本分類列出每月實際金額；轉帳不列為收入或支出。單位：TWD。'
   const block = (start: number, label: string, rows: CategoryRow[], monthly: number[], color: string) => {
     section(sheet, start, label, color)
-    header(sheet, start + 1, ['分類', '子目', ...months.map((month) => `${month + 1}月`), '年度合計', '占比'])
+    header(sheet, start + 1, ['分類', '性質', ...months.map((month) => `${month + 1}月`), '年度合計', '占比'])
     const first = start + 2
     rows.forEach((item, index) => {
       const row = first + index
       sheet.getCell(row, 1).value = item.name
+      if (item.direction === 'expense') sheet.getCell(row, 2).value = item.irregular ? '不固定' : '固定'
       months.forEach((month) => number(sheet.getCell(row, month + 3), item.monthly[month]))
       formula(sheet.getCell(row, 15), `SUM(C${row}:N${row})`, item.total)
     })
@@ -194,7 +210,7 @@ function classificationSheet(workbook: Workbook, report: AnnualReportData) {
   }
   const incomeTotalRow = block(3, '收入', report.income, report.monthlyIncome, green)
   const expenseTotalRow = block(incomeTotalRow + 3, '支出', report.expense, report.monthlyExpense, orange)
-  sheet.getCell(expenseTotalRow + 2, 1).value = '註：系統分類目前只有一層，範本的子目欄位在此留白。'
+  sheet.getCell(expenseTotalRow + 2, 1).value = '註：「性質」依分類設定的「不固定支出」標記；沒標記的分類算固定。'
   return { incomeTotalRow, expenseTotalRow }
 }
 
@@ -203,7 +219,7 @@ function overviewSheet(sheet: Worksheet, report: AnnualReportData, totals: { inc
   sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: 3 }]
   sheet.getCell('A2').value = '參考年度收支計畫表的月份編排；此檔只列家庭帳本的實際收支，不含預算或存錢目標。單位：TWD。'
   header(sheet, 3, ['項目', '說明', ...months.map((month) => `${month + 1}月`), '年度總計'])
-  for (const [row, label, description] of [[4, '收入', '實際'], [5, '支出', '實際'], [6, '結餘', '收入－支出']] as const) {
+  for (const [row, label, description] of [[4, '收入', '實際'], [5, '支出', '實際'], [6, '結餘', '收入－支出'], [7, '　固定支出', '每月常態開銷'], [8, '　不固定支出', '大筆、不是每月都有'], [9, '對帳差額（淨）', '對帳補上的收入－支出，可能是漏記']] as const) {
     sheet.getCell(row, 1).value = label
     sheet.getCell(row, 2).value = description
   }
@@ -212,17 +228,16 @@ function overviewSheet(sheet: Worksheet, report: AnnualReportData, totals: { inc
     formula(sheet.getCell(4, month + 3), `'分類收支'!${letter}${totals.incomeTotalRow}`, report.monthlyIncome[month])
     formula(sheet.getCell(5, month + 3), `'分類收支'!${letter}${totals.expenseTotalRow}`, report.monthlyExpense[month])
     formula(sheet.getCell(6, month + 3), `${letter}4-${letter}5`, report.monthlyIncome[month] - report.monthlyExpense[month])
+    number(sheet.getCell(7, month + 3), report.monthlyFixedExpense[month])
+    number(sheet.getCell(8, month + 3), report.monthlyIrregularExpense[month])
+    number(sheet.getCell(9, month + 3), report.monthlyAdjustmentNet[month])
   })
+  for (const row of [7, 8, 9]) formula(sheet.getCell(row, 15), `SUM(C${row}:N${row})`, total([report.monthlyFixedExpense, report.monthlyIrregularExpense, report.monthlyAdjustmentNet][row - 7]))
   formula(sheet.getCell('O4'), 'SUM(C4:N4)', total(report.monthlyIncome))
   formula(sheet.getCell('O5'), 'SUM(C5:N5)', total(report.monthlyExpense))
   formula(sheet.getCell('O6'), 'O4-O5', total(report.monthlyIncome) - total(report.monthlyExpense))
   for (let column = 1; column <= 15; column++) sheet.getCell(6, column).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${pale}` } }
-  sheet.mergeCells('A9:P10')
-  sheet.getCell('A9').value = '說明：投資本金移轉、信用卡繳款與帳戶間轉帳不算收入或支出；作廢交易不列入。結餘不是已存款金額。'
-  sheet.getCell('A9').alignment = { wrapText: true, vertical: 'middle' }
-  sheet.getCell('A9').font = { name: 'Arial', size: 11, color: { argb: `FF${ink}` } }
-  sheet.getRow(9).height = 28
-  sheet.getRow(10).height = 22
+  note(sheet, 11, '說明：投資本金移轉、信用卡繳款與帳戶間轉帳不算收入或支出；作廢交易不列入。結餘不是已存款金額。固定＋不固定＝支出；分類沒標「不固定支出」就算固定，對帳補上的支出算不固定。對帳差額已含在收支裡，單月特別大通常代表那個月漏記較多。')
 }
 
 function detailSheet(workbook: Workbook, report: AnnualReportData) {

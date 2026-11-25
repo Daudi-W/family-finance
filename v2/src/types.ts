@@ -19,6 +19,8 @@ export type Category = BaseDocument & {
   iconKey: string
   sortOrder: number
   systemKey?: 'balance_adjustment_income' | 'balance_adjustment_expense' | 'bank_fee'
+  /** 不固定支出（旅遊、保險年繳、3C 等大筆、不是每月都有）。沒設定＝固定；只用在支出分類。 */
+  irregular?: boolean
 }
 
 export type Account = BaseDocument & {

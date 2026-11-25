@@ -92,3 +92,44 @@ test('儲蓄去向與資產負債頁的公式互相對得起來', async () => {
   assert.deepEqual(balance.getCell('C9').value, { formula: 'C8-O8', result: 147320 - 105320 })
   assert.equal(balance.getCell('E4').value, null)
 })
+
+test('支出拆成固定／不固定，兩者相加＝支出；對帳差額另列淨額', async () => {
+  const split = {
+    categories: [
+      { id: 'salary', name: '薪水', direction: 'income', sortOrder: 0 },
+      { id: 'food', name: '飲食', direction: 'expense', sortOrder: 0 },
+      { id: 'trip', name: '旅遊', direction: 'expense', sortOrder: 1, irregular: true },
+      { id: 'rent', name: '房租', direction: 'expense', sortOrder: 2, irregular: false },
+      { id: 'adj-out', name: '餘額調整', direction: 'expense', sortOrder: 3, systemKey: 'balance_adjustment_expense' },
+      { id: 'adj-in', name: '餘額調整', direction: 'income', sortOrder: 1, systemKey: 'balance_adjustment_income' },
+    ],
+    projects: [],
+    accounts: [],
+    transactions: [
+      { occurredOn: '2026-03-01', kind: 'income', accountMoves: [], reportLines: [{ categoryId: 'salary', direction: 'income', amountTwdMinor: 80000 }] },
+      { occurredOn: '2026-03-02', kind: 'expense', accountMoves: [], reportLines: [{ categoryId: 'food', direction: 'expense', amountTwdMinor: 10000 }] },
+      { occurredOn: '2026-03-03', kind: 'expense', accountMoves: [], reportLines: [{ categoryId: 'rent', direction: 'expense', amountTwdMinor: 22000 }] },
+      { occurredOn: '2026-03-04', kind: 'expense', accountMoves: [], reportLines: [{ categoryId: 'trip', direction: 'expense', amountTwdMinor: 30000 }] },
+      { occurredOn: '2026-03-20', kind: 'balance_adjustment', accountMoves: [], reportLines: [{ categoryId: 'adj-out', direction: 'expense', amountTwdMinor: 2000 }] },
+      { occurredOn: '2026-03-20', kind: 'balance_adjustment', accountMoves: [], reportLines: [{ categoryId: 'adj-in', direction: 'income', amountTwdMinor: 500 }] },
+    ],
+  } as unknown as FinanceData
+  const report = buildAnnualReportData(split, 2026, '2026-12-31')
+  assert.equal(report.monthlyFixedExpense[2], 32000)
+  assert.equal(report.monthlyIrregularExpense[2], 32000)
+  assert.equal(report.monthlyFixedExpense[2] + report.monthlyIrregularExpense[2], report.monthlyExpense[2])
+  assert.equal(report.monthlyAdjustmentNet[2], -1500)
+  const workbook = await createAnnualWorkbook(report)
+  const overview = workbook.getWorksheet('年度總覽')!
+  assert.equal(overview.getCell('A7').value, '　固定支出')
+  assert.equal(overview.getCell('E7').value, 32000)
+  assert.equal(overview.getCell('E8').value, 32000)
+  assert.equal(overview.getCell('E9').value, -1500)
+  assert.deepEqual(overview.getCell('O9').value, { formula: 'SUM(C9:N9)', result: -1500 })
+  const category = workbook.getWorksheet('分類收支')!
+  const labels: Record<string, unknown> = {}
+  category.eachRow((row) => { const name = row.getCell(1).value; if (typeof name === 'string') labels[name] = row.getCell(2).value })
+  assert.equal(labels['飲食'], '固定')
+  assert.equal(labels['旅遊'], '不固定')
+  assert.equal(labels['薪水'], null)
+})

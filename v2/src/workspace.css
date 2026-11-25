@@ -469,6 +469,11 @@ input[type="date"] { -webkit-appearance: none; appearance: none; }
 .category-tile.archived { opacity: .5; }
 .category-main { width: 100%; min-height: 98px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; }
 .category-tile.is-sorting .category-main { min-height: 78px; }
+.category-tag { position: absolute; top: 6px; right: 6px; padding: 1px 6px; border-radius: 999px; background: #F3F1E7; color: #35565C; font-size: 11px; line-height: 16px; }
+.settings-form > label.category-irregular-toggle { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.settings-form .category-irregular-toggle input { width: 20px; height: 20px; min-height: 0; padding: 0; margin-top: 2px; flex: none; accent-color: #05769A; }
+.category-irregular-toggle span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.category-irregular-toggle small { color: var(--muted); font-weight: 400; line-height: 1.4; }
 .category-drag { width: 34px; height: 34px; position: absolute; top: 2px; left: 2px; display: grid; place-items: center; color: var(--muted); cursor: grab; touch-action: none; }
 .category-drag svg { width: 17px; }
 .category-sort-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
