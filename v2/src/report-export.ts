@@ -1,5 +1,5 @@
-import type { FinanceData, Direction } from './types.ts'
-import { activeTransactions } from './finance.ts'
+import type { Account, FinanceData, Direction, FinanceTransaction } from './types.ts'
+import { activeTransactions, fromMinor, todayIso } from './finance.ts'
 
 type CategoryRow = { id: string; name: string; direction: Direction; monthly: number[]; total: number }
 type DetailRow = { date: string; direction: Direction; category: string; amount: number; project: string; note: string }
@@ -11,12 +11,46 @@ export type AnnualReportData = {
   details: DetailRow[]
   monthlyIncome: number[]
   monthlyExpense: number[]
+  /** 每月月底的資產負債；尚未到的月份為 null。 */
+  balanceSheet: (BalancePoint | null)[]
+  /** 去年底，用來算一月的增減。 */
+  openingBalance: BalancePoint
+  /** 每月轉入投資帳戶的淨額（轉出為負）。 */
+  monthlyInvestmentInflow: number[]
 }
+
+export type BalancePoint = { cash: number; investment: number; receivable: number; card: number }
 
 const months = Array.from({ length: 12 }, (_, index) => index)
 const total = (values: number[]) => values.reduce((sum, value) => sum + value, 0)
+const monthEnd = (year: number, month: number) => new Date(Date.UTC(year, month + 1, 0)).toISOString().slice(0, 10)
 
-export function buildAnnualReportData(data: FinanceData, year: number): AnnualReportData {
+/** 與 calculateNetWorth 同口徑：只算未封存、計入淨資產的帳戶；外幣用帳戶目前的參考匯率。 */
+const netWorthAccounts = (accounts: Account[]) => accounts.filter((account) => !account.archivedAt && account.includeInNetWorth)
+const toTwd = (account: Account, minor: number) => Math.round(fromMinor(minor, account.currency) * (account.currency === 'TWD' ? 1 : account.referenceRateToTwd ?? 0))
+
+function balanceSeries(accounts: Account[], transactions: FinanceTransaction[], dates: string[]): BalancePoint[] {
+  const tracked = netWorthAccounts(accounts)
+  const balances = new Map(tracked.map((account) => [account.id, account.openingBalanceMinor]))
+  const sorted = transactions.slice().sort((left, right) => left.occurredOn.localeCompare(right.occurredOn))
+  let cursor = 0
+  return dates.map((date) => {
+    for (; cursor < sorted.length && sorted[cursor].occurredOn <= date; cursor++) {
+      for (const move of sorted[cursor].accountMoves) if (balances.has(move.accountId)) balances.set(move.accountId, balances.get(move.accountId)! + move.deltaMinor)
+    }
+    const point: BalancePoint = { cash: 0, investment: 0, receivable: 0, card: 0 }
+    for (const account of tracked) {
+      const value = toTwd(account, balances.get(account.id)!)
+      if (account.type === 'credit_card') point.card += value
+      else if (account.type === 'investment') point.investment += value
+      else if (account.type === 'receivable') point.receivable += value
+      else point.cash += value
+    }
+    return point
+  })
+}
+
+export function buildAnnualReportData(data: FinanceData, year: number, asOf = todayIso()): AnnualReportData {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new Error('年份不正確')
   const categories = new Map(data.categories.map((item) => [item.id, item]))
   const projects = new Map(data.projects.map((item) => [item.id, item.name]))
@@ -47,10 +81,26 @@ export function buildAnnualReportData(data: FinanceData, year: number): AnnualRe
   const income = [...rows.values()].filter((row) => row.direction === 'income').sort(byOrder)
   const expense = [...rows.values()].filter((row) => row.direction === 'expense').sort(byOrder)
   details.sort((a, b) => a.date.localeCompare(b.date))
+  const accounts = data.accounts ?? []
+  const active = activeTransactions(data.transactions)
+  const investmentIds = new Set(netWorthAccounts(accounts).filter((account) => account.type === 'investment').map((account) => account.id))
+  const accountById = new Map(accounts.map((account) => [account.id, account]))
+  const monthlyInvestmentInflow = Array(12).fill(0)
+  for (const transaction of active) {
+    if (transaction.kind !== 'transfer' || Number(transaction.occurredOn.slice(0, 4)) !== year) continue
+    const month = Number(transaction.occurredOn.slice(5, 7)) - 1
+    for (const move of transaction.accountMoves) if (investmentIds.has(move.accountId)) monthlyInvestmentInflow[month] += toTwd(accountById.get(move.accountId)!, move.deltaMinor)
+  }
+  // 本月算到今天；之後的月份還沒發生，留空
+  const dates = [`${year - 1}-12-31`, ...months.map((month) => monthEnd(year, month))]
+  const points = balanceSeries(accounts, active, dates.map((date) => date > asOf ? asOf : date))
   return {
     year, income, expense, details,
     monthlyIncome: months.map((month) => total(income.map((row) => row.monthly[month]))),
     monthlyExpense: months.map((month) => total(expense.map((row) => row.monthly[month]))),
+    openingBalance: points[0],
+    balanceSheet: months.map((month) => `${year}-${String(month + 1).padStart(2, '0')}-01` > asOf ? null : points[month + 1]),
+    monthlyInvestmentInflow,
   }
 }
 
@@ -199,14 +249,102 @@ function detailSheet(workbook: Workbook, report: AnnualReportData) {
   sheet.autoFilter = { from: 'A3', to: `F${Math.max(3, report.details.length + 3)}` }
 }
 
+const column = (month: number) => String.fromCharCode(67 + month)
+
+function note(sheet: Worksheet, rowNumber: number, text: string) {
+  sheet.mergeCells(`A${rowNumber}:P${rowNumber + 1}`)
+  const cell = sheet.getCell(`A${rowNumber}`)
+  cell.value = text
+  cell.alignment = { wrapText: true, vertical: 'top' }
+  cell.font = { name: 'Arial', size: 11, color: { argb: `FF${ink}` } }
+  sheet.getRow(rowNumber).height = 28
+  sheet.getRow(rowNumber + 1).height = 28
+}
+
+function balanceSheetSheet(sheet: Worksheet, report: AnnualReportData) {
+  title(sheet, `${report.year} 每月資產負債`, 'P')
+  sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: 3 }]
+  sheet.getCell('A2').value = '每月月底的帳戶餘額合計；本月算到下載當天，之後的月份留空。單位：TWD。'
+  header(sheet, 3, ['項目', '說明', ...months.map((month) => `${month + 1}月`), '去年底'])
+  const rows = [
+    [4, '現金存款', '現金＋銀行', 'cash'],
+    [5, '投資', '投入成本', 'investment'],
+    [6, '應收／借出', '別人欠我們', 'receivable'],
+    [7, '信用卡欠款', '未繳卡費', 'card'],
+  ] as const
+  for (const [row, label, description, key] of rows) {
+    sheet.getCell(row, 1).value = label
+    sheet.getCell(row, 2).value = description
+    report.balanceSheet.forEach((point, month) => { if (point) number(sheet.getCell(row, month + 3), point[key]) })
+    number(sheet.getCell(row, 15), report.openingBalance[key])
+  }
+  sheet.getCell('A8').value = '淨資產'
+  sheet.getCell('B8').value = '資產－欠款'
+  sheet.getCell('A9').value = '淨資產增減'
+  sheet.getCell('B9').value = '比上個月'
+  const netWorth = (point: { cash: number; investment: number; receivable: number; card: number }) => point.cash + point.investment + point.receivable - point.card
+  report.balanceSheet.forEach((point, month) => {
+    if (!point) return
+    const letter = column(month)
+    formula(sheet.getCell(8, month + 3), `${letter}4+${letter}5+${letter}6-${letter}7`, netWorth(point))
+    const previous = month === 0 ? report.openingBalance : report.balanceSheet[month - 1]!
+    formula(sheet.getCell(9, month + 3), month === 0 ? 'C8-O8' : `${letter}8-${column(month - 1)}8`, netWorth(point) - netWorth(previous))
+  })
+  formula(sheet.getCell('O8'), 'O4+O5+O6-O7', netWorth(report.openingBalance))
+  for (let col = 1; col <= 15; col++) sheet.getCell(8, col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${pale}` } }
+  note(sheet, 11, '投資以投入成本計，不含市值漲跌與未記錄的股利；外幣用下載當天的參考匯率換算；封存帳戶與設定為不計入淨資產的帳戶不列入（與 App 淨資產一致）。')
+}
+
+function savingsSheet(sheet: Worksheet, report: AnnualReportData) {
+  title(sheet, `${report.year} 儲蓄去向`, 'P')
+  sheet.views = [{ state: 'frozen', xSplit: 2, ySplit: 3 }]
+  sheet.getCell('A2').value = '每月結餘有多少進了投資、現金存款實際增減多少。單位：TWD。'
+  header(sheet, 3, ['項目', '說明', ...months.map((month) => `${month + 1}月`), '年度總計'])
+  const labels = [
+    [4, '結餘', '收入－支出'],
+    [5, '轉入投資', '轉進投資帳戶的淨額'],
+    [6, '結餘扣掉投資', '負數＝投資用到存款'],
+    [7, '現金存款增減', '月底比上月底'],
+  ] as const
+  for (const [row, label, description] of labels) {
+    sheet.getCell(row, 1).value = label
+    sheet.getCell(row, 2).value = description
+  }
+  months.forEach((month) => {
+    const letter = column(month)
+    const balance = report.monthlyIncome[month] - report.monthlyExpense[month]
+    formula(sheet.getCell(4, month + 3), `'年度總覽'!${letter}6`, balance)
+    number(sheet.getCell(5, month + 3), report.monthlyInvestmentInflow[month])
+    formula(sheet.getCell(6, month + 3), `${letter}4-${letter}5`, balance - report.monthlyInvestmentInflow[month])
+    const point = report.balanceSheet[month]
+    if (!point) return
+    const previous = month === 0 ? report.openingBalance : report.balanceSheet[month - 1]!
+    formula(sheet.getCell(7, month + 3), month === 0 ? `'每月資產負債'!C4-'每月資產負債'!O4` : `'每月資產負債'!${letter}4-'每月資產負債'!${column(month - 1)}4`, point.cash - previous.cash)
+  })
+  const filled = report.balanceSheet.filter(Boolean).length
+  const lastCash = filled ? report.balanceSheet[filled - 1]!.cash : report.openingBalance.cash
+  for (const [row, value] of [
+    [4, total(report.monthlyIncome) - total(report.monthlyExpense)],
+    [5, total(report.monthlyInvestmentInflow)],
+    [6, total(report.monthlyIncome) - total(report.monthlyExpense) - total(report.monthlyInvestmentInflow)],
+    [7, lastCash - report.openingBalance.cash],
+  ] as const) formula(sheet.getCell(row, 15), `SUM(C${row}:N${row})`, value)
+  for (let col = 1; col <= 15; col++) sheet.getCell(6, col).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${pale}` } }
+  note(sheet, 9, '「結餘扣掉投資」和「現金存款增減」不會剛好相等，差額來自信用卡還沒繳的消費、代墊、帳務調整與匯率。如果「結餘扣掉投資」連續幾個月是負數，代表投資的錢來自存款，不是當月結餘。')
+}
+
 export async function createAnnualWorkbook(report: AnnualReportData): Promise<Workbook> {
   const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   workbook.creator = '家庭記帳'
   workbook.calcProperties.fullCalcOnLoad = true
   const overview = workbook.addWorksheet('年度總覽')
+  const savings = workbook.addWorksheet('儲蓄去向')
+  const balance = workbook.addWorksheet('每月資產負債')
   const totals = classificationSheet(workbook, report)
   overviewSheet(overview, report, totals)
+  savingsSheet(savings, report)
+  balanceSheetSheet(balance, report)
   detailSheet(workbook, report)
   return workbook
 }

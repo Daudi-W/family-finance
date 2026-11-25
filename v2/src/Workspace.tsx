@@ -1418,7 +1418,7 @@ function BudgetCategoryPage({ store, categoryId, onEditTransaction }: { store: S
 
 function MorePage({ onPush }: { onPush: (route: Route) => void }) {
   const items = [
-    { route: 'report-export' as const, label: '匯出年度報表', description: 'Excel 月收支、分類與交易明細', icon: Download },
+    { route: 'report-export' as const, label: '匯出年度報表', description: 'Excel 月收支、儲蓄去向、資產負債與明細', icon: Download },
     { route: 'account-manager' as const, label: '帳戶管理', description: '設定、封存與恢復帳戶', icon: Landmark },
     { route: 'projects' as const, label: '專案記帳', description: '旅行、活動等獨立收支', icon: ReceiptText },
     { route: 'budgets' as const, label: '預算設定', description: '每月與年度分類預算', icon: CircleDollarSign },
@@ -1441,7 +1441,7 @@ function AnnualExportPage({ store }: { store: Store }) {
     catch (cause) { setError(cause instanceof Error ? cause.message : '匯出失敗，請再試一次。') }
     finally { setBusy(false) }
   }
-  return <main className="workspace-page"><section className="settings-form report-export-page"><label><span>報表年份</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item} 年</option>)}</select></label><p className="page-intro">依年度整理每月收入、支出、結餘、分類統計與交易明細。格式參考原年度計畫表，只列帳本實際收支，不含預算或存錢目標。</p><button className="primary-button" type="button" disabled={busy} onClick={() => void exportWorkbook()}><Download size={18} />{busy ? '正在產生 Excel…' : '下載 Excel 報表'}</button>{error ? <p role="alert" className="form-error">{error}</p> : null}</section></main>
+  return <main className="workspace-page"><section className="settings-form report-export-page"><label><span>報表年份</span><select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item} 年</option>)}</select></label><p className="page-intro">依年度整理每月收入、支出、結餘、儲蓄去向、月底資產負債、分類統計與交易明細。只列帳本實際數字，不含預算或存錢目標。</p><button className="primary-button" type="button" disabled={busy} onClick={() => void exportWorkbook()}><Download size={18} />{busy ? '正在產生 Excel…' : '下載 Excel 報表'}</button>{error ? <p role="alert" className="form-error">{error}</p> : null}</section></main>
 }
 
 function AccountManagerPage({ store, onPush }: { store: Store; onPush: (route: Route) => void }) {
